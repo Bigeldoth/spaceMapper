@@ -13,6 +13,13 @@ repository.workspace = true
 name = "spacemapper_lite_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
+[lints.rust]
+# `link.exe` s'exprime dans la langue du système et annonce la création du
+# .lib/.exp ; la lint relaie ces messages d'information comme des
+# avertissements. Bruit pur sur un MSVC non anglophone, et bloquant en CI où
+# les avertissements sont refusés.
+linker_messages = "allow"
+
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
 
@@ -22,6 +29,7 @@ tauri-plugin-dialog = "2"
 tauri-plugin-opener = "2"
 
 spacemapper-core = { workspace = true }
+spacemapper-edit = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }

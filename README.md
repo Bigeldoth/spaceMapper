@@ -8,28 +8,41 @@ Gestion et optimisation des contrôles pour **Star Citizen**. Détecte vos péri
 
 ## Ce dépôt
 
-Ce dépôt public contient l'**édition Lite** et le cœur de lecture partagé :
+Ce dépôt public contient l'**édition Lite** et les crates partagés :
 
 | Composant | Rôle |
 |---|---|
 | `crates/spacemapper-core` | Énumération DirectInput, modèle et **lecture** de `actionmaps.xml`, catalogue d'actions |
+| `crates/spacemapper-edit` | Écriture sûre : périmètre restreint et sauvegarde obligatoire |
 | `apps/spacemapper-lite` | Application de bureau Lite (Tauri + React) |
 
-L'édition **Premium** (réparation automatique, linter avec correction, sauvegardes, studio visuel, presets communautaires, exports) est développée dans un dépôt privé et distribuée sous licence.
+L'édition **Premium** (export, import, synchronisation, réparation de l'ordre des périphériques, linter avec correction, studio visuel, presets communautaires) est développée dans un dépôt privé et distribuée sous licence.
 
 ## Éditions
 
 |  | Lite (gratuit) | Premium (15 €) |
 |---|---|---|
 | Détection des périphériques par GUID | ✅ | ✅ |
-| Lecture et aperçu des assignations de vol | ✅ | ✅ |
+| Lecture et aperçu de toutes les assignations | ✅ | ✅ |
+| Sauvegarde automatique avant écriture | ✅ | ✅ |
+| **Modifier les déplacements** (vol et à pied) | ✅ | ✅ |
+| Modifier le combat, l'énergie, les systèmes | — | ✅ |
+| Modificateurs et modes d'activation | — | ✅ |
+| Export, import, synchronisation | — | ✅ |
 | Réparation de l'ordre des périphériques | — | ✅ |
 | Linter XML avec correction automatique | — | ✅ |
-| Sauvegardes et injection dans le jeu | — | ✅ |
 | Presets communautaires | Aperçu | Application 1 clic |
-| Studio visuel, exports, assistant pas-à-pas | — | ✅ |
+| Studio visuel, assistant pas-à-pas | — | ✅ |
 
-**Lite ne modifie jamais vos fichiers de jeu et n'effectue aucun appel réseau.** Il lit, il affiche, c'est tout.
+### Ce que Lite garantit
+
+**Lite n'effectue aucun appel réseau.** Pas de télémétrie, pas de compte, pas de mise à jour silencieuse.
+
+**Lite sauvegarde toujours avant d'écrire.** Une copie horodatée est déposée dans `%APPDATA%\SpaceMapper\Backups` avant chaque modification. Si la sauvegarde échoue, la modification n'a pas lieu. Ce comportement n'est pas désactivable, et n'est pas une fonctionnalité payante : c'est la condition pour avoir le droit d'écrire dans vos fichiers.
+
+**Lite ne touche qu'aux déplacements.** Le périmètre est appliqué dans la couche d'écriture en Rust, pas dans l'interface — une catégorie hors périmètre est refusée quoi qu'affiche l'écran. Les assignations portant un modificateur ou un mode d'activation sont présentées en lecture seule plutôt que modifiées à l'aveugle.
+
+> ⚠️ Fermez Star Citizen avant de modifier vos contrôles : le jeu réécrit `actionmaps.xml` en quittant et écraserait vos changements.
 
 ## Sécurité anti-triche
 

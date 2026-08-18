@@ -2,6 +2,7 @@
 resolver = "2"
 members = [
     "crates/spacemapper-core",
+    "crates/spacemapper-edit",
     "apps/spacemapper-lite/src-tauri",
 ]
 
@@ -15,11 +16,16 @@ repository = "https://github.com/Bigeldoth/spaceMapper"
 
 [workspace.dependencies]
 spacemapper-core = { path = "crates/spacemapper-core" }
+spacemapper-edit = { path = "crates/spacemapper-edit" }
 
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 thiserror = "2"
+# roxmltree pour lire : il conserve les positions, indispensable aux
+# diagnostics. quick-xml pour écrire : son modèle par événements permet de
+# recopier à l'identique tout ce qu'on ne modifie pas.
 roxmltree = "0.20"
+quick-xml = "0.37"
 tracing = "0.1"
 
 [profile.release]

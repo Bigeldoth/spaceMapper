@@ -4,9 +4,10 @@ Copyright (c) 2026 Patrice Declemy / Padek-interactive (SIREN 108049172)
 Tous droits réservés.
 
 Ce code source est publié dans un but de TRANSPARENCE : il permet à quiconque
-de vérifier que SpaceMapper Lite ne modifie aucun fichier de jeu, n'effectue
-aucun appel réseau et ne collecte aucune donnée. Il n'est pas publié sous une
-licence libre.
+de vérifier ce que SpaceMapper Lite fait de ses fichiers — qu'il sauvegarde
+systématiquement avant toute écriture, qu'il limite ses modifications aux
+commandes de déplacement, qu'il n'effectue aucun appel réseau et ne collecte
+aucune donnée. Il n'est pas publié sous une licence libre.
 
 
 1. CE QUI EST AUTORISÉ

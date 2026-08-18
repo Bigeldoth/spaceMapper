@@ -1,17 +1,21 @@
 //! SpaceMapper **Lite** — édition gratuite.
 //!
-//! Cette édition est délibérément incapable d'écrire quoi que ce soit. Elle ne
-//! dépend que de `spacemapper-core`, qui est un crate de lecture seule : aucun
-//! chemin de code de ce binaire n'ouvre un fichier en écriture, et aucune
-//! commande exposée au frontend ne prend de chemin de destination.
+//! Lite sait lire un profil et **réassigner les commandes de déplacement**, à
+//! pied comme en vol. Deux garde-fous encadrent cette écriture, tous deux
+//! appliqués en Rust par `spacemapper-edit` et non dans l'interface :
 //!
-//! Ce n'est pas une restriction d'interface qu'on pourrait contourner en
-//! modifiant le JavaScript : le code de mutation n'existe pas dans ce binaire.
+//! - **Périmètre restreint.** Seules les catégories de déplacement sont
+//!   modifiables. Armement, ciblage, énergie, systèmes de bord et tourelles
+//!   sont refusés par la couche d'écriture elle-même.
+//! - **Sauvegarde obligatoire.** Une copie horodatée précède chaque écriture.
+//!   Si elle échoue, l'écriture n'a pas lieu. Ce n'est pas une option.
 //!
 //! Lite n'effectue par ailleurs **aucun appel réseau**. Pas de télémétrie, pas
-//! de vérification de licence, pas de mise à jour silencieuse.
+//! de vérification de licence, pas de mise à jour silencieuse. L'export,
+//! l'import et la synchronisation relèvent de l'édition Premium.
 
 mod commands;
+mod editing;
 
 pub fn run() {
     tauri::Builder::default()
@@ -22,6 +26,11 @@ pub fn run() {
             commands::locate_actionmaps,
             commands::read_flight_bindings,
             commands::build_info,
+            editing::list_editable_bindings,
+            editing::set_binding,
+            editing::clear_binding,
+            editing::list_backups,
+            editing::restore_backup,
         ])
         .run(tauri::generate_context!())
         .expect("échec du démarrage de SpaceMapper Lite");

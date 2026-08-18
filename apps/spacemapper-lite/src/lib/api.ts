@@ -51,10 +51,45 @@ export interface BuildInfo {
   version: string;
 }
 
+export type EditCategory = "flight" | "on_foot";
+
+export interface EditableBinding {
+  actionmap: string;
+  category: EditCategory;
+  action: string;
+  input_raw: string;
+  device: string | null;
+  control: string | null;
+  /** Non modifiable en Lite : porte un modificateur ou un mode d'activation. */
+  locked: boolean;
+  locked_reason: string | null;
+}
+
+export interface BackupView {
+  path: string;
+  /** Millisecondes depuis l'époque Unix, sous forme de chaîne. */
+  timestamp: string;
+}
+
 export const api = {
   listDevices: () => invoke<DeviceView[]>("list_devices"),
   locateActionmaps: () => invoke<ProfileLocation[]>("locate_actionmaps"),
   readFlightBindings: (path: string) =>
     invoke<FlightBindings>("read_flight_bindings", { path }),
   buildInfo: () => invoke<BuildInfo>("build_info"),
+
+  listEditableBindings: (path: string) =>
+    invoke<EditableBinding[]>("list_editable_bindings", { path }),
+
+  /** Renvoie le chemin de la sauvegarde créée avant l'écriture. */
+  setBinding: (path: string, actionmap: string, action: string, input: string) =>
+    invoke<string>("set_binding", { path, actionmap, action, input }),
+
+  clearBinding: (path: string, actionmap: string, action: string) =>
+    invoke<string>("clear_binding", { path, actionmap, action }),
+
+  listBackups: () => invoke<BackupView[]>("list_backups"),
+
+  restoreBackup: (path: string, backupPath: string) =>
+    invoke<void>("restore_backup", { path, backupPath }),
 };

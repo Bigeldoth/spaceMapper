@@ -10,8 +10,11 @@ import {
   type ProfileLocation,
 } from "./lib/api";
 import { actionLabel, categoryLabel, isKnownAction } from "./lib/actionLabels";
+import BindingEditor from "./BindingEditor";
 
 const TIPEEE_URL = "https://fr.tipeee.com/padek-interactive";
+
+type Tab = "overview" | "edit";
 
 export default function App() {
   const [devices, setDevices] = useState<DeviceView[]>([]);
@@ -21,6 +24,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [build, setBuild] = useState<BuildInfo | null>(null);
+  const [tab, setTab] = useState<Tab>("overview");
 
   // Découverte initiale : périphériques branchés et profils sur le disque.
   useEffect(() => {
@@ -99,7 +103,15 @@ export default function App() {
               onBrowse={browseForProfile}
             />
             {error && <ErrorNotice message={error} />}
-            {bindings && <BindingsSection bindings={bindings} />}
+
+            {selected && (
+              <>
+                <Tabs active={tab} onChange={setTab} />
+                {tab === "overview"
+                  ? bindings && <BindingsSection bindings={bindings} />
+                  : <BindingEditor profilePath={selected} devices={devices} />}
+              </>
+            )}
           </div>
         )}
       </main>
@@ -133,10 +145,42 @@ function Header() {
           </span>
         </div>
         <p className="text-xs text-ink-500">
-          Lecture seule — aucune modification de vos fichiers de jeu
+          Sauvegarde automatique avant chaque modification
         </p>
       </div>
     </header>
+  );
+}
+
+function Tabs({
+  active,
+  onChange,
+}: {
+  active: Tab;
+  onChange: (tab: Tab) => void;
+}) {
+  const tabs: { id: Tab; label: string }[] = [
+    { id: "overview", label: "Aperçu complet" },
+    { id: "edit", label: "Modifier les déplacements" },
+  ];
+
+  return (
+    <div className="flex gap-1 border-b border-ink-200">
+      {tabs.map((t) => (
+        <button
+          key={t.id}
+          onClick={() => onChange(t.id)}
+          className={
+            "-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors " +
+            (active === t.id
+              ? "border-accent-600 text-accent-700"
+              : "border-transparent text-ink-500 hover:text-ink-800")
+          }
+        >
+          {t.label}
+        </button>
+      ))}
+    </div>
   );
 }
 

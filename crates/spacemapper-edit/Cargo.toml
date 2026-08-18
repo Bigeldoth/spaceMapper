@@ -1,0 +1,15 @@
+[package]
+name = "spacemapper-edit"
+description = "Écriture sûre dans actionmaps.xml : périmètre restreint et sauvegarde obligatoire"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+spacemapper-core = { workspace = true }
+quick-xml = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
