@@ -1,0 +1,32 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/spacemapper-core",
+    "apps/spacemapper-lite/src-tauri",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.77"
+authors = ["Patrice Declemy <declemy.patrice@gmail.com>"]
+homepage = "https://padek-interactive.tech"
+repository = "https://github.com/Bigeldoth/spaceMapper"
+
+[workspace.dependencies]
+spacemapper-core = { path = "crates/spacemapper-core" }
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+roxmltree = "0.20"
+tracing = "0.1"
+
+[profile.release]
+# Cible <80 Mo de RAM et <2 s de démarrage : on optimise la taille et on
+# laisse LLVM inliner à travers les crates.
+opt-level = "s"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

@@ -1,0 +1,26 @@
+[package]
+name = "spacemapper-core"
+description = "Cœur de lecture SpaceMapper : énumération des périphériques et analyse de actionmaps.xml"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+roxmltree = { workspace = true }
+tracing = { workspace = true }
+
+[target.'cfg(windows)'.dependencies]
+# DirectInput 8 vit sous Win32_Devices_HumanInterfaceDevice, pas sous
+# Win32_UI_Input : cette dernière ne couvre que clavier/souris/tablette.
+windows = { version = "0.58", features = [
+    "Win32_Foundation",
+    "Win32_Devices_HumanInterfaceDevice",
+    "Win32_System_Com",
+    "Win32_System_LibraryLoader",
+] }

@@ -1,0 +1,41 @@
+# ---- Secrets : ne JAMAIS committer ----
+*.pem
+*.key
+*.p12
+*.pfx
+.env
+.env.*
+!.env.example
+secrets/
+**/private_key*
+**/signing_key*
+
+# ---- Rust ----
+/target/
+**/target/
+Cargo.lock.bak
+
+# ---- Node ----
+node_modules/
+dist/
+dist-ssr/
+.vite/
+*.local
+
+# ---- Tauri ----
+/apps/*/src-tauri/target/
+/apps/*/src-tauri/gen/
+
+# ---- Editeurs / OS ----
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- Logs / temp ----
+*.log
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*

@@ -1,0 +1,56 @@
+SpaceMapper — Licence Source Disponible
+Copyright (c) 2026 Patrice Declemy / Padek-interactive (SIREN 108049172)
+
+Tous droits réservés.
+
+Ce code source est publié dans un but de TRANSPARENCE : il permet à quiconque
+de vérifier que SpaceMapper Lite ne modifie aucun fichier de jeu, n'effectue
+aucun appel réseau et ne collecte aucune donnée. Il n'est pas publié sous une
+licence libre.
+
+
+1. CE QUI EST AUTORISÉ
+
+   a) Consulter, lire et étudier ce code source.
+   b) En compiler une copie pour votre usage personnel et privé.
+   c) Soumettre des correctifs ou suggestions au dépôt d'origine.
+   d) Citer des extraits à des fins de commentaire, de critique,
+      d'enseignement ou de recherche.
+
+
+2. CE QUI EST INTERDIT SANS AUTORISATION ÉCRITE PRÉALABLE
+
+   a) Redistribuer ce code, modifié ou non, sous quelque forme que ce soit.
+   b) Distribuer des binaires compilés à partir de ce code.
+   c) En faire un usage commercial, direct ou indirect.
+   d) Créer une œuvre dérivée destinée à être publiée ou distribuée.
+   e) Réutiliser tout ou partie de ce code dans un autre projet.
+
+   Pour toute demande d'autorisation : contact via https://padek-interactive.tech
+
+
+3. ÉDITION PREMIUM
+
+   SpaceMapper Premium est un logiciel propriétaire distinct, distribué sous
+   licence payante et non couvert par le présent dépôt. La présente licence ne
+   confère aucun droit sur celui-ci.
+
+
+4. ABSENCE DE GARANTIE
+
+   CE LOGICIEL EST FOURNI « EN L'ÉTAT », SANS GARANTIE D'AUCUNE SORTE, EXPRESSE
+   OU IMPLICITE, Y COMPRIS SANS S'Y LIMITER LES GARANTIES DE QUALITÉ MARCHANDE
+   ET D'ADÉQUATION À UN USAGE PARTICULIER. EN AUCUN CAS L'AUTEUR NE POURRA ÊTRE
+   TENU RESPONSABLE D'UNE QUELCONQUE RÉCLAMATION, DE DOMMAGES OU DE TOUTE AUTRE
+   RESPONSABILITÉ, QUE CE SOIT DANS LE CADRE D'UN CONTRAT, D'UN DÉLIT OU AUTRE,
+   DÉCOULANT DU LOGICIEL OU DE SON UTILISATION.
+
+
+5. MARQUES ET AFFILIATION
+
+   « Star Citizen » et « Roberts Space Industries » sont des marques de Cloud
+   Imperium Rights LLC. SpaceMapper est un outil indépendant, non affilié à
+   Cloud Imperium Games ni approuvé par eux.
+
+   SpaceMapper fonctionne exclusivement hors-processus : il ne lit ni n'écrit
+   dans la mémoire du jeu et n'injecte aucun code.
