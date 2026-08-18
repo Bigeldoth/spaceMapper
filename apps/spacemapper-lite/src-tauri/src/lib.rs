@@ -1,18 +1,21 @@
 //! SpaceMapper **Lite** — édition gratuite.
 //!
 //! Lite sait lire un profil et **réassigner les commandes de déplacement**, à
-//! pied comme en vol. Deux garde-fous encadrent cette écriture, tous deux
-//! appliqués en Rust par `spacemapper-edit` et non dans l'interface :
+//! pied comme en vol, avec des points de restauration créés à la demande.
 //!
-//! - **Périmètre restreint.** Seules les catégories de déplacement sont
-//!   modifiables. Armement, ciblage, énergie, systèmes de bord et tourelles
-//!   sont refusés par la couche d'écriture elle-même.
-//! - **Sauvegarde obligatoire.** Une copie horodatée précède chaque écriture.
-//!   Si elle échoue, l'écriture n'a pas lieu. Ce n'est pas une option.
+//! Le **périmètre est restreint** aux catégories de déplacement, et cette
+//! limite est appliquée en Rust par `spacemapper-edit`, pas dans l'interface :
+//! armement, ciblage, énergie, systèmes de bord et tourelles sont refusés par
+//! la couche d'écriture elle-même.
 //!
-//! Lite n'effectue par ailleurs **aucun appel réseau**. Pas de télémétrie, pas
-//! de vérification de licence, pas de mise à jour silencieuse. L'export,
-//! l'import et la synchronisation relèvent de l'édition Premium.
+//! Lite n'effectue **aucun appel réseau** — et pas seulement par convention :
+//! son arbre de dépendances ne contient aucun client HTTP, le binaire est donc
+//! techniquement incapable d'émettre une requête. Pas de télémétrie, pas de
+//! compte, pas de mise à jour silencieuse. Le lien vers la page de vente est
+//! remis au navigateur du système sur clic explicite.
+//!
+//! L'export, l'import, la synchronisation et les profils nommés relèvent de
+//! l'édition Premium.
 
 mod commands;
 mod editing;
@@ -29,6 +32,7 @@ pub fn run() {
             editing::list_editable_bindings,
             editing::set_binding,
             editing::clear_binding,
+            editing::create_backup,
             editing::list_backups,
             editing::restore_backup,
         ])

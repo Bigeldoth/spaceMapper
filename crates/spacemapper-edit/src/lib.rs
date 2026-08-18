@@ -1,12 +1,22 @@
 //! Écriture sûre dans `actionmaps.xml`.
 //!
 //! Ce crate est le seul endroit du dépôt public qui modifie un fichier de jeu.
-//! Il impose deux garde-fous, appliqués en Rust et non dans l'interface :
+//! Trois garanties encadrent cette écriture, appliquées en Rust et non dans
+//! l'interface :
 //!
 //! 1. **Périmètre restreint** — seules les catégories de déplacement (au sol et
 //!    en vol) sont modifiables. Voir [`scope`].
-//! 2. **Sauvegarde obligatoire** — une copie horodatée est écrite avant toute
-//!    modification ; si elle échoue, la modification n'a pas lieu.
+//! 2. **Modification chirurgicale** — un seul attribut est réécrit ; le reste
+//!    du document est recopié à l'octet près. Voir [`writer`].
+//! 3. **Validation avant pose** — le document produit est reparsé, et refusé
+//!    s'il est illisible.
+//!
+//! La **sauvegarde est explicite** : elle relève d'une action de l'utilisateur
+//! via [`backup::create`], et non d'un automatisme déclenché à chaque écriture.
+//! C'est un choix produit assumé — moins de fichiers accumulés, l'utilisateur
+//! maîtrise ses points de restauration — dont la contrepartie est qu'une
+//! modification n'est pas annulable si aucune sauvegarde n'a été prise. Il
+//! revient à l'interface d'y rendre l'utilisateur attentif.
 //!
 //! Le crate [`spacemapper_core`] reste, lui, strictement en lecture.
 
@@ -55,12 +65,13 @@ impl Error {
 /// Applique une modification à un `actionmaps.xml` sur disque.
 ///
 /// Le chemin d'écriture est unique et passe obligatoirement par ici : vérifier
-/// le périmètre, sauvegarder, valider le résultat, puis écrire. Court-circuiter
+/// le périmètre, produire le document, le relire, puis écrire. Court-circuiter
 /// l'une de ces étapes demanderait de modifier ce fichier, ce qui se voit en
 /// revue.
 ///
-/// Renvoie le chemin de la sauvegarde créée.
-pub fn apply_to_file(target: &Path, backup_dir: &Path, edit: &BindingEdit) -> Result<PathBuf> {
+/// Ne crée **aucune** sauvegarde : c'est à l'appelant de proposer
+/// [`backup::create`] au moment opportun.
+pub fn apply_to_file(target: &Path, edit: &BindingEdit) -> Result<()> {
     if !scope::is_editable(&edit.actionmap) {
         return Err(Error::OutOfScope {
             actionmap: edit.actionmap.clone(),
@@ -75,10 +86,7 @@ pub fn apply_to_file(target: &Path, backup_dir: &Path, edit: &BindingEdit) -> Re
     spacemapper_core::actionmaps::parse_str(&updated)
         .map_err(|e| Error::Xml(format!("le document produit est invalide: {e}")))?;
 
-    // La sauvegarde d'abord. Si elle échoue, on n'écrit rien.
-    let saved = backup::create(target, backup_dir)?;
-    std::fs::write(target, updated).map_err(|e| Error::io(target, e))?;
-    Ok(saved)
+    std::fs::write(target, updated).map_err(|e| Error::io(target, e))
 }
 
 #[cfg(test)]
@@ -106,11 +114,10 @@ mod tests {
     }
 
     #[test]
-    fn writes_the_change_and_leaves_a_backup() {
-        let (target, backups) = fixture("apply");
-        let saved = apply_to_file(
+    fn writes_the_change() {
+        let (target, _) = fixture("apply");
+        apply_to_file(
             &target,
-            &backups,
             &BindingEdit::set("spaceship_movement", "v_boost", "js1_button9"),
         )
         .unwrap();
@@ -118,34 +125,40 @@ mod tests {
         assert!(std::fs::read_to_string(&target)
             .unwrap()
             .contains("js1_button9"));
-        // La sauvegarde porte l'état d'avant, pas d'après.
-        assert!(std::fs::read_to_string(&saved)
-            .unwrap()
-            .contains("js1_button5"));
+    }
+
+    #[test]
+    fn writing_creates_no_backup_of_its_own() {
+        // La sauvegarde est un geste explicite de l'utilisateur. Écrire ne
+        // doit rien déposer dans le dossier de sauvegardes.
+        let (target, backups) = fixture("no-implicit-backup");
+        apply_to_file(
+            &target,
+            &BindingEdit::set("spaceship_movement", "v_boost", "js1_button9"),
+        )
+        .unwrap();
+
+        assert!(backup::list(&backups).unwrap().is_empty());
     }
 
     #[test]
     fn refuses_categories_outside_the_lite_scope() {
-        let (target, backups) = fixture("scope");
+        let (target, _) = fixture("scope");
         let err = apply_to_file(
             &target,
-            &backups,
             &BindingEdit::set("spaceship_weapons", "v_attack1", "js1_button9"),
         )
         .unwrap_err();
 
         assert!(matches!(err, Error::OutOfScope { .. }));
-        // Refus total : ni écriture, ni sauvegarde parasite.
         assert_eq!(std::fs::read_to_string(&target).unwrap(), DOC);
-        assert!(backup::list(&backups).unwrap().is_empty());
     }
 
     #[test]
     fn a_failed_edit_leaves_the_file_untouched() {
-        let (target, backups) = fixture("notfound");
+        let (target, _) = fixture("notfound");
         let err = apply_to_file(
             &target,
-            &backups,
             &BindingEdit::set("spaceship_movement", "v_inexistante", "js1_x"),
         )
         .unwrap_err();

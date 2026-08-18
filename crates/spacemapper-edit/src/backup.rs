@@ -1,12 +1,19 @@
-//! Sauvegarde avant écriture.
+//! Points de restauration.
 //!
-//! Obligatoire et non désactivable. Aucune fonction publique de ce crate ne
-//! modifie `actionmaps.xml` sans avoir d'abord écrit une copie horodatée : si
-//! la sauvegarde échoue, l'écriture n'a pas lieu.
+//! Les sauvegardes sont **explicites** : l'utilisateur crée un point de
+//! restauration quand il le décide. Modifier une assignation n'en déclenche
+//! aucune.
 //!
-//! Ce n'est pas une fonctionnalité, c'est une condition pour avoir le droit
-//! d'écrire dans le fichier de quelqu'un d'autre. Un joueur qui perd sa
-//! configuration HOSAS a perdu plusieurs heures de travail.
+//! Elles restent du **XML en clair**, délibérément. Le `actionmaps.xml` du jeu
+//! est lui-même en clair et copiable depuis l'Explorateur : chiffrer les
+//! sauvegardes n'empêcherait aucun partage de configuration, mais rendrait les
+//! données du joueur illisibles s'il désinstalle SpaceMapper. Ce que
+//! l'édition Premium vend, ce n'est pas la possession du fichier — c'est ce
+//! qu'on en fait : profils nommés, synchronisation, adaptation d'un preset à
+//! un autre matériel.
+//!
+//! Seule exception à la règle du geste explicite : [`restore`] conserve l'état
+//! qu'il écrase, pour qu'une restauration erronée reste réversible.
 
 use crate::{Error, Result};
 use std::path::{Path, PathBuf};

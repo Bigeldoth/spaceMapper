@@ -7,6 +7,7 @@ import {
 } from "./lib/api";
 import { actionLabel, categoryLabel } from "./lib/actionLabels";
 import { controlsFor, devicePrefix, type ControlOption } from "./lib/controls";
+import BackupPanel from "./BackupPanel";
 
 const CATEGORY_TITLES: Record<EditCategory, string> = {
   flight: "Pilotage",
@@ -24,6 +25,7 @@ export default function BindingEditor({
   const [editing, setEditing] = useState<EditableBinding | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [backupCount, setBackupCount] = useState<number | null>(null);
 
   async function reload() {
     try {
@@ -43,10 +45,10 @@ export default function BindingEditor({
     try {
       if (input === null) {
         await api.clearBinding(profilePath, binding.actionmap, binding.action);
-        setStatus(`« ${actionLabel(binding.action)} » effacée — sauvegarde créée.`);
+        setStatus(`« ${actionLabel(binding.action)} » effacée.`);
       } else {
         await api.setBinding(profilePath, binding.actionmap, binding.action, input);
-        setStatus(`« ${actionLabel(binding.action)} » réassignée — sauvegarde créée.`);
+        setStatus(`« ${actionLabel(binding.action)} » réassignée.`);
       }
       setError(null);
       setEditing(null);
@@ -69,6 +71,14 @@ export default function BindingEditor({
   return (
     <div className="space-y-6">
       <ScopeNotice />
+
+      <BackupPanel
+        profilePath={profilePath}
+        onRestored={() => void reload()}
+        onCountChange={setBackupCount}
+      />
+
+      {backupCount === 0 && <NoBackupWarning />}
 
       {status && (
         <p className="rounded-md border border-accent-100 bg-accent-50 px-4 py-2 text-sm text-accent-700">
@@ -128,9 +138,28 @@ function ScopeNotice() {
         bord relèvent de l'édition Premium.
       </p>
       <p className="mt-2 text-sm text-ink-500">
-        Une sauvegarde horodatée est créée avant chaque modification. Fermez
-        Star Citizen avant d'éditer&nbsp;: le jeu réécrit ce fichier en quittant
-        et écraserait vos changements.
+        Fermez Star Citizen avant d'éditer&nbsp;: le jeu réécrit ce fichier en
+        quittant et écraserait vos changements.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Les sauvegardes n'étant pas automatiques, un utilisateur peut modifier ses
+ * assignations sans aucun moyen de revenir en arrière. On le lui dit à
+ * l'endroit et au moment où ça compte, sans bloquer son geste.
+ */
+function NoBackupWarning() {
+  return (
+    <div className="rounded-lg border border-warn-200 bg-warn-50 p-4">
+      <p className="text-sm font-medium text-warn-700">
+        Aucun point de restauration
+      </p>
+      <p className="mt-1 text-sm text-ink-600">
+        Vos modifications ne seront pas annulables. Créez une sauvegarde
+        ci-dessus avant de commencer&nbsp;: c'est votre seul moyen de retrouver
+        votre configuration actuelle.
       </p>
     </div>
   );

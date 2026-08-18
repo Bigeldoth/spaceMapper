@@ -40,14 +40,14 @@ fn main() {
         edit.actionmap, edit.action
     );
 
-    let backup = match apply_to_file(&target, &work.join("Backups"), &edit) {
-        Ok(b) => b,
-        Err(e) => {
-            eprintln!("échec: {e}");
-            return;
-        }
-    };
+    // Point de restauration explicite, comme le ferait l'utilisateur.
+    let backup = spacemapper_edit::backup::create(&target, &work.join("Backups")).unwrap();
     println!("sauvegarde : {}", backup.display());
+
+    if let Err(e) = apply_to_file(&target, &edit) {
+        eprintln!("échec: {e}");
+        return;
+    }
 
     let after = std::fs::read_to_string(&target).unwrap();
 
@@ -78,7 +78,6 @@ fn main() {
     // Le refus hors périmètre doit tenir aussi sur un fichier réel.
     let refused = apply_to_file(
         &target,
-        &work.join("Backups"),
         &BindingEdit::set("spaceship_weapons", "v_attack1", "js1_button1"),
     );
     println!(

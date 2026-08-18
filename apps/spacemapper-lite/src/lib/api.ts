@@ -81,12 +81,14 @@ export const api = {
   listEditableBindings: (path: string) =>
     invoke<EditableBinding[]>("list_editable_bindings", { path }),
 
-  /** Renvoie le chemin de la sauvegarde créée avant l'écriture. */
   setBinding: (path: string, actionmap: string, action: string, input: string) =>
-    invoke<string>("set_binding", { path, actionmap, action, input }),
+    invoke<void>("set_binding", { path, actionmap, action, input }),
 
   clearBinding: (path: string, actionmap: string, action: string) =>
-    invoke<string>("clear_binding", { path, actionmap, action }),
+    invoke<void>("clear_binding", { path, actionmap, action }),
+
+  /** Crée un point de restauration ; renvoie le chemin du fichier créé. */
+  createBackup: (path: string) => invoke<string>("create_backup", { path }),
 
   listBackups: () => invoke<BackupView[]>("list_backups"),
 

@@ -1,12 +1,13 @@
-//! Commandes d'édition.
+//! Commandes d'édition et de points de restauration.
 //!
 //! L'édition Lite se limite aux déplacements, à pied et en vol. Cette limite
 //! est appliquée par `spacemapper-edit`, en Rust : ces commandes ne font que
 //! transmettre, elles ne décident pas du périmètre. Une action hors périmètre
 //! est refusée même si le frontend la propose.
 //!
-//! Chaque écriture est précédée d'une sauvegarde horodatée, sans possibilité
-//! de la désactiver.
+//! Les sauvegardes sont créées à la demande, jamais automatiquement. Il revient
+//! donc à l'interface de signaler qu'aucun point de restauration n'existe
+//! avant de laisser modifier quoi que ce soit.
 
 use serde::Serialize;
 use spacemapper_core::actionmaps::{self, ActionMaps};
@@ -54,23 +55,32 @@ pub fn list_editable_bindings(path: String) -> CmdResult<Vec<EditableBinding>> {
 }
 
 /// Réassigne une action.
-///
-/// Renvoie le chemin de la sauvegarde créée, pour que l'interface puisse dire
-/// à l'utilisateur où se trouve son filet.
 #[tauri::command]
 pub fn set_binding(
     path: String,
     actionmap: String,
     action: String,
     input: String,
-) -> CmdResult<String> {
+) -> CmdResult<()> {
     write(&path, BindingEdit::set(&actionmap, &action, &input))
 }
 
 /// Efface une assignation.
 #[tauri::command]
-pub fn clear_binding(path: String, actionmap: String, action: String) -> CmdResult<String> {
+pub fn clear_binding(path: String, actionmap: String, action: String) -> CmdResult<()> {
     write(&path, BindingEdit::clear(&actionmap, &action))
+}
+
+/// Crée un point de restauration du profil courant.
+///
+/// Renvoie le chemin du fichier créé, pour que l'interface puisse indiquer à
+/// l'utilisateur où se trouve son filet.
+#[tauri::command]
+pub fn create_backup(path: String) -> CmdResult<String> {
+    let dir = backup_dir()?;
+    backup::create(Path::new(&path), &dir)
+        .map(|saved| saved.to_string_lossy().into_owned())
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -81,18 +91,18 @@ pub fn list_backups() -> CmdResult<Vec<BackupView>> {
         .map(|entries| entries.into_iter().map(BackupView::from).collect())
 }
 
-/// Restaure une sauvegarde par-dessus le profil courant.
+/// Restaure un point de restauration par-dessus le profil courant.
+///
+/// L'état écrasé est lui-même conservé : se tromper de sauvegarde ne doit pas
+/// être définitif.
 #[tauri::command]
 pub fn restore_backup(path: String, backup_path: String) -> CmdResult<()> {
     let dir = backup_dir()?;
     backup::restore(Path::new(&backup_path), Path::new(&path), &dir).map_err(|e| e.to_string())
 }
 
-fn write(path: &str, edit: BindingEdit) -> CmdResult<String> {
-    let dir = backup_dir()?;
-    spacemapper_edit::apply_to_file(Path::new(path), &dir, &edit)
-        .map(|saved| saved.to_string_lossy().into_owned())
-        .map_err(|e| e.to_string())
+fn write(path: &str, edit: BindingEdit) -> CmdResult<()> {
+    spacemapper_edit::apply_to_file(Path::new(path), &edit).map_err(|e| e.to_string())
 }
 
 impl From<backup::BackupEntry> for BackupView {
