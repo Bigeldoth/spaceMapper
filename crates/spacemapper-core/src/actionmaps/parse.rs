@@ -209,8 +209,11 @@ mod tests {
    <action name="v_decoy_launch">
     <rebind input="js1_hat1_down" multiTap="2"/>
    </action>
-   <action name="v_broken">
+   <action name="v_unbound_on_js3">
     <rebind input="js3_ " activationMode="press"/>
+   </action>
+   <action name="v_broken">
+    <rebind input="BAD TOKEN"/>
    </action>
   </actionmap>
   <actionmap name="player">
@@ -264,15 +267,23 @@ mod tests {
             .iter()
             .find(|o| o.input == "rotz")
             .unwrap();
-        assert_eq!(rotz.deadzone, Some(0.60390002));
-        assert_eq!(rotz.saturation, Some(0.79199994));
+
+        // Le jeu écrit plus de décimales qu'un f32 n'en retient. On compare
+        // donc au parsing de la chaîne d'origine plutôt qu'à un littéral, qui
+        // serait arrondi différemment selon la valeur.
+        assert_eq!(rotz.deadzone, "0.60390002".parse::<f32>().ok());
+        assert_eq!(rotz.saturation, "0.79199994".parse::<f32>().ok());
     }
 
     #[test]
     fn parses_rebinds_with_modifiers_and_multitap() {
         let maps = parse_str(REAL_SHAPE).unwrap();
 
-        let boost = maps.rebinds().find(|(_, a, _)| a.name == "v_boost").unwrap().2;
+        let boost = maps
+            .rebinds()
+            .find(|(_, a, _)| a.name == "v_boost")
+            .unwrap()
+            .2;
         let input = boost.input.as_ref().unwrap();
         assert_eq!(input.modifier.as_deref(), Some("rctrl"));
         assert_eq!(input.control, "button10");
@@ -286,14 +297,33 @@ mod tests {
     }
 
     #[test]
-    fn flags_the_real_world_corrupt_binding() {
-        // `js3_ ` : périphérique fantôme, contrôle vide. Observé tel quel.
+    fn blank_control_is_not_reported_as_corruption() {
+        // `js3_ ` est la forme normale d'une action non assignée sur un
+        // périphérique donné — 325 occurrences sur 403 dans un fichier réel.
+        // La signaler comme un défaut noierait l'utilisateur de fausses alertes.
         let maps = parse_str(REAL_SHAPE).unwrap();
-        let broken = maps.rebinds().find(|(_, a, _)| a.name == "v_broken").unwrap().2;
+        let unbound = maps
+            .rebinds()
+            .find(|(_, a, _)| a.name == "v_unbound_on_js3")
+            .unwrap()
+            .2;
+
+        assert!(!unbound.is_corrupt());
+        assert!(unbound.is_unbound());
+        assert_eq!(unbound.input_raw, "js3_ ");
+    }
+
+    #[test]
+    fn genuinely_unreadable_input_is_reported() {
+        let maps = parse_str(REAL_SHAPE).unwrap();
+        let broken = maps
+            .rebinds()
+            .find(|(_, a, _)| a.name == "v_broken")
+            .unwrap()
+            .2;
 
         assert!(broken.is_corrupt());
-        assert!(!broken.is_unbound());
-        assert_eq!(broken.input_raw, "js3_ ");
+        assert_eq!(broken.input_raw, "BAD TOKEN");
     }
 
     #[test]
@@ -339,11 +369,25 @@ mod tests {
             .find(|(_, a, _)| a.name == "v_toggle_quantum_mode")
             .unwrap()
             .2;
-        assert_eq!(quantum.line, 15);
+
+        // La position pointe la balise <rebind> elle-même, pas le <action>
+        // parent : c'est l'attribut `input` que le linter devra corriger.
+        let line = REAL_SHAPE
+            .lines()
+            .nth(quantum.line as usize - 1)
+            .expect("ligne hors du document");
+        assert!(
+            line.contains("<rebind") && line.contains("js1_button12"),
+            "la ligne {} pointe ailleurs: {line:?}",
+            quantum.line
+        );
     }
 
     #[test]
     fn rejects_documents_that_are_not_actionmaps() {
-        assert!(matches!(parse_str("<Nope/>").unwrap_err(), Error::Schema(_)));
+        assert!(matches!(
+            parse_str("<Nope/>").unwrap_err(),
+            Error::Schema(_)
+        ));
     }
 }

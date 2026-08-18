@@ -28,13 +28,10 @@ impl DeviceGuid {
         if trimmed.len() != 36 {
             return None;
         }
-        let valid = trimmed
-            .chars()
-            .enumerate()
-            .all(|(i, c)| match i {
-                8 | 13 | 18 | 23 => c == '-',
-                _ => c.is_ascii_hexdigit(),
-            });
+        let valid = trimmed.chars().enumerate().all(|(i, c)| match i {
+            8 | 13 | 18 | 23 => c == '-',
+            _ => c.is_ascii_hexdigit(),
+        });
         if !valid {
             return None;
         }
@@ -132,12 +129,15 @@ mod tests {
         for raw in [
             "",
             "not-a-guid",
-            "231D044F-0000-0000-0000-50494456494",   // trop court
+            "231D044F-0000-0000-0000-50494456494", // trop court
             "231D044F-0000-0000-0000-5049445649444", // trop long
-            "231D044FX0000-0000-0000-504944564944",  // séparateur manquant
-            "231D044G-0000-0000-0000-504944564944",  // 'G' n'est pas hexadécimal
+            "231D044FX0000-0000-0000-504944564944", // séparateur manquant
+            "231D044G-0000-0000-0000-504944564944", // 'G' n'est pas hexadécimal
         ] {
-            assert!(DeviceGuid::parse(raw).is_none(), "aurait dû échouer: {raw:?}");
+            assert!(
+                DeviceGuid::parse(raw).is_none(),
+                "aurait dû échouer: {raw:?}"
+            );
         }
     }
 

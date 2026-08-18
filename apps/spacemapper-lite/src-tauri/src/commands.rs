@@ -196,7 +196,8 @@ mod tests {
  <ActionProfiles profileName="default">
   <actionmap name="spaceship_movement">
    <action name="v_boost"><rebind input="js1_rctrl+button10"/></action>
-   <action name="v_broken"><rebind input="js3_ " activationMode="press"/></action>
+   <action name="v_broken"><rebind input="BAD TOKEN"/></action>
+   <action name="v_unbound_on_js3"><rebind input="js3_ " activationMode="press"/></action>
    <action name="v_unbound"><rebind input=""/></action>
   </actionmap>
   <actionmap name="player">
@@ -211,7 +212,9 @@ mod tests {
         let view = to_flight_view(&maps);
 
         let actions: Vec<_> = view.bindings.iter().map(|b| b.action.as_str()).collect();
-        // `v_use` est à pied, `v_unbound` n'est pas assignée.
+        // `v_use` est à pied ; `v_unbound` et `v_unbound_on_js3` ne sont pas
+        // assignées — cette dernière est le cas massivement majoritaire dans un
+        // fichier réel, et l'afficher noierait la liste sous du vide.
         assert_eq!(actions, ["v_boost", "v_broken"]);
     }
 
@@ -234,7 +237,7 @@ mod tests {
 
         assert_eq!(view.corrupt_count, 1);
         let broken = view.bindings.iter().find(|b| b.corrupt).unwrap();
-        assert_eq!(broken.input_raw, "js3_ ");
+        assert_eq!(broken.input_raw, "BAD TOKEN");
         assert!(broken.device.is_none());
     }
 

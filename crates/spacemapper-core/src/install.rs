@@ -18,9 +18,10 @@ use std::path::{Path, PathBuf};
 pub const CHANNELS: [&str; 4] = ["LIVE", "PTU", "EPTU", "TECH-PREVIEW"];
 
 /// Emplacements d'installation habituels, relatifs à une racine de lecteur.
-const INSTALL_SUFFIXES: [&str; 2] = [
-    "Program Files/Roberts Space Industries",
-    "Roberts Space Industries",
+/// Chaque entrée est une suite de segments, jointe proprement à l'usage.
+const INSTALL_SUFFIXES: [&[&str]; 2] = [
+    &["Program Files", "Roberts Space Industries"],
+    &["Roberts Space Industries"],
 ];
 
 /// Un `actionmaps.xml` découvert sur le disque.
@@ -33,12 +34,21 @@ pub struct DiscoveredProfile {
 
 /// Chemin du `actionmaps.xml` pour une racine de jeu et un canal donnés.
 ///
+/// Les segments sont joints un par un plutôt qu'en une chaîne à barres
+/// obliques : le chemin est affiché à l'utilisateur, et un mélange de `\` et
+/// `/` donne une impression de bricolage.
+///
 /// La casse minuscule de `user/client/0` reproduit ce que le client écrit ;
 /// Windows s'en moque, mais un futur portage Linux/Proton non.
 pub fn actionmaps_path(game_root: &Path, channel: &str) -> PathBuf {
     game_root
         .join(channel)
-        .join("user/client/0/Profiles/default/actionmaps.xml")
+        .join("user")
+        .join("client")
+        .join("0")
+        .join("Profiles")
+        .join("default")
+        .join("actionmaps.xml")
 }
 
 /// Cherche les `actionmaps.xml` présents sur la machine.
@@ -74,7 +84,9 @@ pub fn default_roots() -> Vec<PathBuf> {
             continue;
         }
         for suffix in INSTALL_SUFFIXES {
-            let candidate = drive.join(suffix);
+            let candidate = suffix
+                .iter()
+                .fold(drive.clone(), |path, seg| path.join(seg));
             if candidate.is_dir() {
                 roots.push(candidate);
             }

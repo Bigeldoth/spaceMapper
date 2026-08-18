@@ -10,7 +10,8 @@
 use super::{DeviceCapabilities, DeviceEnumerator, DeviceGuid, InputDevice};
 use crate::{Error, Result};
 
-use windows::core::GUID;
+// `Interface` doit être en portée pour accéder à `IDirectInput8W::IID`.
+use windows::core::{Interface, GUID};
 use windows::Win32::Devices::HumanInterfaceDevice::{
     DirectInput8Create, IDirectInput8W, DIDEVCAPS, DIDEVICEINSTANCEW, DIEDFL_ATTACHEDONLY,
     DIRECTINPUT_VERSION,
@@ -100,8 +101,11 @@ unsafe fn enumerate_inner() -> windows::core::Result<Vec<InputDevice>> {
 
 /// Callback d'énumération. `context` pointe sur le `Vec<DIDEVICEINSTANCEW>`
 /// alloué par `enumerate_inner`.
+///
+/// DirectInput déclare le paramètre `*mut` bien qu'il ne s'agisse que d'une
+/// lecture ; on respecte sa signature et on se contente de copier.
 unsafe extern "system" fn enum_callback(
-    instance: *const DIDEVICEINSTANCEW,
+    instance: *mut DIDEVICEINSTANCEW,
     context: *mut core::ffi::c_void,
 ) -> BOOL {
     if let (Some(instance), false) = (instance.as_ref(), context.is_null()) {
@@ -178,10 +182,7 @@ mod tests {
             0x0000,
             [0x00, 0x00, 0x50, 0x49, 0x44, 0x56, 0x49, 0x44],
         );
-        assert_eq!(
-            format_guid(&guid),
-            "{231D044F-0000-0000-0000-504944564944}"
-        );
+        assert_eq!(format_guid(&guid), "{231D044F-0000-0000-0000-504944564944}");
         // Et il doit survivre au parseur qui l'attend.
         assert!(DeviceGuid::parse(&format_guid(&guid)).is_some());
     }

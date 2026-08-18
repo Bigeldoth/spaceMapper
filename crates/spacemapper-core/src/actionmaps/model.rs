@@ -216,18 +216,60 @@ pub struct Rebind {
     pub line: u32,
 }
 
+/// Nature réelle d'une assignation.
+///
+/// Cette distinction est vitale et a coûté une erreur d'interprétation. Sur un
+/// `actionmaps.xml` LIVE réel, **325 des 403** assignations valaient `jsN_`
+/// suivi d'un espace. Les prendre pour de la corruption ferait afficher
+/// « 325 assignations illisibles » à chaque joueur : une fausse alerte massive
+/// sur ce qui est en fait le fonctionnement nominal du jeu.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RebindKind {
+    /// `input=""` — non assignée, sans périphérique désigné.
+    Unbound,
+    /// `input="js3_ "` — délibérément non assignée **sur ce périphérique**.
+    /// Le jeu écrit cette forme pour chaque action qu'un périphérique ne gère
+    /// pas ; c'est normal et massivement majoritaire.
+    UnboundOn {
+        device_kind: DeviceKind,
+        instance: u8,
+    },
+    /// Assignation exploitable.
+    Bound,
+    /// Non vide, sans périphérique lisible : réellement illisible.
+    Unparseable,
+}
+
 impl Rebind {
-    /// Action délibérément non assignée (`input=""`).
-    pub fn is_unbound(&self) -> bool {
-        self.input_raw.is_empty()
+    pub fn kind(&self) -> RebindKind {
+        if self.input_raw.is_empty() {
+            return RebindKind::Unbound;
+        }
+        if self.input.is_some() {
+            return RebindKind::Bound;
+        }
+        // Un préfixe valide suivi d'un contrôle blanc : le jeu signale que
+        // l'action n'est pas assignée sur ce périphérique précis.
+        match InputBinding::parse_head(&self.input_raw) {
+            Some((device_kind, instance)) => RebindKind::UnboundOn {
+                device_kind,
+                instance,
+            },
+            None => RebindKind::Unparseable,
+        }
     }
 
-    /// `input` non vide mais indéchiffrable — un vrai symptôme de corruption.
-    ///
-    /// Observé en conditions réelles sous la forme `js3_ ` : un périphérique
-    /// fantôme avec un contrôle vide.
+    /// Aucune touche n'est assignée, que le périphérique soit nommé ou non.
+    pub fn is_unbound(&self) -> bool {
+        matches!(
+            self.kind(),
+            RebindKind::Unbound | RebindKind::UnboundOn { .. }
+        )
+    }
+
+    /// Réellement illisible — le seul cas qui mérite d'alerter l'utilisateur.
     pub fn is_corrupt(&self) -> bool {
-        !self.is_unbound() && self.input.is_none()
+        matches!(self.kind(), RebindKind::Unparseable)
     }
 }
 
@@ -248,27 +290,34 @@ pub struct InputBinding {
 }
 
 impl InputBinding {
-    /// Analyse `js1_rctrl+button10` → `(Joystick, 1, Some("rctrl"), "button10")`.
+    /// Décompose le seul préfixe : `js1_…` → `(Joystick, 1)`.
     ///
-    /// Renvoie `None` sur tout ce qui ne suit pas la forme attendue : jetons
-    /// corrompus, contrôle vide ou réduit à des espaces (`js3_ `).
-    pub fn parse(raw: &str) -> Option<Self> {
-        let (head, rest) = raw.split_once('_')?;
-
-        // Un contrôle vide ou blanc n'est pas assignable. Le client écrit
-        // pourtant `js3_ ` : à traiter comme corrompu, pas comme valide.
-        let rest = rest.trim();
-        if rest.is_empty() {
-            return None;
-        }
-
+    /// Utilisé pour reconnaître les non-assignations `jsN_ `, où le contrôle
+    /// est blanc mais le périphérique parfaitement identifié.
+    pub fn parse_head(raw: &str) -> Option<(DeviceKind, u8)> {
+        let (head, _) = raw.split_once('_')?;
         let split = head
             .char_indices()
             .find(|(_, c)| c.is_ascii_digit())
             .map(|(i, _)| i)?;
         let (prefix, index) = head.split_at(split);
-        let device_kind = DeviceKind::from_prefix(prefix)?;
-        let instance = index.parse::<u8>().ok()?;
+        Some((DeviceKind::from_prefix(prefix)?, index.parse::<u8>().ok()?))
+    }
+
+    /// Analyse `js1_rctrl+button10` → `(Joystick, 1, Some("rctrl"), "button10")`.
+    ///
+    /// Renvoie `None` dès que le contrôle est absent ou blanc. Un `jsN_ ` n'est
+    /// donc pas une assignation — mais pas non plus une corruption : voir
+    /// [`Rebind::kind`], qui fait la différence.
+    pub fn parse(raw: &str) -> Option<Self> {
+        let (_, rest) = raw.split_once('_')?;
+
+        let rest = rest.trim();
+        if rest.is_empty() {
+            return None;
+        }
+
+        let (device_kind, instance) = Self::parse_head(raw)?;
 
         let (modifier, control) = match rest.split_once('+') {
             Some((m, c)) => {
@@ -347,8 +396,8 @@ mod tests {
             "xx1_button5",
             "js1_",
             "jsA_button5",
-            "js3_ ",     // observé en conditions réelles
-            "js1_+f",    // modificateur vide
+            "js3_ ",      // non-assignation, pas une touche
+            "js1_+f",     // modificateur vide
             "js1_rctrl+", // contrôle vide
         ] {
             assert!(
@@ -356,6 +405,57 @@ mod tests {
                 "aurait dû échouer: {raw:?}"
             );
         }
+    }
+
+    fn rebind(input: &str) -> Rebind {
+        Rebind {
+            input_raw: input.to_string(),
+            input: InputBinding::parse(input),
+            activation_mode: None,
+            multi_tap: None,
+            line: 1,
+        }
+    }
+
+    #[test]
+    fn blank_control_means_unbound_on_that_device_not_corruption() {
+        // Le cas majoritaire dans un vrai fichier : 325 sur 403. Le confondre
+        // avec de la corruption produirait une alerte massive et fausse.
+        let r = rebind("js3_ ");
+        assert_eq!(
+            r.kind(),
+            RebindKind::UnboundOn {
+                device_kind: DeviceKind::Joystick,
+                instance: 3
+            }
+        );
+        assert!(r.is_unbound());
+        assert!(!r.is_corrupt());
+    }
+
+    #[test]
+    fn empty_input_is_unbound_without_device() {
+        let r = rebind("");
+        assert_eq!(r.kind(), RebindKind::Unbound);
+        assert!(r.is_unbound());
+        assert!(!r.is_corrupt());
+    }
+
+    #[test]
+    fn only_unreadable_prefixes_count_as_corrupt() {
+        for raw in ["BAD TOKEN", "xx1_button5", "js_button5", "jsA_button5"] {
+            let r = rebind(raw);
+            assert_eq!(r.kind(), RebindKind::Unparseable, "{raw:?}");
+            assert!(r.is_corrupt(), "{raw:?} devrait être signalé");
+        }
+    }
+
+    #[test]
+    fn real_binding_is_bound() {
+        let r = rebind("js1_rctrl+button10");
+        assert_eq!(r.kind(), RebindKind::Bound);
+        assert!(!r.is_unbound());
+        assert!(!r.is_corrupt());
     }
 
     #[test]
@@ -379,11 +479,17 @@ mod tests {
     #[test]
     fn flight_filter_covers_seat_general() {
         for name in ["spaceship_movement", "vehicle_driver", "seat_general"] {
-            let map = ActionMap { name: name.into(), actions: vec![] };
+            let map = ActionMap {
+                name: name.into(),
+                actions: vec![],
+            };
             assert!(map.is_flight(), "{name} devrait être du vol");
         }
         for name in ["player", "OnFoot", "player_emotes"] {
-            let map = ActionMap { name: name.into(), actions: vec![] };
+            let map = ActionMap {
+                name: name.into(),
+                actions: vec![],
+            };
             assert!(!map.is_flight(), "{name} ne devrait pas être du vol");
         }
     }

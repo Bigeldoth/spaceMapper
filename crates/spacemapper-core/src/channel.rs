@@ -64,6 +64,13 @@ mod tests {
         // Le point crucial : les deux canaux ne doivent jamais désigner le
         // même dossier, sinon une build de test corromprait de vrais profils.
         assert_ne!("SpaceMapper", "SpaceMapper-Staging");
-        assert_eq!(data_dir_name(), if is_staging() { "SpaceMapper-Staging" } else { "SpaceMapper" });
+        assert_eq!(
+            data_dir_name(),
+            if is_staging() {
+                "SpaceMapper-Staging"
+            } else {
+                "SpaceMapper"
+            }
+        );
     }
 }
