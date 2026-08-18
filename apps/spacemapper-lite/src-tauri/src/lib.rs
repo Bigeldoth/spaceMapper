@@ -21,7 +21,7 @@ pub fn run() {
             commands::list_devices,
             commands::locate_actionmaps,
             commands::read_flight_bindings,
-            commands::edition,
+            commands::build_info,
         ])
         .run(tauri::generate_context!())
         .expect("échec du démarrage de SpaceMapper Lite");

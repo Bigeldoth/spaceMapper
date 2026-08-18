@@ -110,11 +110,27 @@ pub fn read_flight_bindings(path: String) -> CmdResult<FlightBindings> {
     Ok(to_flight_view(&maps))
 }
 
-/// Édition de ce binaire. Le frontend s'en sert pour afficher l'accroche
-/// d'upgrade — et pour qu'un utilisateur puisse vérifier ce qu'il exécute.
+#[derive(Debug, Serialize)]
+pub struct BuildInfo {
+    /// `lite` ou `premium`.
+    pub edition: &'static str,
+    /// `production` ou `staging`.
+    pub channel: &'static str,
+    pub version: &'static str,
+}
+
+/// Identité de ce binaire.
+///
+/// Le frontend s'en sert pour afficher l'accroche d'upgrade et signaler
+/// visiblement une build de pré-release — un testeur doit savoir en un coup
+/// d'œil laquelle des deux versions installées il a sous les yeux.
 #[tauri::command]
-pub fn edition() -> &'static str {
-    "lite"
+pub fn build_info() -> BuildInfo {
+    BuildInfo {
+        edition: "lite",
+        channel: spacemapper_core::channel::CHANNEL,
+        version: env!("CARGO_PKG_VERSION"),
+    }
 }
 
 fn to_flight_view(maps: &ActionMaps) -> FlightBindings {

@@ -45,10 +45,16 @@ export interface FlightBindings {
   corrupt_count: number;
 }
 
+export interface BuildInfo {
+  edition: string;
+  channel: string;
+  version: string;
+}
+
 export const api = {
   listDevices: () => invoke<DeviceView[]>("list_devices"),
   locateActionmaps: () => invoke<ProfileLocation[]>("locate_actionmaps"),
   readFlightBindings: (path: string) =>
     invoke<FlightBindings>("read_flight_bindings", { path }),
-  edition: () => invoke<string>("edition"),
+  buildInfo: () => invoke<BuildInfo>("build_info"),
 };

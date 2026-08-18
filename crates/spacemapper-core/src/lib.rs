@@ -10,6 +10,7 @@
 //! qui ne dépend que de ce crate, est incapable de modifier quoi que ce soit.
 
 pub mod actionmaps;
+pub mod channel;
 pub mod device;
 pub mod error;
 pub mod install;

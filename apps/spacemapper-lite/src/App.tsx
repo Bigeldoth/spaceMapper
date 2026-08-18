@@ -4,6 +4,7 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   api,
   type BindingView,
+  type BuildInfo,
   type DeviceView,
   type FlightBindings,
   type ProfileLocation,
@@ -19,19 +20,22 @@ export default function App() {
   const [bindings, setBindings] = useState<FlightBindings | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [build, setBuild] = useState<BuildInfo | null>(null);
 
   // Découverte initiale : périphériques branchés et profils sur le disque.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [found, located] = await Promise.all([
+        const [found, located, info] = await Promise.all([
           api.listDevices(),
           api.locateActionmaps(),
+          api.buildInfo(),
         ]);
         if (cancelled) return;
         setDevices(found);
         setProfiles(located);
+        setBuild(info);
         // Le canal LIVE est celui que joue l'écrasante majorité des joueurs.
         const live = located.find((p) => p.channel === "LIVE") ?? located[0];
         if (live) setSelected(live.path);
@@ -80,6 +84,7 @@ export default function App() {
 
   return (
     <div className="flex h-full flex-col bg-ink-50">
+      {build?.channel === "staging" && <StagingBanner version={build.version} />}
       <Header />
       <main className="mx-auto w-full max-w-6xl flex-1 overflow-y-auto px-8 py-8">
         {loading ? (
@@ -98,6 +103,19 @@ export default function App() {
           </div>
         )}
       </main>
+    </div>
+  );
+}
+
+/** Bandeau de pré-release.
+ *
+ *  Staging s'installe à côté de la production : sans marqueur visible, un
+ *  testeur ne saurait pas laquelle des deux il a ouverte, et rapporterait des
+ *  bugs sur la mauvaise version. */
+function StagingBanner({ version }: { version: string }) {
+  return (
+    <div className="bg-warn-600 px-8 py-1.5 text-center text-xs font-medium text-white">
+      Pré-release {version} — données isolées dans %APPDATA%\SpaceMapper-Staging
     </div>
   );
 }

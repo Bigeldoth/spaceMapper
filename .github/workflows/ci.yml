@@ -1,0 +1,65 @@
+name: CI
+
+on:
+  push:
+    branches: [main, staging]
+  pull_request:
+    branches: [main, staging]
+
+# Une nouvelle poussée annule la vérification en cours sur la même branche :
+# inutile de payer deux compilations Rust pour un état intermédiaire.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  rust:
+    name: Rust (Windows)
+    # windows-latest embarque MSVC, ce que la machine de dev n'a pas :
+    # c'est ici que le code DirectInput est réellement vérifié.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Installer la toolchain Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Vérifier le formatage
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        # `-D warnings` : un avertissement laissé passer devient la norme.
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Tests
+        run: cargo test --workspace
+
+  frontend:
+    name: Frontend
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/spacemapper-lite
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/spacemapper-lite/package-lock.json
+
+      - run: npm ci
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npx vite build
