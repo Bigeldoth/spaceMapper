@@ -44,6 +44,20 @@ impl BindingEdit {
     }
 }
 
+/// Applique plusieurs modifications d'affilée.
+///
+/// Les modifications de l'utilisateur s'accumulent avant d'être validées d'un
+/// bloc ; on ne réécrit donc le fichier qu'une fois. Une seule modification
+/// invalide fait échouer l'ensemble, et rien n'est renvoyé : un enregistrement
+/// à moitié appliqué serait pire qu'un refus.
+pub fn apply_many(xml: &str, edits: &[BindingEdit]) -> Result<String> {
+    let mut document = xml.to_string();
+    for edit in edits {
+        document = apply(&document, edit)?;
+    }
+    Ok(document)
+}
+
 /// Applique une modification au document et renvoie le XML résultant.
 ///
 /// Échoue si l'action visée n'existe pas : mieux vaut refuser bruyamment que
@@ -273,6 +287,37 @@ mod tests {
 
         let out = apply(doc, &BindingEdit::set("player", "v_jump", "js1_button3")).unwrap();
         assert!(out.contains(r#"input="js1_button3""#), "{out}");
+    }
+
+    #[test]
+    fn apply_many_applies_every_edit() {
+        let out = apply_many(
+            DOC,
+            &[
+                BindingEdit::set("spaceship_movement", "v_boost", "js1_button9"),
+                BindingEdit::clear("spaceship_movement", "v_brake"),
+            ],
+        )
+        .unwrap();
+
+        assert!(out.contains(r#"input="js1_button9""#));
+        assert!(out.contains(r#"<rebind input=""/>"#));
+    }
+
+    #[test]
+    fn apply_many_rejects_the_whole_batch_on_one_bad_edit() {
+        // Un enregistrement partiel laisserait l'utilisateur avec un fichier
+        // dans un état qu'il n'a pas demandé et ne peut pas deviner.
+        let err = apply_many(
+            DOC,
+            &[
+                BindingEdit::set("spaceship_movement", "v_boost", "js1_button9"),
+                BindingEdit::set("spaceship_movement", "v_inexistante", "js1_x"),
+            ],
+        )
+        .unwrap_err();
+
+        assert!(matches!(err, Error::ActionNotFound { .. }));
     }
 
     #[test]

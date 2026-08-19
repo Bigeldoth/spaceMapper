@@ -24,7 +24,7 @@ pub mod backup;
 pub mod scope;
 pub mod writer;
 
-pub use scope::EditCategory;
+pub use scope::{EditAccess, EditCategory};
 pub use writer::BindingEdit;
 
 use std::path::{Path, PathBuf};
@@ -63,23 +63,32 @@ impl Error {
 }
 
 /// Applique une modification à un `actionmaps.xml` sur disque.
+pub fn apply_to_file(target: &Path, edit: &BindingEdit) -> Result<()> {
+    apply_all_to_file(target, std::slice::from_ref(edit))
+}
+
+/// Applique un lot de modifications en une seule écriture.
 ///
 /// Le chemin d'écriture est unique et passe obligatoirement par ici : vérifier
-/// le périmètre, produire le document, le relire, puis écrire. Court-circuiter
-/// l'une de ces étapes demanderait de modifier ce fichier, ce qui se voit en
-/// revue.
+/// le périmètre de **chaque** modification, produire le document, le relire,
+/// puis écrire. Court-circuiter l'une de ces étapes demanderait de modifier ce
+/// fichier, ce qui se voit en revue.
+///
+/// La vérification de périmètre précède toute production : si une seule
+/// modification est hors périmètre, aucune n'est appliquée. Un lot n'est pas
+/// une occasion de faire passer en fraude ce qu'on refuse à l'unité.
 ///
 /// Ne crée **aucune** sauvegarde : c'est à l'appelant de proposer
 /// [`backup::create`] au moment opportun.
-pub fn apply_to_file(target: &Path, edit: &BindingEdit) -> Result<()> {
-    if !scope::is_editable(&edit.actionmap) {
+pub fn apply_all_to_file(target: &Path, edits: &[BindingEdit]) -> Result<()> {
+    if let Some(refused) = edits.iter().find(|e| !scope::is_editable(&e.actionmap)) {
         return Err(Error::OutOfScope {
-            actionmap: edit.actionmap.clone(),
+            actionmap: refused.actionmap.clone(),
         });
     }
 
     let original = std::fs::read_to_string(target).map_err(|e| Error::io(target, e))?;
-    let updated = writer::apply(&original, edit)?;
+    let updated = writer::apply_many(&original, edits)?;
 
     // Relire le résultat avant de le poser : un fichier que notre propre
     // parseur refuse n'a rien à faire dans le dossier du jeu.
@@ -147,6 +156,24 @@ mod tests {
         let err = apply_to_file(
             &target,
             &BindingEdit::set("spaceship_weapons", "v_attack1", "js1_button9"),
+        )
+        .unwrap_err();
+
+        assert!(matches!(err, Error::OutOfScope { .. }));
+        assert_eq!(std::fs::read_to_string(&target).unwrap(), DOC);
+    }
+
+    #[test]
+    fn a_batch_is_refused_whole_if_one_edit_is_out_of_scope() {
+        // Sans cette verification prealable, les modifications legitimes du
+        // lot seraient ecrites avant que l'interdite ne soit detectee.
+        let (target, _) = fixture("batch-scope");
+        let err = apply_all_to_file(
+            &target,
+            &[
+                BindingEdit::set("spaceship_movement", "v_boost", "js1_button9"),
+                BindingEdit::set("spaceship_weapons", "v_attack1", "js1_button2"),
+            ],
         )
         .unwrap_err();
 

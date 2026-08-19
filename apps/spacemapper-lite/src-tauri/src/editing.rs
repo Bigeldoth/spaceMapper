@@ -1,18 +1,20 @@
 //! Commandes d'édition et de points de restauration.
 //!
-//! L'édition Lite se limite aux déplacements, à pied et en vol. Cette limite
+//! L'édition Lite se limite au pilotage et au déplacement à pied. Cette limite
 //! est appliquée par `spacemapper-edit`, en Rust : ces commandes ne font que
 //! transmettre, elles ne décident pas du périmètre. Une action hors périmètre
 //! est refusée même si le frontend la propose.
 //!
-//! Les sauvegardes sont créées à la demande, jamais automatiquement. Il revient
-//! donc à l'interface de signaler qu'aucun point de restauration n'existe
-//! avant de laisser modifier quoi que ce soit.
+//! Les modifications s'accumulent côté interface et ne touchent le disque qu'au
+//! moment où l'utilisateur enregistre, via [`save_bindings`]. Le point de
+//! restauration est proposé à cet instant précis, plutôt qu'imposé à chaque
+//! écriture : c'est le seul moment où l'utilisateur sait ce qu'il s'apprête à
+//! changer.
 
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use spacemapper_core::actionmaps::{self, ActionMaps};
 use spacemapper_core::channel;
-use spacemapper_edit::{backup, scope, BindingEdit, EditCategory};
+use spacemapper_edit::{backup, scope, BindingEdit, EditAccess, EditCategory};
 use std::path::{Path, PathBuf};
 
 type CmdResult<T> = Result<T, String>;
@@ -22,16 +24,35 @@ type CmdResult<T> = Result<T, String>;
 pub struct EditableBinding {
     pub actionmap: String,
     pub category: EditCategory,
+    /// Niveau d'accès : modifiable, ou verrouillé derrière le Premium.
+    pub access: EditAccess,
     pub action: String,
     pub input_raw: String,
     pub device: Option<String>,
     pub control: Option<String>,
-    /// L'action porte un modificateur ou un mode d'activation, que l'édition
-    /// Lite ne sait pas manipuler. La modifier écraserait un réglage que
-    /// l'utilisateur ne voit pas ; on la présente donc en lecture seule.
+    /// L'action ne peut pas être modifiée dans cette édition.
     pub locked: bool,
     /// Motif du verrouillage, à afficher tel quel.
     pub locked_reason: Option<String>,
+}
+
+/// Une modification en attente, telle que la transmet l'interface.
+#[derive(Debug, Deserialize)]
+pub struct PendingEdit {
+    pub actionmap: String,
+    pub action: String,
+    /// `None` efface l'assignation.
+    pub input: Option<String>,
+}
+
+impl From<&PendingEdit> for BindingEdit {
+    fn from(p: &PendingEdit) -> Self {
+        BindingEdit {
+            actionmap: p.actionmap.clone(),
+            action: p.action.clone(),
+            input: p.input.clone(),
+        }
+    }
 }
 
 #[derive(Debug, Serialize)]
@@ -54,21 +75,42 @@ pub fn list_editable_bindings(path: String) -> CmdResult<Vec<EditableBinding>> {
     Ok(collect_editable(&maps))
 }
 
-/// Réassigne une action.
+/// Enregistre un lot de modifications en une seule écriture.
+///
+/// Les modifications s'accumulent côté interface jusqu'à ce que l'utilisateur
+/// valide : le fichier du jeu n'est touché qu'ici, et une seule fois. Si
+/// `create_restore_point` est vrai, une copie du profil est déposée **avant**
+/// l'écriture ; son chemin est renvoyé.
+///
+/// Un lot invalide est refusé en bloc : mieux vaut ne rien écrire qu'un état
+/// intermédiaire que l'utilisateur n'a pas demandé.
 #[tauri::command]
-pub fn set_binding(
+pub fn save_bindings(
     path: String,
-    actionmap: String,
-    action: String,
-    input: String,
-) -> CmdResult<()> {
-    write(&path, BindingEdit::set(&actionmap, &action, &input))
-}
+    edits: Vec<PendingEdit>,
+    create_restore_point: bool,
+) -> CmdResult<Option<String>> {
+    if edits.is_empty() {
+        return Ok(None);
+    }
 
-/// Efface une assignation.
-#[tauri::command]
-pub fn clear_binding(path: String, actionmap: String, action: String) -> CmdResult<()> {
-    write(&path, BindingEdit::clear(&actionmap, &action))
+    let target = Path::new(&path);
+    let converted: Vec<BindingEdit> = edits.iter().map(BindingEdit::from).collect();
+
+    let saved = if create_restore_point {
+        let dir = backup_dir()?;
+        Some(
+            backup::create(target, &dir)
+                .map_err(|e| e.to_string())?
+                .to_string_lossy()
+                .into_owned(),
+        )
+    } else {
+        None
+    };
+
+    spacemapper_edit::apply_all_to_file(target, &converted).map_err(|e| e.to_string())?;
+    Ok(saved)
 }
 
 /// Crée un point de restauration du profil courant.
@@ -101,10 +143,6 @@ pub fn restore_backup(path: String, backup_path: String) -> CmdResult<()> {
     backup::restore(Path::new(&backup_path), Path::new(&path), &dir).map_err(|e| e.to_string())
 }
 
-fn write(path: &str, edit: BindingEdit) -> CmdResult<()> {
-    spacemapper_edit::apply_to_file(Path::new(path), &edit).map_err(|e| e.to_string())
-}
-
 impl From<backup::BackupEntry> for BackupView {
     fn from(entry: backup::BackupEntry) -> Self {
         BackupView {
@@ -119,6 +157,12 @@ impl From<backup::BackupEntry> for BackupView {
 fn collect_editable(maps: &ActionMaps) -> Vec<EditableBinding> {
     maps.rebinds()
         .filter_map(|(map, action, rebind)| {
+            // Les catégories réservées au Premium sans intérêt de vitrine sont
+            // absentes de la liste, pas seulement grisées.
+            let access = scope::access_of(&map.name)?;
+            if access == EditAccess::PremiumOnly {
+                return None;
+            }
             let category = scope::category_of(&map.name)?;
 
             let (device, control, modifier) = match &rebind.input {
@@ -130,8 +174,12 @@ fn collect_editable(maps: &ActionMaps) -> Vec<EditableBinding> {
                 None => (None, None, None),
             };
 
-            // On refuse de toucher à ce qu'on ne sait pas restituer.
-            let locked_reason = if modifier.is_some() {
+            // Deux raisons distinctes de verrouiller, et l'ordre compte : une
+            // catégorie de vitrine reste verrouillée quel que soit le contenu
+            // de l'assignation, et c'est ce motif qu'il faut afficher.
+            let locked_reason = if access == EditAccess::PremiumTeaser {
+                Some("Catégorie réservée à l'édition Premium".to_string())
+            } else if modifier.is_some() {
                 Some("Comporte un modificateur — réservé à l'édition Premium".to_string())
             } else if rebind
                 .activation_mode
@@ -147,6 +195,7 @@ fn collect_editable(maps: &ActionMaps) -> Vec<EditableBinding> {
             Some(EditableBinding {
                 actionmap: map.name.clone(),
                 category,
+                access,
                 action: action.name.clone(),
                 input_raw: rebind.input_raw.clone(),
                 device,
@@ -164,13 +213,22 @@ mod tests {
 
     const DOC: &str = r#"<ActionMaps><ActionProfiles profileName="default">
   <actionmap name="spaceship_movement">
-   <action name="v_boost"><rebind input="js1_button5"/></action>
-   <action name="v_brake"><rebind input="js1_rctrl+button6"/></action>
-   <action name="v_decoy"><rebind input="js1_hat1_down" multiTap="2"/></action>
-   <action name="v_libre"><rebind input="js2_ "/></action>
+   <action name="v_afterburner"><rebind input="js1_button5"/></action>
+   <action name="v_pitch_up"><rebind input="js1_rctrl+button6"/></action>
+   <action name="v_roll_left"><rebind input="js1_hat1_down" multiTap="2"/></action>
+   <action name="v_strafe_up"><rebind input="js2_ "/></action>
   </actionmap>
   <actionmap name="player">
-   <action name="v_jump"><rebind input="kb1_space"/></action>
+   <action name="moveforward"><rebind input="kb1_w"/></action>
+  </actionmap>
+  <actionmap name="vehicle_driver">
+   <action name="v_boost"><rebind input="js1_button2"/></action>
+  </actionmap>
+  <actionmap name="player_emotes">
+   <action name="emote_wave"><rebind input="kb1_1"/></action>
+  </actionmap>
+  <actionmap name="prone">
+   <action name="prone_rollleft"><rebind input="kb1_q"/></action>
   </actionmap>
   <actionmap name="spaceship_weapons">
    <action name="v_attack1"><rebind input="js1_button1"/></action>
@@ -182,17 +240,44 @@ mod tests {
     }
 
     #[test]
-    fn only_movement_categories_are_offered() {
+    fn out_of_domain_categories_are_absent() {
         let names: Vec<_> = editable().iter().map(|b| b.actionmap.clone()).collect();
         assert!(names.iter().all(|n| n != "spaceship_weapons"));
-        assert!(names.contains(&"spaceship_movement".to_string()));
-        assert!(names.contains(&"player".to_string()));
+    }
+
+    #[test]
+    fn prone_is_hidden_entirely_from_lite() {
+        // Contrairement aux catégories de vitrine, celle-ci ne doit même pas
+        // apparaître : elle est reportée à l'édition Premium.
+        let names: Vec<_> = editable().iter().map(|b| b.actionmap.clone()).collect();
+        assert!(names.iter().all(|n| n != "prone"));
+    }
+
+    #[test]
+    fn teaser_categories_appear_but_stay_locked() {
+        // Elles sont là pour montrer ce que débloque le Premium ; les cacher
+        // supprimerait l'incitation, les rendre modifiables la viderait.
+        for (actionmap, action) in [
+            ("vehicle_driver", "v_boost"),
+            ("player_emotes", "emote_wave"),
+        ] {
+            let list = editable();
+            let found = list
+                .iter()
+                .find(|b| b.action == action)
+                .unwrap_or_else(|| panic!("{actionmap} absente de la liste"));
+
+            assert_eq!(found.access, EditAccess::PremiumTeaser);
+            assert!(found.locked, "{actionmap} devrait être verrouillée");
+            assert!(found.locked_reason.as_ref().unwrap().contains("Premium"));
+        }
     }
 
     #[test]
     fn plain_bindings_are_editable() {
         let list = editable();
-        let boost = list.iter().find(|b| b.action == "v_boost").unwrap();
+        let boost = list.iter().find(|b| b.action == "v_afterburner").unwrap();
+        assert_eq!(boost.access, EditAccess::Lite);
         assert!(!boost.locked);
         assert_eq!(boost.device.as_deref(), Some("js1"));
         assert_eq!(boost.control.as_deref(), Some("button5"));
@@ -202,7 +287,7 @@ mod tests {
     fn unassigned_actions_are_offered_for_assignment() {
         // Assigner une action vierge fait partie du périmètre Lite.
         let list = editable();
-        let libre = list.iter().find(|b| b.action == "v_libre").unwrap();
+        let libre = list.iter().find(|b| b.action == "v_strafe_up").unwrap();
         assert!(!libre.locked);
         assert!(libre.control.is_none());
     }
@@ -212,9 +297,9 @@ mod tests {
         // Les masquer laisserait croire qu'elles n'existent pas ; les éditer
         // écraserait un réglage invisible dans l'interface simplifiée.
         let list = editable();
-        let brake = list.iter().find(|b| b.action == "v_brake").unwrap();
-        assert!(brake.locked);
-        assert!(brake
+        let pitch = list.iter().find(|b| b.action == "v_pitch_up").unwrap();
+        assert!(pitch.locked);
+        assert!(pitch
             .locked_reason
             .as_ref()
             .unwrap()
@@ -224,9 +309,9 @@ mod tests {
     #[test]
     fn bindings_with_activation_modes_are_locked() {
         let list = editable();
-        let decoy = list.iter().find(|b| b.action == "v_decoy").unwrap();
-        assert!(decoy.locked);
-        assert!(decoy
+        let roll = list.iter().find(|b| b.action == "v_roll_left").unwrap();
+        assert!(roll.locked);
+        assert!(roll
             .locked_reason
             .as_ref()
             .unwrap()

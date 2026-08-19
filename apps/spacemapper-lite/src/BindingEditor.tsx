@@ -3,16 +3,16 @@ import {
   api,
   type DeviceView,
   type EditableBinding,
-  type EditCategory,
+  type PendingEdit,
 } from "./lib/api";
 import { actionLabel, categoryLabel } from "./lib/actionLabels";
 import { controlsFor, devicePrefix, type ControlOption } from "./lib/controls";
 import BackupPanel from "./BackupPanel";
 
-const CATEGORY_TITLES: Record<EditCategory, string> = {
-  flight: "Pilotage",
-  on_foot: "À pied",
-};
+/** Clé stable d'une assignation, indépendante de l'ordre du fichier. */
+function keyOf(actionmap: string, action: string): string {
+  return `${actionmap}/${action}`;
+}
 
 export default function BindingEditor({
   profilePath,
@@ -23,9 +23,18 @@ export default function BindingEditor({
 }) {
   const [bindings, setBindings] = useState<EditableBinding[]>([]);
   const [editing, setEditing] = useState<EditableBinding | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [reviewing, setReviewing] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [backupCount, setBackupCount] = useState<number | null>(null);
+  const [upsell, setUpsell] = useState<string | null>(null);
+
+  /**
+   * Modifications non enregistrées, par clé d'assignation. `null` signifie
+   * « effacer ». Rien n'est écrit sur disque tant que l'utilisateur n'a pas
+   * validé : c'est ce qui rend le bandeau du bas nécessaire.
+   */
+  const [pending, setPending] = useState<Map<string, string | null>>(new Map());
 
   async function reload() {
     try {
@@ -41,20 +50,50 @@ export default function BindingEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profilePath]);
 
-  async function commit(binding: EditableBinding, input: string | null) {
+  function stage(binding: EditableBinding, input: string | null) {
+    setPending((previous) => {
+      const next = new Map(previous);
+      next.set(keyOf(binding.actionmap, binding.action), input);
+      return next;
+    });
+    setEditing(null);
+    setStatus(null);
+  }
+
+  function discardOne(key: string) {
+    setPending((previous) => {
+      const next = new Map(previous);
+      next.delete(key);
+      return next;
+    });
+  }
+
+  async function save(createRestorePoint: boolean) {
+    setSaving(true);
+    setReviewing(false);
     try {
-      if (input === null) {
-        await api.clearBinding(profilePath, binding.actionmap, binding.action);
-        setStatus(`« ${actionLabel(binding.action)} » effacée.`);
-      } else {
-        await api.setBinding(profilePath, binding.actionmap, binding.action, input);
-        setStatus(`« ${actionLabel(binding.action)} » réassignée.`);
-      }
+      const edits: PendingEdit[] = [...pending].map(([key, input]) => {
+        const separator = key.indexOf("/");
+        return {
+          actionmap: key.slice(0, separator),
+          action: key.slice(separator + 1),
+          input,
+        };
+      });
+
+      const backup = await api.saveBindings(profilePath, edits, createRestorePoint);
+      setPending(new Map());
+      setStatus(
+        backup
+          ? `${edits.length} modification${edits.length > 1 ? "s" : ""} enregistrée${edits.length > 1 ? "s" : ""}, point de restauration créé.`
+          : `${edits.length} modification${edits.length > 1 ? "s" : ""} enregistrée${edits.length > 1 ? "s" : ""}.`,
+      );
       setError(null);
-      setEditing(null);
       await reload();
     } catch (e) {
       setError(String(e));
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -69,16 +108,10 @@ export default function BindingEditor({
   }, [bindings]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 pb-4">
       <ScopeNotice />
 
-      <BackupPanel
-        profilePath={profilePath}
-        onRestored={() => void reload()}
-        onCountChange={setBackupCount}
-      />
-
-      {backupCount === 0 && <NoBackupWarning />}
+      <BackupPanel profilePath={profilePath} onRestored={() => void reload()} />
 
       {status && (
         <p className="rounded-md border border-accent-100 bg-accent-50 px-4 py-2 text-sm text-accent-700">
@@ -91,41 +124,220 @@ export default function BindingEditor({
         </p>
       )}
 
-      {grouped.map(([actionmap, items]) => (
-        <div
-          key={actionmap}
-          className="overflow-hidden rounded-lg border border-ink-200 bg-white"
-        >
-          <h3 className="flex items-baseline gap-2 border-b border-ink-100 bg-ink-50 px-4 py-2">
-            <span className="text-xs font-semibold uppercase tracking-wide text-ink-500">
-              {categoryLabel(actionmap)}
-            </span>
-            <span className="text-xs text-ink-400">
-              {CATEGORY_TITLES[items[0]!.category]}
-            </span>
-          </h3>
-          <ul className="divide-y divide-ink-100">
-            {items.map((b) => (
-              <BindingRow
-                key={`${b.actionmap}-${b.action}`}
-                binding={b}
-                onEdit={() => setEditing(b)}
-                onClear={() => void commit(b, null)}
-              />
-            ))}
-          </ul>
-        </div>
-      ))}
+      {grouped.map(([actionmap, items]) => {
+        const teaser = items[0]!.access === "premium_teaser";
+        return (
+          <div
+            key={actionmap}
+            className={
+              "overflow-hidden rounded-lg border bg-white " +
+              (teaser ? "border-ink-200 opacity-75" : "border-ink-200")
+            }
+          >
+            <h3 className="flex items-center gap-2 border-b border-ink-100 bg-ink-50 px-4 py-2">
+              <span className="text-xs font-semibold uppercase tracking-wide text-ink-500">
+                {categoryLabel(actionmap)}
+              </span>
+              {teaser && <PremiumBadge />}
+            </h3>
+            <ul className="divide-y divide-ink-100">
+              {items.map((b) => {
+                const key = keyOf(b.actionmap, b.action);
+                return (
+                  <BindingRow
+                    key={key}
+                    binding={b}
+                    pending={pending.has(key) ? pending.get(key)! : undefined}
+                    hasPending={pending.has(key)}
+                    onEdit={() => setEditing(b)}
+                    onClear={() => stage(b, null)}
+                    onRevert={() => discardOne(key)}
+                    onLockedClick={() => setUpsell(b.locked_reason)}
+                  />
+                );
+              })}
+            </ul>
+          </div>
+        );
+      })}
 
       {editing && (
         <ControlPicker
           binding={editing}
           devices={devices}
           onCancel={() => setEditing(null)}
-          onPick={(input) => void commit(editing, input)}
+          onPick={(input) => stage(editing, input)}
+        />
+      )}
+
+      {reviewing && (
+        <SaveDialog
+          pending={pending}
+          bindings={bindings}
+          onCancel={() => setReviewing(false)}
+          onConfirm={(withBackup) => void save(withBackup)}
+          onDiscardOne={discardOne}
+        />
+      )}
+
+      {upsell && <UpsellDialog reason={upsell} onClose={() => setUpsell(null)} />}
+
+      {pending.size > 0 && (
+        <UnsavedBar
+          count={pending.size}
+          saving={saving}
+          onReview={() => setReviewing(true)}
+          onDiscardAll={() => setPending(new Map())}
         />
       )}
     </div>
+  );
+}
+
+/**
+ * Bandeau des modifications non enregistrées.
+ *
+ * `sticky bottom-0` plutôt que `fixed` : il reste dans le flux de la zone
+ * défilante, donc il suit le scroll sans recouvrir la dernière ligne de la
+ * liste ni déborder sur les autres onglets.
+ */
+function UnsavedBar({
+  count,
+  saving,
+  onReview,
+  onDiscardAll,
+}: {
+  count: number;
+  saving: boolean;
+  onReview: () => void;
+  onDiscardAll: () => void;
+}) {
+  return (
+    <div className="sticky bottom-0 z-[5] -mx-2 mt-2">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warn-200 bg-warn-50 px-4 py-3 shadow-lg">
+        <p className="text-sm font-medium text-warn-700">
+          {count} modification{count > 1 ? "s" : ""} non enregistrée
+          {count > 1 ? "s" : ""}
+        </p>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={onDiscardAll}
+            disabled={saving}
+            className="rounded-md px-2.5 py-1.5 text-sm text-ink-600 hover:text-warn-700 disabled:text-ink-400"
+          >
+            Tout annuler
+          </button>
+          <button
+            onClick={onReview}
+            disabled={saving}
+            className="rounded-md bg-accent-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-700 disabled:bg-ink-300"
+          >
+            {saving ? "Enregistrement…" : "Enregistrer…"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SaveDialog({
+  pending,
+  bindings,
+  onCancel,
+  onConfirm,
+  onDiscardOne,
+}: {
+  pending: Map<string, string | null>;
+  bindings: EditableBinding[];
+  onCancel: () => void;
+  onConfirm: (createRestorePoint: boolean) => void;
+  onDiscardOne: (key: string) => void;
+}) {
+  const [withBackup, setWithBackup] = useState(true);
+  const [showDetail, setShowDetail] = useState(false);
+
+  const rows = [...pending].map(([key, input]) => {
+    const binding = bindings.find(
+      (b) => keyOf(b.actionmap, b.action) === key,
+    );
+    return { key, input, binding };
+  });
+
+  return (
+    <Modal onCancel={onCancel} title="Enregistrer les modifications">
+      <p className="text-sm text-ink-600">
+        {rows.length} modification{rows.length > 1 ? "s" : ""} sera
+        {rows.length > 1 ? "ont" : ""} écrite{rows.length > 1 ? "s" : ""} dans
+        votre profil Star Citizen.
+      </p>
+
+      <button
+        onClick={() => setShowDetail((v) => !v)}
+        className="mt-2 text-sm font-medium text-accent-700 hover:text-accent-600"
+      >
+        {showDetail ? "Masquer le détail" : "Voir les modifications"}
+      </button>
+
+      {showDetail && (
+        <ul className="mt-3 max-h-60 divide-y divide-ink-100 overflow-y-auto rounded-md border border-ink-200">
+          {rows.map(({ key, input, binding }) => (
+            <li
+              key={key}
+              className="flex items-center justify-between gap-3 px-3 py-2"
+            >
+              <div className="min-w-0">
+                <p className="truncate text-sm text-ink-800">
+                  {binding ? actionLabel(binding.action) : key}
+                </p>
+                <p className="technical mt-0.5 truncate text-ink-400">
+                  {binding?.control
+                    ? `${binding.device}_${binding.control}`
+                    : "non assignée"}
+                  {" → "}
+                  <span className="text-accent-700">{input ?? "effacée"}</span>
+                </p>
+              </div>
+              <button
+                onClick={() => onDiscardOne(key)}
+                className="shrink-0 rounded px-2 py-1 text-xs text-ink-500 hover:text-warn-700"
+              >
+                Retirer
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <label className="mt-4 flex items-start gap-2">
+        <input
+          type="checkbox"
+          checked={withBackup}
+          onChange={(e) => setWithBackup(e.target.checked)}
+          className="mt-0.5"
+        />
+        <span className="text-sm text-ink-700">
+          Créer un point de restauration avant d'écrire
+          <span className="mt-0.5 block text-xs text-ink-500">
+            Sans lui, ces modifications ne seront pas annulables.
+          </span>
+        </span>
+      </label>
+
+      <div className="mt-5 flex justify-end gap-2">
+        <button
+          onClick={onCancel}
+          className="rounded-md border border-ink-300 bg-white px-3 py-1.5 text-sm text-ink-700 hover:bg-ink-50"
+        >
+          Annuler
+        </button>
+        <button
+          onClick={() => onConfirm(withBackup)}
+          className="rounded-md bg-accent-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-700"
+        >
+          Enregistrer
+        </button>
+      </div>
+    </Modal>
   );
 }
 
@@ -133,60 +345,72 @@ function ScopeNotice() {
   return (
     <div className="rounded-lg border border-ink-200 bg-white p-4">
       <p className="text-sm text-ink-700">
-        L'édition Lite couvre les <strong>déplacements</strong> — pilotage et
-        déplacement à pied. Le combat, le ciblage, l'énergie et les systèmes de
-        bord relèvent de l'édition Premium.
+        L'édition Lite couvre le <strong>pilotage</strong> et le{" "}
+        <strong>déplacement à pied</strong>. Les autres catégories sont
+        affichées mais verrouillées.
       </p>
       <p className="mt-2 text-sm text-ink-500">
-        Fermez Star Citizen avant d'éditer&nbsp;: le jeu réécrit ce fichier en
-        quittant et écraserait vos changements.
+        Rien n'est écrit tant que vous n'avez pas enregistré. Fermez Star
+        Citizen avant d'éditer&nbsp;: le jeu réécrit ce fichier en quittant et
+        écraserait vos changements.
       </p>
     </div>
   );
 }
 
-/**
- * Les sauvegardes n'étant pas automatiques, un utilisateur peut modifier ses
- * assignations sans aucun moyen de revenir en arrière. On le lui dit à
- * l'endroit et au moment où ça compte, sans bloquer son geste.
- */
-function NoBackupWarning() {
+function PremiumBadge() {
   return (
-    <div className="rounded-lg border border-warn-200 bg-warn-50 p-4">
-      <p className="text-sm font-medium text-warn-700">
-        Aucun point de restauration
-      </p>
-      <p className="mt-1 text-sm text-ink-600">
-        Vos modifications ne seront pas annulables. Créez une sauvegarde
-        ci-dessus avant de commencer&nbsp;: c'est votre seul moyen de retrouver
-        votre configuration actuelle.
-      </p>
-    </div>
+    <span className="rounded-full bg-accent-50 px-2 py-0.5 text-[0.6875rem] font-medium text-accent-700">
+      Premium
+    </span>
   );
 }
 
 function BindingRow({
   binding,
+  pending,
+  hasPending,
   onEdit,
   onClear,
+  onRevert,
+  onLockedClick,
 }: {
   binding: EditableBinding;
+  pending: string | null | undefined;
+  hasPending: boolean;
   onEdit: () => void;
   onClear: () => void;
+  onRevert: () => void;
+  onLockedClick: () => void;
 }) {
   const assigned = binding.control !== null;
 
   return (
-    <li className="flex items-center justify-between gap-4 px-4 py-2.5">
+    <li
+      className={
+        "flex items-center justify-between gap-4 px-4 py-2.5 " +
+        (hasPending ? "bg-accent-50/60" : "")
+      }
+    >
       <div className="min-w-0">
         <p className="truncate text-sm text-ink-800">
           {actionLabel(binding.action)}
         </p>
-        <p className="technical mt-0.5 truncate text-ink-400">{binding.action}</p>
+        <p className="technical mt-0.5 truncate text-ink-400">
+          {binding.action}
+        </p>
       </div>
 
       <div className="flex shrink-0 items-center gap-2">
-        {assigned ? (
+        {hasPending ? (
+          <span className="technical flex items-center gap-1">
+            <span className="text-ink-400 line-through">
+              {assigned ? `${binding.device}_${binding.control}` : "vide"}
+            </span>
+            <span className="text-ink-400">→</span>
+            <Key accent>{pending ?? "effacée"}</Key>
+          </span>
+        ) : assigned ? (
           <span className="technical flex items-center gap-1">
             <Key>{binding.device}</Key>
             <Key>{binding.control}</Key>
@@ -196,12 +420,20 @@ function BindingRow({
         )}
 
         {binding.locked ? (
-          <span
+          <button
+            onClick={onLockedClick}
             title={binding.locked_reason ?? undefined}
-            className="rounded border border-ink-200 px-2 py-1 text-xs text-ink-400"
+            className="cursor-not-allowed rounded border border-ink-200 bg-ink-50 px-2 py-1 text-xs text-ink-400"
           >
-            verrouillée
-          </span>
+            Verrouillé
+          </button>
+        ) : hasPending ? (
+          <button
+            onClick={onRevert}
+            className="rounded-md border border-ink-300 bg-white px-2.5 py-1 text-xs font-medium text-ink-700 hover:bg-ink-50"
+          >
+            Rétablir
+          </button>
         ) : (
           <>
             <button
@@ -222,6 +454,33 @@ function BindingRow({
         )}
       </div>
     </li>
+  );
+}
+
+function UpsellDialog({
+  reason,
+  onClose,
+}: {
+  reason: string;
+  onClose: () => void;
+}) {
+  return (
+    <Modal onCancel={onClose} title="Réservé à l'édition Premium">
+      <p className="text-sm text-ink-600">{reason}</p>
+      <p className="mt-3 text-sm text-ink-600">
+        SpaceMapper Premium débloque toutes les catégories — combat, énergie,
+        systèmes de bord, tourelles — ainsi que les modificateurs, les modes
+        d'activation, les profils nommés et la synchronisation entre machines.
+      </p>
+      <div className="mt-5 flex justify-end">
+        <button
+          onClick={onClose}
+          className="rounded-md border border-ink-300 bg-white px-3 py-1.5 text-sm text-ink-700 hover:bg-ink-50"
+        >
+          Fermer
+        </button>
+      </div>
+    </Modal>
   );
 }
 
@@ -322,7 +581,7 @@ function ControlPicker({
             onClick={() => onPick(`${devicePrefix(deviceIndex)}_${control}`)}
             className="rounded-md bg-accent-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-700 disabled:cursor-not-allowed disabled:bg-ink-300"
           >
-            Assigner
+            Appliquer
           </button>
         </div>
       </div>
@@ -355,9 +614,22 @@ function Modal({
   );
 }
 
-function Key({ children }: { children: React.ReactNode }) {
+function Key({
+  children,
+  accent,
+}: {
+  children: React.ReactNode;
+  accent?: boolean;
+}) {
   return (
-    <span className="rounded border border-ink-200 bg-ink-50 px-1.5 py-0.5 text-ink-700">
+    <span
+      className={
+        "rounded border px-1.5 py-0.5 " +
+        (accent
+          ? "border-accent-100 bg-accent-50 text-accent-700"
+          : "border-ink-200 bg-ink-50 text-ink-700")
+      }
+    >
       {children}
     </span>
   );

@@ -53,16 +53,26 @@ export interface BuildInfo {
 
 export type EditCategory = "flight" | "on_foot";
 
+/** `premium_only` n'est jamais renvoyé à Lite : ces catégories sont filtrées. */
+export type EditAccess = "lite" | "premium_teaser" | "premium_only";
+
 export interface EditableBinding {
   actionmap: string;
   category: EditCategory;
+  access: EditAccess;
   action: string;
   input_raw: string;
   device: string | null;
   control: string | null;
-  /** Non modifiable en Lite : porte un modificateur ou un mode d'activation. */
   locked: boolean;
   locked_reason: string | null;
+}
+
+/** Une modification en attente d'enregistrement. `input: null` efface. */
+export interface PendingEdit {
+  actionmap: string;
+  action: string;
+  input: string | null;
 }
 
 export interface BackupView {
@@ -81,11 +91,20 @@ export const api = {
   listEditableBindings: (path: string) =>
     invoke<EditableBinding[]>("list_editable_bindings", { path }),
 
-  setBinding: (path: string, actionmap: string, action: string, input: string) =>
-    invoke<void>("set_binding", { path, actionmap, action, input }),
-
-  clearBinding: (path: string, actionmap: string, action: string) =>
-    invoke<void>("clear_binding", { path, actionmap, action }),
+  /**
+   * Écrit un lot de modifications en une seule fois.
+   * Renvoie le chemin du point de restauration créé, ou `null`.
+   */
+  saveBindings: (
+    path: string,
+    edits: PendingEdit[],
+    createRestorePoint: boolean,
+  ) =>
+    invoke<string | null>("save_bindings", {
+      path,
+      edits,
+      createRestorePoint,
+    }),
 
   /** Crée un point de restauration ; renvoie le chemin du fichier créé. */
   createBackup: (path: string) => invoke<string>("create_backup", { path }),

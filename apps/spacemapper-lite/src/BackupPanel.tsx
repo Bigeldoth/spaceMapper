@@ -12,11 +12,9 @@ import { api, type BackupView } from "./lib/api";
 export default function BackupPanel({
   profilePath,
   onRestored,
-  onCountChange,
 }: {
   profilePath: string;
   onRestored: () => void;
-  onCountChange: (count: number) => void;
 }) {
   const [backups, setBackups] = useState<BackupView[]>([]);
   const [status, setStatus] = useState<string | null>(null);
@@ -26,9 +24,7 @@ export default function BackupPanel({
 
   async function reload() {
     try {
-      const list = await api.listBackups();
-      setBackups(list);
-      onCountChange(list.length);
+      setBackups(await api.listBackups());
       setError(null);
     } catch (e) {
       setError(String(e));

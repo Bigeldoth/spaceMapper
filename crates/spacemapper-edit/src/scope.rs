@@ -5,58 +5,89 @@
 //! refusée quoi qu'ait affiché le frontend : c'est ce qui rend la limite réelle
 //! plutôt que cosmétique.
 //!
-//! Le découpage suit les deux premières étapes du parcours d'apprentissage :
-//! savoir marcher, puis savoir voler. Tout ce qui relève du combat, des
-//! systèmes de bord ou des spécialisations relève de l'édition Premium.
+//! Trois niveaux, et la distinction entre les deux derniers est un choix
+//! commercial autant que technique :
+//!
+//! - [`EditAccess::Lite`] — modifiable dans l'édition gratuite.
+//! - [`EditAccess::PremiumTeaser`] — affiché dans Lite, mais verrouillé. Le
+//!   joueur voit ce qu'il gagnerait à passer au Premium, sur des catégories
+//!   qu'il utilise vraiment.
+//! - [`EditAccess::PremiumOnly`] — absent de Lite. Réservé aux catégories dont
+//!   l'affichage n'apporterait rien à un utilisateur gratuit.
 
 use serde::Serialize;
 
-/// Catégories de pilotage éditables : les mouvements, rien d'autre.
+/// Modifiable par l'édition Lite.
 ///
-/// `spaceship_general` en est volontairement exclu : il contient
-/// l'autodestruction et les verrouillages de portes, qu'on ne veut pas voir
-/// réassignés par erreur depuis une interface dite simplifiée.
-const FLIGHT: &[&str] = &["spaceship_movement", "vehicle_driver"];
+/// Volontairement réduit aux deux catégories qui couvrent l'essentiel d'une
+/// première configuration : piloter et marcher.
+const LITE: &[&str] = &["spaceship_movement", "player"];
 
-/// Catégories à pied.
-const ON_FOOT: &[&str] = &[
-    "player",
-    "prone",
-    "player_emotes",
+/// Affiché dans Lite, mais verrouillé.
+const TEASER: &[&str] = &[
+    "vehicle_driver",
     "player_choice",
+    "player_emotes",
     "zero_gravity_eva",
 ];
+
+/// Modifiable en Premium, mais non affiché dans Lite.
+const PREMIUM_ONLY: &[&str] = &["prone"];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum EditAccess {
+    Lite,
+    PremiumTeaser,
+    PremiumOnly,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum EditCategory {
-    /// Pilotage : tangage, lacet, roulis, translations, boost, frein.
+    /// Pilotage : tangage, lacet, roulis, translations, postcombustion.
     Flight,
-    /// Déplacement du personnage : marche, accroupi, saut, interaction.
+    /// Déplacement du personnage : marche, interaction, émotes, EVA.
     OnFoot,
 }
 
-/// Cette catégorie est-elle modifiable par l'édition Lite ?
+/// Cette catégorie est-elle **modifiable** par l'édition Lite ?
+///
+/// C'est la seule question que pose la couche d'écriture.
 pub fn is_editable(actionmap: &str) -> bool {
-    category_of(actionmap).is_some()
+    LITE.contains(&actionmap)
 }
 
-pub fn category_of(actionmap: &str) -> Option<EditCategory> {
-    if FLIGHT.contains(&actionmap) {
-        Some(EditCategory::Flight)
-    } else if ON_FOOT.contains(&actionmap) {
-        Some(EditCategory::OnFoot)
+/// Niveau d'accès d'une catégorie, ou `None` si elle sort entièrement du
+/// domaine d'édition (armement, énergie, tourelles…).
+pub fn access_of(actionmap: &str) -> Option<EditAccess> {
+    if LITE.contains(&actionmap) {
+        Some(EditAccess::Lite)
+    } else if TEASER.contains(&actionmap) {
+        Some(EditAccess::PremiumTeaser)
+    } else if PREMIUM_ONLY.contains(&actionmap) {
+        Some(EditAccess::PremiumOnly)
     } else {
         None
     }
 }
 
-/// Toutes les catégories éditables, pour l'affichage.
-pub fn editable_actionmaps() -> impl Iterator<Item = (&'static str, EditCategory)> {
-    FLIGHT
-        .iter()
-        .map(|n| (*n, EditCategory::Flight))
-        .chain(ON_FOOT.iter().map(|n| (*n, EditCategory::OnFoot)))
+/// Cette catégorie doit-elle apparaître dans l'interface Lite ?
+pub fn is_visible_in_lite(actionmap: &str) -> bool {
+    matches!(
+        access_of(actionmap),
+        Some(EditAccess::Lite | EditAccess::PremiumTeaser)
+    )
+}
+
+pub fn category_of(actionmap: &str) -> Option<EditCategory> {
+    match actionmap {
+        "spaceship_movement" | "vehicle_driver" => Some(EditCategory::Flight),
+        "player" | "prone" | "player_choice" | "player_emotes" | "zero_gravity_eva" => {
+            Some(EditCategory::OnFoot)
+        }
+        _ => None,
+    }
 }
 
 #[cfg(test)]
@@ -64,20 +95,32 @@ mod tests {
     use super::*;
 
     #[test]
-    fn movement_categories_are_editable() {
-        assert_eq!(
-            category_of("spaceship_movement"),
-            Some(EditCategory::Flight)
-        );
-        assert_eq!(category_of("vehicle_driver"), Some(EditCategory::Flight));
-        assert_eq!(category_of("player"), Some(EditCategory::OnFoot));
-        assert_eq!(category_of("zero_gravity_eva"), Some(EditCategory::OnFoot));
+    fn lite_can_edit_walking_and_flying() {
+        assert!(is_editable("spaceship_movement"));
+        assert!(is_editable("player"));
+    }
+
+    #[test]
+    fn teaser_categories_are_shown_but_not_writable() {
+        // Le cœur de l'incitation commerciale : visibles, jamais modifiables.
+        for name in TEASER {
+            assert!(!is_editable(name), "{name} ne doit pas être modifiable");
+            assert!(is_visible_in_lite(name), "{name} doit rester visible");
+            assert_eq!(access_of(name), Some(EditAccess::PremiumTeaser));
+        }
+    }
+
+    #[test]
+    fn prone_is_absent_from_lite_entirely() {
+        assert!(!is_editable("prone"));
+        assert!(!is_visible_in_lite("prone"));
+        assert_eq!(access_of("prone"), Some(EditAccess::PremiumOnly));
     }
 
     #[test]
     fn combat_and_systems_stay_out_of_reach() {
-        // Le cœur de la limite Lite. Ces catégories existent bel et bien dans
-        // un fichier réel ; elles doivent être refusées, pas ignorées.
+        // Ces catégories existent bel et bien dans un fichier réel ; elles
+        // doivent être refusées et invisibles, pas simplement ignorées.
         for name in [
             "spaceship_weapons",
             "spaceship_targeting",
@@ -88,16 +131,14 @@ mod tests {
             "turret_movement",
             "vehicle_mfd",
             "seat_general",
+            // Porte l'autodestruction : hors de portée d'une interface
+            // simplifiée, même en affichage.
+            "spaceship_general",
         ] {
-            assert!(!is_editable(name), "{name} ne doit pas être éditable");
+            assert!(!is_editable(name), "{name} ne doit pas être modifiable");
+            assert!(!is_visible_in_lite(name), "{name} ne doit pas s'afficher");
+            assert_eq!(access_of(name), None);
         }
-    }
-
-    #[test]
-    fn dangerous_general_category_is_excluded() {
-        // `spaceship_general` porte v_self_destruct : hors de portée d'une
-        // interface simplifiée.
-        assert!(!is_editable("spaceship_general"));
     }
 
     #[test]
@@ -105,6 +146,15 @@ mod tests {
         // Un futur patch peut introduire n'importe quel nom : le défaut sûr
         // est le refus, pas l'autorisation.
         assert!(!is_editable("categorie_inventee_par_un_patch"));
-        assert!(!is_editable(""));
+        assert!(!is_visible_in_lite(""));
+        assert_eq!(access_of("inconnue"), None);
+    }
+
+    #[test]
+    fn every_known_category_has_a_display_category() {
+        // Sans quoi une entrée serait affichée sans savoir où la ranger.
+        for name in LITE.iter().chain(TEASER).chain(PREMIUM_ONLY) {
+            assert!(category_of(name).is_some(), "{name} sans catégorie");
+        }
     }
 }

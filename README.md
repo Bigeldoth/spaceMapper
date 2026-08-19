@@ -25,8 +25,10 @@ L'édition **Premium** (export, import, synchronisation, réparation de l'ordre 
 | Détection des périphériques par GUID | ✅ | ✅ |
 | Lecture et aperçu de toutes les assignations | ✅ | ✅ |
 | Points de restauration et restauration | ✅ | ✅ |
-| **Modifier les déplacements** (vol et à pied) | ✅ | ✅ |
-| Modifier le combat, l'énergie, les systèmes | — | ✅ |
+| **Modifier le pilotage** (`spaceship_movement`) | ✅ | ✅ |
+| **Modifier le déplacement à pied** (`player`) | ✅ | ✅ |
+| Conduite, EVA, émotes, menu d'interaction | Affichés, verrouillés | ✅ |
+| Combat, ciblage, énergie, systèmes, tourelles | — | ✅ |
 | Modificateurs et modes d'activation | — | ✅ |
 | Profils nommés et commutables | — | ✅ |
 | Synchronisation entre machines | — | ✅ |
@@ -40,11 +42,11 @@ L'édition **Premium** (export, import, synchronisation, réparation de l'ordre 
 
 **Lite fonctionne intégralement hors-ligne.** Ce n'est pas une promesse mais une propriété vérifiable : son arbre de dépendances ne contient **aucun client HTTP** — ni `reqwest`, ni `hyper`, ni `ureq`, ni `rustls`. Le binaire est techniquement incapable d'émettre une requête réseau. Pas de télémétrie, pas de compte, pas de mise à jour silencieuse. Vous pouvez le vérifier avec `cargo tree`.
 
-**Lite ne touche qu'aux déplacements.** Le périmètre est appliqué dans la couche d'écriture en Rust, pas dans l'interface — une catégorie hors périmètre est refusée quoi qu'affiche l'écran. Les assignations portant un modificateur ou un mode d'activation sont présentées en lecture seule plutôt que modifiées à l'aveugle.
+**Lite ne modifie que le pilotage et la marche.** Le périmètre est appliqué dans la couche d'écriture en Rust, pas dans l'interface — une catégorie hors périmètre est refusée quoi qu'affiche l'écran. Les assignations portant un modificateur ou un mode d'activation sont présentées en lecture seule plutôt que modifiées à l'aveugle.
+
+**Rien n'est écrit sans votre accord.** Vos modifications s'accumulent à l'écran ; un bandeau vous rappelle qu'elles ne sont pas enregistrées. Au moment d'enregistrer, vous pouvez relire la liste de ce qui va changer et choisir de créer un point de restauration au préalable.
 
 **Vos sauvegardes vous appartiennent.** Les points de restauration sont du XML en clair dans `%APPDATA%\SpaceMapper\Backups`, hors du dossier du jeu. Ils restent lisibles et réutilisables même si vous désinstallez SpaceMapper. Nous ne chiffrons pas vos données pour vous forcer à rester.
-
-> ⚠️ **Les sauvegardes ne sont pas automatiques.** Elles sont créées quand vous cliquez sur « Sauvegarder maintenant ». Prenez-en une avant votre première modification : sans elle, un changement n'est pas annulable.
 
 > ⚠️ Fermez Star Citizen avant de modifier vos contrôles : le jeu réécrit `actionmaps.xml` en quittant et écraserait vos changements.
 
