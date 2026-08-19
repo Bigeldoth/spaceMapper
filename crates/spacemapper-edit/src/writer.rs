@@ -8,7 +8,7 @@
 //! introduirait des régressions invisibles jusqu'au lancement du jeu.
 
 use crate::{Error, Result};
-use quick_xml::events::{BytesStart, Event};
+use quick_xml::events::{BytesEnd, BytesStart, Event};
 use quick_xml::{Reader, Writer};
 
 /// Une modification d'assignation.
@@ -60,8 +60,11 @@ pub fn apply_many(xml: &str, edits: &[BindingEdit]) -> Result<String> {
 
 /// Applique une modification au document et renvoie le XML résultant.
 ///
-/// Échoue si l'action visée n'existe pas : mieux vaut refuser bruyamment que
-/// rendre un fichier inchangé en laissant croire à un succès.
+/// Si l'action visée n'existe pas encore, elle est **créée**. C'est le cas
+/// courant depuis qu'on affiche aussi les assignations par défaut du jeu :
+/// `actionmaps.xml` ne contient que les surcharges, donc surcharger un défaut
+/// revient à écrire une entrée qui n'existait pas. La catégorie elle-même est
+/// créée si besoin.
 pub fn apply(xml: &str, edit: &BindingEdit) -> Result<String> {
     let mut reader = Reader::from_str(xml);
     let mut writer = Writer::new(Vec::new());
@@ -69,12 +72,64 @@ pub fn apply(xml: &str, edit: &BindingEdit) -> Result<String> {
     let mut current_map: Option<String> = None;
     let mut current_action: Option<String> = None;
     let mut applied = false;
+    // La catégorie et l'action visées ont-elles été rencontrées ? C'est ce
+    // qui distingue « à créer » de « à remplacer ».
+    let mut map_seen = false;
+    let mut action_seen = false;
+    let mut indent = String::new();
 
     loop {
         let event = reader.read_event().map_err(|e| Error::Xml(e.to_string()))?;
 
         match event {
             Event::Eof => break,
+
+            // Sortie de l'action visée sans avoir trouvé de `<rebind>` :
+            // l'action existe mais n'a aucune assignation, on en insère une.
+            Event::End(ref e)
+                if !applied
+                    && action_seen
+                    && e.name().as_ref() == b"action"
+                    && current_map.as_deref() == Some(edit.actionmap.as_str())
+                    && current_action.as_deref() == Some(edit.action.as_str()) =>
+            {
+                write_raw(&mut writer, &format!("{indent}  "))?;
+                write_rebind(&mut writer, edit.value())?;
+                write_raw(&mut writer, &indent)?;
+                write(&mut writer, &event)?;
+                current_action = None;
+                applied = true;
+            }
+
+            // Sortie de la catégorie visée sans avoir trouvé l'action : on
+            // ajoute l'action complète avant de refermer.
+            Event::End(ref e)
+                if !applied
+                    && map_seen
+                    && e.name().as_ref() == b"actionmap"
+                    && current_map.as_deref() == Some(edit.actionmap.as_str()) =>
+            {
+                write_raw(&mut writer, &format!("{indent} "))?;
+                write_action(&mut writer, edit)?;
+                write_raw(&mut writer, &indent)?;
+                write(&mut writer, &event)?;
+                current_map = None;
+                applied = true;
+            }
+
+            // La catégorie n'existe pas du tout : on la crée avant de refermer
+            // le conteneur.
+            Event::End(ref e)
+                if !applied
+                    && !map_seen
+                    && matches!(e.name().as_ref(), b"ActionProfiles" | b"ActionMaps") =>
+            {
+                write_raw(&mut writer, &format!("{indent} "))?;
+                write_actionmap(&mut writer, edit)?;
+                write_raw(&mut writer, &indent)?;
+                write(&mut writer, &event)?;
+                applied = true;
+            }
 
             // Les bras gardés doivent précéder les bras généraux de même
             // forme, sinon ils sont inatteignables et la balise visée est
@@ -96,8 +151,18 @@ pub fn apply(xml: &str, edit: &BindingEdit) -> Result<String> {
 
             Event::Start(ref e) => {
                 match e.name().as_ref() {
-                    b"actionmap" => current_map = attribute(e, b"name"),
-                    b"action" => current_action = attribute(e, b"name"),
+                    b"actionmap" => {
+                        current_map = attribute(e, b"name");
+                        if current_map.as_deref() == Some(edit.actionmap.as_str()) {
+                            map_seen = true;
+                        }
+                    }
+                    b"action" => {
+                        current_action = attribute(e, b"name");
+                        if map_seen && current_action.as_deref() == Some(edit.action.as_str()) {
+                            action_seen = true;
+                        }
+                    }
                     _ => {}
                 }
                 write(&mut writer, &event)?;
@@ -112,12 +177,25 @@ pub fn apply(xml: &str, edit: &BindingEdit) -> Result<String> {
                 write(&mut writer, &event)?;
             }
 
+            // On retient la dernière indentation vue, pour que les éléments
+            // insérés s'alignent sur le fichier plutôt que de le déformer.
+            Event::Text(ref t) => {
+                if let Ok(text) = std::str::from_utf8(t.as_ref()) {
+                    if let Some(last) = text.rsplit('\n').next() {
+                        if !last.is_empty() && last.chars().all(char::is_whitespace) {
+                            indent = last.to_string();
+                        }
+                    }
+                }
+                write(&mut writer, &event)?;
+            }
+
             other => write(&mut writer, &other)?,
         }
     }
 
     if !applied {
-        return Err(Error::ActionNotFound {
+        return Err(Error::NoInsertionPoint {
             actionmap: edit.actionmap.clone(),
             action: edit.action.clone(),
         });
@@ -176,6 +254,38 @@ fn write(writer: &mut Writer<Vec<u8>>, event: &Event) -> Result<()> {
     writer
         .write_event(event.borrow())
         .map_err(|e| Error::Xml(e.to_string()))
+}
+
+/// Écrit du texte brut, pour l'indentation des éléments insérés.
+fn write_raw(writer: &mut Writer<Vec<u8>>, text: &str) -> Result<()> {
+    use std::io::Write;
+    writer
+        .get_mut()
+        .write_all(text.as_bytes())
+        .map_err(|e| Error::Xml(e.to_string()))
+}
+
+fn write_rebind(writer: &mut Writer<Vec<u8>>, input: &str) -> Result<()> {
+    let mut element = BytesStart::new("rebind");
+    element.push_attribute(("input", input));
+    write(writer, &Event::Empty(element))
+}
+
+/// `<action name="X"><rebind input="…"/></action>`, sur une seule ligne.
+fn write_action(writer: &mut Writer<Vec<u8>>, edit: &BindingEdit) -> Result<()> {
+    let mut element = BytesStart::new("action");
+    element.push_attribute(("name", edit.action.as_str()));
+    write(writer, &Event::Start(element))?;
+    write_rebind(writer, edit.value())?;
+    write(writer, &Event::End(BytesEnd::new("action")))
+}
+
+fn write_actionmap(writer: &mut Writer<Vec<u8>>, edit: &BindingEdit) -> Result<()> {
+    let mut element = BytesStart::new("actionmap");
+    element.push_attribute(("name", edit.actionmap.as_str()));
+    write(writer, &Event::Start(element))?;
+    write_action(writer, edit)?;
+    write(writer, &Event::End(BytesEnd::new("actionmap")))
 }
 
 #[cfg(test)]
@@ -254,24 +364,86 @@ mod tests {
         assert_eq!(reparsed.profile_name.as_deref(), Some("default"));
     }
 
-    #[test]
-    fn unknown_action_is_a_loud_failure() {
-        let err = apply(
-            DOC,
-            &BindingEdit::set("spaceship_movement", "v_inexistante", "js1_x"),
-        )
-        .unwrap_err();
-        assert!(matches!(err, Error::ActionNotFound { .. }));
+    /// Relit le document produit et renvoie l'assignation demandée.
+    ///
+    /// Vérifier le texte à la main laisserait passer un XML mal formé ; on
+    /// exige que notre propre parseur y retrouve la valeur.
+    fn reparse(xml: &str, actionmap: &str, action: &str) -> Option<String> {
+        let maps = spacemapper_core::actionmaps::parse_str(xml).ok()?;
+        let found = maps
+            .rebinds()
+            .find(|(m, a, _)| m.name == actionmap && a.name == action)
+            .map(|(_, _, r)| r.input_raw.clone());
+        found
     }
 
     #[test]
-    fn unknown_actionmap_is_a_loud_failure() {
-        let err = apply(
+    fn a_missing_action_is_created() {
+        // Surcharger une valeur par défaut du jeu revient à écrire une action
+        // absente du fichier : c'est devenu le cas courant.
+        let out = apply(
             DOC,
-            &BindingEdit::set("categorie_absente", "v_boost", "js1_x"),
+            &BindingEdit::set("spaceship_movement", "v_pitch", "js1_y"),
         )
-        .unwrap_err();
-        assert!(matches!(err, Error::ActionNotFound { .. }));
+        .unwrap();
+
+        assert_eq!(
+            reparse(&out, "spaceship_movement", "v_pitch").as_deref(),
+            Some("js1_y")
+        );
+        // Le reste du document survit.
+        assert_eq!(
+            reparse(&out, "spaceship_movement", "v_boost").as_deref(),
+            Some("js1_button5")
+        );
+    }
+
+    #[test]
+    fn a_missing_actionmap_is_created() {
+        let out = apply(DOC, &BindingEdit::set("player", "moveforward", "kb1_w")).unwrap();
+        assert_eq!(
+            reparse(&out, "player", "moveforward").as_deref(),
+            Some("kb1_w")
+        );
+    }
+
+    #[test]
+    fn an_action_without_any_rebind_receives_one() {
+        // Forme rare mais valide : l'action existe, sans assignation.
+        let doc = r#"<ActionMaps><ActionProfiles>
+  <actionmap name="spaceship_movement">
+   <action name="v_pitch"></action>
+  </actionmap>
+ </ActionProfiles></ActionMaps>"#;
+
+        let out = apply(
+            doc,
+            &BindingEdit::set("spaceship_movement", "v_pitch", "js2_rotz"),
+        )
+        .unwrap();
+        assert_eq!(
+            reparse(&out, "spaceship_movement", "v_pitch").as_deref(),
+            Some("js2_rotz")
+        );
+    }
+
+    #[test]
+    fn creation_stays_idempotent() {
+        // Deux passages successifs ne doivent pas produire deux actions du
+        // même nom, que le jeu lirait de façon imprévisible.
+        let once = apply(
+            DOC,
+            &BindingEdit::set("spaceship_movement", "v_pitch", "js1_y"),
+        )
+        .unwrap();
+        let twice = apply(
+            &once,
+            &BindingEdit::set("spaceship_movement", "v_pitch", "js1_y"),
+        )
+        .unwrap();
+
+        assert_eq!(once, twice);
+        assert_eq!(once.matches(r#"name="v_pitch""#).count(), 1);
     }
 
     #[test]
@@ -305,19 +477,20 @@ mod tests {
     }
 
     #[test]
-    fn apply_many_rejects_the_whole_batch_on_one_bad_edit() {
+    fn apply_many_stops_at_the_first_failure() {
         // Un enregistrement partiel laisserait l'utilisateur avec un fichier
-        // dans un état qu'il n'a pas demandé et ne peut pas deviner.
+        // dans un état qu'il n'a pas demandé et ne peut pas deviner. Un
+        // document sans point d'insertion fait donc échouer tout le lot.
         let err = apply_many(
-            DOC,
+            "<Nope/>",
             &[
                 BindingEdit::set("spaceship_movement", "v_boost", "js1_button9"),
-                BindingEdit::set("spaceship_movement", "v_inexistante", "js1_x"),
+                BindingEdit::set("spaceship_movement", "v_pitch", "js1_y"),
             ],
         )
         .unwrap_err();
 
-        assert!(matches!(err, Error::ActionNotFound { .. }));
+        assert!(matches!(err, Error::NoInsertionPoint { .. }));
     }
 
     #[test]

@@ -11,13 +11,26 @@
 //! écriture : c'est le seul moment où l'utilisateur sait ce qu'il s'apprête à
 //! changer.
 
+use crate::gamedata::GameData;
 use serde::{Deserialize, Serialize};
-use spacemapper_core::actionmaps::{self, ActionMaps};
+use spacemapper_core::actionmaps::{self, ActionMaps, InputBinding};
 use spacemapper_core::channel;
+use spacemapper_core::defaults::DefaultProfile;
 use spacemapper_edit::{backup, scope, BindingEdit, EditAccess, EditCategory};
 use std::path::{Path, PathBuf};
 
 type CmdResult<T> = Result<T, String>;
+
+/// D'où vient une assignation.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Origin {
+    /// Écrite dans `actionmaps.xml` par le joueur ou par le jeu.
+    Override,
+    /// Fournie par le jeu et jamais modifiée : elle n'existe que dans
+    /// `Data.p4k`. C'est la majorité d'une configuration qui fonctionne.
+    GameDefault,
+}
 
 /// Une assignation présentée à l'édition.
 #[derive(Debug, Serialize)]
@@ -26,6 +39,7 @@ pub struct EditableBinding {
     pub category: EditCategory,
     /// Niveau d'accès : modifiable, ou verrouillé derrière le Premium.
     pub access: EditAccess,
+    pub origin: Origin,
     pub action: String,
     pub input_raw: String,
     pub device: Option<String>,
@@ -69,10 +83,36 @@ fn backup_dir() -> CmdResult<PathBuf> {
 }
 
 /// Les assignations que l'édition Lite peut modifier.
+///
+/// Les surcharges du joueur et les valeurs par défaut du jeu sont fusionnées :
+/// sans cela, la liste ne montrerait qu'une fraction d'une configuration qui
+/// fonctionne, et le joueur chercherait en vain ses axes de vol.
+///
+/// L'indisponibilité du profil par défaut n'est pas bloquante : on affiche
+/// alors les seules surcharges, et l'appelant en est informé.
 #[tauri::command]
-pub fn list_editable_bindings(path: String) -> CmdResult<Vec<EditableBinding>> {
+pub fn list_editable_bindings(
+    state: tauri::State<'_, GameData>,
+    path: String,
+) -> CmdResult<MergedBindings> {
     let maps = actionmaps::parse_file(PathBuf::from(&path)).map_err(|e| e.to_string())?;
-    Ok(collect_editable(&maps))
+
+    let (defaults, defaults_error) = match state.profile_for(Path::new(&path)) {
+        Ok(profile) => (Some(profile), None),
+        Err(message) => (None, Some(message)),
+    };
+
+    Ok(MergedBindings {
+        bindings: collect_editable(&maps, defaults.as_ref()),
+        defaults_error,
+    })
+}
+
+#[derive(Debug, Serialize)]
+pub struct MergedBindings {
+    pub bindings: Vec<EditableBinding>,
+    /// Motif d'indisponibilité des valeurs par défaut, le cas échéant.
+    pub defaults_error: Option<String>,
 }
 
 /// Enregistre un lot de modifications en une seule écriture.
@@ -150,7 +190,102 @@ impl From<backup::BackupEntry> for BackupView {
     }
 }
 
-fn collect_editable(maps: &ActionMaps) -> Vec<EditableBinding> {
+/// Fusionne surcharges et valeurs par défaut.
+///
+/// Une surcharge l'emporte toujours : c'est ce que le jeu fait lui-même. Les
+/// défauts qui n'ont pas été surchargés sont ajoutés ensuite, marqués comme
+/// tels, afin que la liste reflète la configuration réellement en vigueur.
+fn collect_editable(maps: &ActionMaps, defaults: Option<&DefaultProfile>) -> Vec<EditableBinding> {
+    let mut bindings = collect_overrides(maps);
+
+    let Some(defaults) = defaults else {
+        return bindings;
+    };
+
+    let known: std::collections::HashSet<(String, String)> = bindings
+        .iter()
+        .map(|b| (b.actionmap.clone(), b.action.clone()))
+        .collect();
+
+    for map in &defaults.action_maps {
+        let Some(access) = scope::access_of(&map.name) else {
+            continue;
+        };
+        if access == EditAccess::PremiumOnly {
+            continue;
+        }
+        let Some(category) = scope::category_of(&map.name) else {
+            continue;
+        };
+
+        for action in &map.actions {
+            if known.contains(&(map.name.clone(), action.name.clone())) {
+                continue;
+            }
+            // Le profil par défaut ne donne qu'un nom de contrôle, sans index
+            // de périphérique : le jeu l'applique au premier de la famille.
+            let Some(token) = default_token(action) else {
+                continue;
+            };
+
+            let input = InputBinding::parse(&token);
+            let locked_reason = lock_reason(access, &action.name, input.as_ref(), None, None);
+
+            bindings.push(EditableBinding {
+                actionmap: map.name.clone(),
+                category,
+                access,
+                origin: Origin::GameDefault,
+                action: action.name.clone(),
+                input_raw: token.clone(),
+                device: input
+                    .as_ref()
+                    .map(|i| format!("{}{}", i.device_kind.prefix(), i.instance)),
+                control: input.as_ref().map(|i| i.control.clone()),
+                locked: locked_reason.is_some(),
+                locked_reason,
+            });
+        }
+    }
+
+    bindings
+}
+
+/// Jeton d'une valeur par défaut, en privilégiant le manche.
+///
+/// Le profil décrit une même action pour plusieurs familles ; on retient celle
+/// qui intéresse le plus l'utilisateur de ce logiciel, puis on retombe sur le
+/// clavier.
+fn default_token(action: &spacemapper_core::defaults::DefaultAction) -> Option<String> {
+    action
+        .token_for("js1")
+        .or_else(|| action.token_for("kb1"))
+        .or_else(|| action.token_for("gp1"))
+}
+
+/// Motif de verrouillage, commun aux deux origines.
+fn lock_reason(
+    access: EditAccess,
+    action: &str,
+    input: Option<&InputBinding>,
+    activation_mode: Option<&str>,
+    multi_tap: Option<&str>,
+) -> Option<String> {
+    // L'ordre compte : c'est la raison la plus spécifique qu'il faut afficher.
+    if scope::is_dangerous(action) {
+        Some("Action irréversible — réassignation réservée à l'édition Premium".to_string())
+    } else if access == EditAccess::PremiumTeaser {
+        Some("Catégorie réservée à l'édition Premium".to_string())
+    } else if input.is_some_and(|i| i.modifier.is_some()) {
+        Some("Comporte un modificateur — réservé à l'édition Premium".to_string())
+    } else if activation_mode.is_some_and(|m| !m.is_empty()) || multi_tap.is_some() {
+        Some("Comporte un mode d'activation — réservé à l'édition Premium".to_string())
+    } else {
+        None
+    }
+}
+
+fn collect_overrides(maps: &ActionMaps) -> Vec<EditableBinding> {
     maps.rebinds()
         .filter_map(|(map, action, rebind)| {
             // Les catégories réservées au Premium sans intérêt de vitrine sont
@@ -161,38 +296,27 @@ fn collect_editable(maps: &ActionMaps) -> Vec<EditableBinding> {
             }
             let category = scope::category_of(&map.name)?;
 
-            let (device, control, modifier) = match &rebind.input {
+            let (device, control) = match &rebind.input {
                 Some(input) => (
                     Some(format!("{}{}", input.device_kind.prefix(), input.instance)),
                     Some(input.control.clone()),
-                    input.modifier.clone(),
                 ),
-                None => (None, None, None),
+                None => (None, None),
             };
 
-            // Plusieurs raisons distinctes de verrouiller, et l'ordre compte :
-            // c'est la plus spécifique qu'il faut afficher.
-            let locked_reason = if scope::is_dangerous(&action.name) {
-                Some("Action irréversible — réassignation réservée à l'édition Premium".to_string())
-            } else if access == EditAccess::PremiumTeaser {
-                Some("Catégorie réservée à l'édition Premium".to_string())
-            } else if modifier.is_some() {
-                Some("Comporte un modificateur — réservé à l'édition Premium".to_string())
-            } else if rebind
-                .activation_mode
-                .as_deref()
-                .is_some_and(|m| !m.is_empty())
-                || rebind.multi_tap.is_some()
-            {
-                Some("Comporte un mode d'activation — réservé à l'édition Premium".to_string())
-            } else {
-                None
-            };
+            let locked_reason = lock_reason(
+                access,
+                &action.name,
+                rebind.input.as_ref(),
+                rebind.activation_mode.as_deref(),
+                rebind.multi_tap.as_deref(),
+            );
 
             Some(EditableBinding {
                 actionmap: map.name.clone(),
                 category,
                 access,
+                origin: Origin::Override,
                 action: action.name.clone(),
                 input_raw: rebind.input_raw.clone(),
                 device,
@@ -239,7 +363,72 @@ mod tests {
  </ActionProfiles></ActionMaps>"#;
 
     fn editable() -> Vec<EditableBinding> {
-        collect_editable(&actionmaps::parse_str(DOC).unwrap())
+        collect_editable(&actionmaps::parse_str(DOC).unwrap(), None)
+    }
+
+    /// Profil par défaut minimal, calqué sur le fichier réel.
+    const DEFAULTS: &str = r#"<profile version="1">
+ <actionmap name="spaceship_movement" UILabel="@ui_CGSpaceFlightMovement">
+  <action name="v_pitch" joystick="y" gamepad="thumbry"/>
+  <action name="v_roll" joystick="rotz"/>
+  <action name="v_afterburner" joystick="button8"/>
+  <action name="v_sans_defaut" joystick=" " gamepad=" "/>
+ </actionmap>
+ <actionmap name="spaceship_weapons">
+  <action name="v_attack1" joystick="button1"/>
+ </actionmap>
+</profile>"#;
+
+    fn merged() -> Vec<EditableBinding> {
+        let defaults = spacemapper_core::defaults::parse_str(DEFAULTS).unwrap();
+        collect_editable(&actionmaps::parse_str(DOC).unwrap(), Some(&defaults))
+    }
+
+    #[test]
+    fn game_defaults_fill_the_gaps_left_by_overrides() {
+        // Le cœur de la fusion : ces axes font voler le joueur sans figurer
+        // nulle part dans son fichier.
+        let list = merged();
+        let pitch = list
+            .iter()
+            .find(|b| b.action == "v_pitch")
+            .expect("v_pitch absente de la fusion");
+
+        assert_eq!(pitch.origin, Origin::GameDefault);
+        assert_eq!(pitch.input_raw, "js1_y");
+        assert_eq!(pitch.control.as_deref(), Some("y"));
+        assert!(!pitch.locked);
+    }
+
+    #[test]
+    fn an_override_wins_over_the_game_default() {
+        // `v_afterburner` est surchargée dans DOC : c'est cette valeur qui
+        // s'applique en jeu, et elle ne doit pas apparaître deux fois.
+        let list = merged();
+        let found: Vec<_> = list
+            .iter()
+            .filter(|b| b.action == "v_afterburner")
+            .collect();
+
+        assert_eq!(found.len(), 1, "action présente en double");
+        assert_eq!(found[0].origin, Origin::Override);
+        assert_eq!(found[0].input_raw, "js1_button5");
+    }
+
+    #[test]
+    fn defaults_respect_the_lite_scope() {
+        // La fusion ne doit pas faire entrer par la fenêtre une catégorie
+        // que le périmètre refuse.
+        let list = merged();
+        assert!(list.iter().all(|b| b.actionmap != "spaceship_weapons"));
+    }
+
+    #[test]
+    fn actions_without_any_default_are_skipped() {
+        // `joystick=" "` signifie « aucun défaut » : l'ajouter produirait une
+        // ligne vide sans information.
+        let list = merged();
+        assert!(list.iter().all(|b| b.action != "v_sans_defaut"));
     }
 
     #[test]

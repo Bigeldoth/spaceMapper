@@ -60,16 +60,31 @@ export type EditCategory = "flight" | "on_foot";
 /** `premium_only` n'est jamais renvoyé à Lite : ces catégories sont filtrées. */
 export type EditAccess = "lite" | "premium_teaser" | "premium_only";
 
+/**
+ * D'où vient une assignation.
+ *
+ * `game_default` provient de `Data.p4k` et n'existe pas dans le fichier du
+ * joueur : c'est la majorité d'une configuration qui fonctionne.
+ */
+export type Origin = "override" | "game_default";
+
 export interface EditableBinding {
   actionmap: string;
   category: EditCategory;
   access: EditAccess;
+  origin: Origin;
   action: string;
   input_raw: string;
   device: string | null;
   control: string | null;
   locked: boolean;
   locked_reason: string | null;
+}
+
+export interface MergedBindings {
+  bindings: EditableBinding[];
+  /** Motif d'indisponibilité des valeurs par défaut, le cas échéant. */
+  defaults_error: string | null;
 }
 
 /** Une modification en attente d'enregistrement. `input: null` efface. */
@@ -100,8 +115,9 @@ export const api = {
     invoke<FlightBindings>("read_flight_bindings", { path }),
   buildInfo: () => invoke<BuildInfo>("build_info"),
 
+  /** Surcharges du joueur fusionnées avec les valeurs par défaut du jeu. */
   listEditableBindings: (path: string) =>
-    invoke<EditableBinding[]>("list_editable_bindings", { path }),
+    invoke<MergedBindings>("list_editable_bindings", { path }),
 
   /**
    * Écrit un lot de modifications en une seule fois.

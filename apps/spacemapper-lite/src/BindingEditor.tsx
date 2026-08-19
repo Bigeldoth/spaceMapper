@@ -41,6 +41,8 @@ export default function BindingEditor({
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [upsell, setUpsell] = useState<string | null>(null);
+  /** Les valeurs par défaut du jeu n'ont pas pu être lues. */
+  const [defaultsError, setDefaultsError] = useState<string | null>(null);
 
   /**
    * Modifications non enregistrées, par clé d'assignation. `null` signifie
@@ -58,7 +60,9 @@ export default function BindingEditor({
 
   async function reload() {
     try {
-      setBindings(await api.listEditableBindings(profilePath));
+      const merged = await api.listEditableBindings(profilePath);
+      setBindings(merged.bindings);
+      setDefaultsError(merged.defaults_error);
       setError(null);
     } catch (e) {
       setError(String(e));
@@ -143,6 +147,20 @@ export default function BindingEditor({
             : 0
         }
       />
+
+      {defaultsError && (
+        <div className="rounded-lg border border-warn-200 bg-warn-50 p-4">
+          <p className="text-sm font-medium text-warn-700">
+            Valeurs par défaut du jeu indisponibles
+          </p>
+          <p className="mt-1 text-sm text-ink-600">
+            Seules vos modifications enregistrées sont affichées. Une
+            configuration qui fonctionne repose en grande partie sur les
+            réglages d'origine, absents de votre fichier.
+          </p>
+          <p className="technical mt-1 text-ink-500">{defaultsError}</p>
+        </div>
+      )}
 
       {status && (
         <p className="rounded-md border border-accent-100 bg-accent-50 px-4 py-2 text-sm text-accent-700">
@@ -381,9 +399,14 @@ function ScopeNotice() {
   return (
     <div className="rounded-lg border border-ink-200 bg-white p-4">
       <p className="text-sm text-ink-700">
-        L'édition Lite couvre le <strong>pilotage</strong> et le{" "}
-        <strong>déplacement à pied</strong>. Les autres catégories sont
-        affichées mais verrouillées.
+        L'édition Lite couvre tout ce qu'il faut pour{" "}
+        <strong>décoller, se déplacer et se poser</strong>. Les autres
+        catégories sont affichées mais verrouillées.
+      </p>
+      <p className="mt-2 text-sm text-ink-500">
+        Les commandes marquées <em>défaut</em> viennent des réglages d'origine
+        du jeu&nbsp;: elles fonctionnent sans figurer dans votre fichier, et
+        les modifier y crée une surcharge.
       </p>
       <p className="mt-2 text-sm text-ink-500">
         Rien n'est écrit tant que vous n'avez pas enregistré. Fermez Star
@@ -534,8 +557,26 @@ function BindingRow({
           </span>
         ) : assigned ? (
           <span className="technical flex items-center gap-1">
-            <Key>{binding.device}</Key>
-            <Key>{binding.control}</Key>
+            {/* Une valeur par défaut ne porte pas d'index de périphérique :
+                le jeu l'applique au premier de la famille. L'afficher comme
+                une surcharge laisserait croire qu'elle est écrite quelque
+                part, alors qu'elle n'existe que dans l'archive du jeu. */}
+            {binding.origin === "game_default" ? (
+              <>
+                <span
+                  title="Réglage d'origine du jeu — absent de votre fichier"
+                  className="rounded border border-ink-200 px-1.5 py-0.5 text-[0.6875rem] font-medium text-ink-500"
+                >
+                  défaut
+                </span>
+                <Key>{binding.control}</Key>
+              </>
+            ) : (
+              <>
+                <Key>{binding.device}</Key>
+                <Key>{binding.control}</Key>
+              </>
+            )}
           </span>
         ) : (
           <span className="text-xs italic text-ink-400">non assignée</span>

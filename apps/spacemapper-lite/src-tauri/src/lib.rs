@@ -20,12 +20,14 @@
 mod capture;
 mod commands;
 mod editing;
+mod gamedata;
 
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(capture::CaptureState::default())
+        .manage(gamedata::GameData::default())
         .invoke_handler(tauri::generate_handler![
             commands::list_devices,
             commands::locate_actionmaps,

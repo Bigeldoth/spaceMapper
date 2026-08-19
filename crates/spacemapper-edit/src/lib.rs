@@ -43,8 +43,16 @@ pub enum Error {
     #[error("XML illisible: {0}")]
     Xml(String),
 
-    #[error("action « {action} » introuvable dans « {actionmap} »")]
-    ActionNotFound { actionmap: String, action: String },
+    /// Le document ne comporte aucun endroit où insérer l'assignation.
+    ///
+    /// Une action absente est normalement **créée** — surcharger un défaut du
+    /// jeu revient précisément à cela. Cette erreur ne subsiste que pour un
+    /// document trop malformé pour offrir un point d'insertion.
+    #[error(
+        "impossible d'écrire « {action} » dans « {actionmap} » : \
+         le document ne comporte aucun point d'insertion"
+    )]
+    NoInsertionPoint { actionmap: String, action: String },
 
     #[error(
         "« {actionmap} » n'est pas modifiable dans l'édition Lite, \
@@ -185,15 +193,36 @@ mod tests {
     }
 
     #[test]
-    fn a_failed_edit_leaves_the_file_untouched() {
-        let (target, _) = fixture("notfound");
+    fn overriding_a_game_default_creates_the_entry() {
+        // `actionmaps.xml` ne contient que les surcharges : assigner une
+        // commande jusqu'ici laissée par défaut suppose de créer son entrée.
+        let (target, _) = fixture("create");
+        apply_to_file(
+            &target,
+            &BindingEdit::set("spaceship_movement", "v_pitch", "js1_y"),
+        )
+        .unwrap();
+
+        let written = std::fs::read_to_string(&target).unwrap();
+        let maps = spacemapper_core::actionmaps::parse_str(&written).unwrap();
+        let created = maps
+            .rebinds()
+            .find(|(_, a, _)| a.name == "v_pitch")
+            .expect("action non créée");
+        assert_eq!(created.2.input_raw, "js1_y");
+    }
+
+    #[test]
+    fn a_document_without_insertion_point_is_refused() {
+        let (target, _) = fixture("malformed");
+        std::fs::write(&target, "<Nope/>").unwrap();
+
         let err = apply_to_file(
             &target,
-            &BindingEdit::set("spaceship_movement", "v_inexistante", "js1_x"),
+            &BindingEdit::set("spaceship_movement", "v_pitch", "js1_y"),
         )
         .unwrap_err();
-
-        assert!(matches!(err, Error::ActionNotFound { .. }));
-        assert_eq!(std::fs::read_to_string(&target).unwrap(), DOC);
+        assert!(matches!(err, Error::NoInsertionPoint { .. }));
+        assert_eq!(std::fs::read_to_string(&target).unwrap(), "<Nope/>");
     }
 }
