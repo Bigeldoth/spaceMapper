@@ -8,7 +8,7 @@
  */
 
 import type { EditableBinding, Origin } from "./api";
-import { actionLabel, categoryLabel } from "./actionLabels";
+import { bindingLabel, categoryLabel } from "./actionLabels";
 
 /** Famille de périphérique, déduite du préfixe du jeton. */
 export type DeviceFamily = "js" | "kb" | "mo" | "gp";
@@ -62,8 +62,9 @@ export function apply(
     // tête : le libellé traduit, le nom interne qu'échangent les joueurs, le
     // jeton d'assignation, et le nom de la catégorie.
     return [
-      actionLabel(b.action),
+      bindingLabel(b),
       b.action,
+      b.description ?? "",
       b.input_raw,
       b.control ?? "",
       categoryLabel(b.actionmap),

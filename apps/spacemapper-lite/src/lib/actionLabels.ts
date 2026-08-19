@@ -215,6 +215,21 @@ const EMOTES: Record<string, string> = {
   whistle: "siffler",
 };
 
+/**
+ * Libellé à afficher pour une assignation.
+ *
+ * Le vocabulaire du jeu prime : il est complet, traduit et suit les patchs,
+ * quand le catalogue ci-dessous plafonne à quelques centaines d'entrées
+ * écrites à la main. Ce dernier ne sert plus que de repli, lorsque l'archive
+ * est illisible ou qu'une action n'y est pas traduite.
+ */
+export function bindingLabel(binding: {
+  action: string;
+  label: string | null;
+}): string {
+  return binding.label ?? actionLabel(binding.action);
+}
+
 /** Libellé lisible, ou le nom brut si l'action n'est pas encore cataloguée. */
 export function actionLabel(name: string): string {
   const direct = LABELS[name];

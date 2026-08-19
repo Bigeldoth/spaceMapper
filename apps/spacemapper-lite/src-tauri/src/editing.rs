@@ -41,6 +41,12 @@ pub struct EditableBinding {
     pub access: EditAccess,
     pub origin: Origin,
     pub action: String,
+    /// Libellé fourni par le jeu, dans la langue choisie. `None` si l'action
+    /// n'est pas cataloguée : l'interface retombe alors sur ses propres noms.
+    pub label: Option<String>,
+    /// Description fournie par le jeu — sa réponse à « à quoi sert cette
+    /// touche ? ». Souvent vide hors anglais.
+    pub description: Option<String>,
     pub input_raw: String,
     pub device: Option<String>,
     pub control: Option<String>,
@@ -102,10 +108,88 @@ pub fn list_editable_bindings(
         Err(message) => (None, Some(message)),
     };
 
+    let language = crate::settings::load().game_language;
+    let catalog = state.catalog_for(Path::new(&path), &language);
+
+    let mut bindings = collect_editable(&maps, defaults.as_ref());
+    label_from_game(&mut bindings, defaults.as_ref(), &catalog);
+
     Ok(MergedBindings {
-        bindings: collect_editable(&maps, defaults.as_ref()),
+        bindings,
         defaults_error,
     })
+}
+
+/// Complète chaque assignation avec le vocabulaire du jeu.
+///
+/// Les clés de libellé vivent dans le profil par défaut, y compris pour les
+/// actions que le joueur a surchargées : c'est donc lui qu'on interroge, quelle
+/// que soit l'origine de l'assignation.
+fn label_from_game(
+    bindings: &mut [EditableBinding],
+    defaults: Option<&DefaultProfile>,
+    catalog: &spacemapper_core::localization::Catalog,
+) {
+    let Some(defaults) = defaults else {
+        return;
+    };
+    if catalog.is_empty() {
+        return;
+    }
+
+    for binding in bindings {
+        let Some(action) = defaults.action(&binding.actionmap, &binding.action) else {
+            continue;
+        };
+        // Une traduction vide ne vaut pas mieux qu'une absence : elle
+        // afficherait une ligne sans nom.
+        binding.label = action
+            .ui_label
+            .as_deref()
+            .and_then(|key| catalog.get(key))
+            .filter(|value| !value.is_empty())
+            .map(str::to_string);
+        binding.description = action
+            .ui_description
+            .as_deref()
+            .and_then(|key| catalog.get(key))
+            .filter(|value| !value.is_empty())
+            .map(str::to_string);
+    }
+}
+
+/// Une langue proposée à l'utilisateur.
+#[derive(Debug, Serialize)]
+pub struct Language {
+    /// Identifiant employé par l'archive, ex. `french_(france)`.
+    pub id: String,
+    pub label: String,
+}
+
+/// Langues réellement présentes dans l'installation du joueur.
+#[tauri::command]
+pub fn list_game_languages(
+    state: tauri::State<'_, GameData>,
+    path: String,
+) -> CmdResult<Vec<Language>> {
+    Ok(state
+        .languages_for(Path::new(&path))?
+        .into_iter()
+        .map(|id| Language {
+            label: spacemapper_core::localization::display_name(&id),
+            id,
+        })
+        .collect())
+}
+
+#[tauri::command]
+pub fn get_settings() -> crate::settings::Settings {
+    crate::settings::load()
+}
+
+#[tauri::command]
+pub fn set_settings(settings: crate::settings::Settings) -> CmdResult<()> {
+    crate::settings::save(&settings)
 }
 
 #[derive(Debug, Serialize)]
@@ -237,6 +321,9 @@ fn collect_editable(maps: &ActionMaps, defaults: Option<&DefaultProfile>) -> Vec
                 access,
                 origin: Origin::GameDefault,
                 action: action.name.clone(),
+                // Renseignés ensuite, une fois le catalogue chargé.
+                label: None,
+                description: None,
                 input_raw: token.clone(),
                 device: input
                     .as_ref()
@@ -318,6 +405,8 @@ fn collect_overrides(maps: &ActionMaps) -> Vec<EditableBinding> {
                 access,
                 origin: Origin::Override,
                 action: action.name.clone(),
+                label: None,
+                description: None,
                 input_raw: rebind.input_raw.clone(),
                 device,
                 control,

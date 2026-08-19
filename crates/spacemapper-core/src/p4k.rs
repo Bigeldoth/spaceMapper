@@ -60,6 +60,16 @@ pub struct Entry {
     pub encrypted: bool,
 }
 
+/// Faut-il poursuivre le parcours de la table centrale ?
+///
+/// Chercher une entrée précise s'arrête au premier succès ; recenser les
+/// langues disponibles va jusqu'au bout.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Walk {
+    Continue,
+    Stop,
+}
+
 pub struct Archive {
     path: PathBuf,
 }
@@ -87,6 +97,35 @@ impl Archive {
     /// Renvoie `None` si elle est absente : c'est un cas normal après un patch
     /// qui déplacerait le fichier, pas une erreur.
     pub fn find(&self, name: &str) -> Result<Option<Entry>> {
+        let mut found = None;
+        self.walk(|entry| {
+            if entry.name.eq_ignore_ascii_case(name) {
+                found = Some(entry);
+                Walk::Stop
+            } else {
+                Walk::Continue
+            }
+        })?;
+        Ok(found)
+    }
+
+    /// Toutes les entrées dont le nom satisfait un prédicat.
+    ///
+    /// Un seul parcours suffit, là où appeler [`Self::find`] en boucle en
+    /// relancerait un par nom cherché.
+    pub fn scan(&self, keep: impl Fn(&str) -> bool) -> Result<Vec<Entry>> {
+        let mut found = Vec::new();
+        self.walk(|entry| {
+            if keep(&entry.name) {
+                found.push(entry);
+            }
+            Walk::Continue
+        })?;
+        Ok(found)
+    }
+
+    /// Parcourt la table centrale en flux, une entrée à la fois.
+    fn walk(&self, mut visit: impl FnMut(Entry) -> Walk) -> Result<()> {
         let file = File::open(&self.path).map_err(|e| Error::io(&self.path, e))?;
         let size = file.metadata().map_err(|e| Error::io(&self.path, e))?.len();
         let mut reader = BufReader::with_capacity(1 << 20, file);
@@ -137,20 +176,21 @@ impl Archive {
 
             // Les noms sont en Windows-1252 dans le pire des cas ; une
             // conversion tolérante suffit pour comparer un chemin ASCII.
-            let entry_name = String::from_utf8_lossy(&name_bytes);
-            if entry_name.eq_ignore_ascii_case(name) {
-                return Ok(Some(Entry {
-                    name: entry_name.into_owned(),
-                    method,
-                    compressed_size: compressed,
-                    uncompressed_size: uncompressed,
-                    local_offset: offset,
-                    encrypted: flags & 1 != 0,
-                }));
+            let entry = Entry {
+                name: String::from_utf8_lossy(&name_bytes).into_owned(),
+                method,
+                compressed_size: compressed,
+                uncompressed_size: uncompressed,
+                local_offset: offset,
+                encrypted: flags & 1 != 0,
+            };
+
+            if visit(entry) == Walk::Stop {
+                return Ok(());
             }
         }
 
-        Ok(None)
+        Ok(())
     }
 
     /// Contenu décompressé d'une entrée.

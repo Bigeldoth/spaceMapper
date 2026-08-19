@@ -8,7 +8,7 @@
 //! d'entrées : à lancer en `--release`, la version de débogage étant nettement
 //! plus lente sur le parcours.
 
-use spacemapper_core::{actionmaps, cryxml, defaults, install, p4k};
+use spacemapper_core::{actionmaps, cryxml, defaults, install, localization, p4k};
 use std::time::Instant;
 
 fn main() {
@@ -122,6 +122,44 @@ fn main() {
                 action.ui_description.as_deref().unwrap_or("")
             );
         }
+    }
+
+    // Traductions du jeu : la source la plus fiable pour nommer une action.
+    println!("\n=== libellés du jeu, en français ===");
+    match archive
+        .find(&localization::catalog_path(localization::FRENCH))
+        .ok()
+        .flatten()
+    {
+        Some(entry) => match archive.read(&entry) {
+            Ok(bytes) => {
+                let text = String::from_utf8_lossy(&bytes);
+                let catalog = localization::Catalog::parse(&text, &|k| k.starts_with("ui_"));
+                println!("  {} clés d'interface retenues", catalog.len());
+
+                if let Some(map) = profile_defaults
+                    .action_maps
+                    .iter()
+                    .find(|m| m.name == "spaceship_movement")
+                {
+                    for action in map.actions.iter().filter(|a| a.joystick.is_some()).take(6) {
+                        let label = action
+                            .ui_label
+                            .as_deref()
+                            .and_then(|k| catalog.get(k))
+                            .unwrap_or("(non traduit)");
+                        let description = action
+                            .ui_description
+                            .as_deref()
+                            .and_then(|k| catalog.get(k))
+                            .unwrap_or("");
+                        println!("  {:<28} {label} — {description}", action.name);
+                    }
+                }
+            }
+            Err(e) => println!("  lecture impossible : {e}"),
+        },
+        None => println!("  catalogue français absent de l'archive"),
     }
 
     // Confrontation au profil de l'utilisateur : ce que le jeu fournit et que

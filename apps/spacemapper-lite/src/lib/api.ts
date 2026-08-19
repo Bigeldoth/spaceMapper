@@ -74,6 +74,10 @@ export interface EditableBinding {
   access: EditAccess;
   origin: Origin;
   action: string;
+  /** Libellé fourni par le jeu, dans la langue choisie. */
+  label: string | null;
+  /** Description fournie par le jeu. Souvent vide hors anglais. */
+  description: string | null;
   input_raw: string;
   device: string | null;
   control: string | null;
@@ -108,6 +112,21 @@ export interface BackupView {
   timestamp: string;
 }
 
+/** Une langue disponible dans l'installation du joueur. */
+export interface Language {
+  /** Identifiant employé par l'archive, ex. `french_(france)`. */
+  id: string;
+  label: string;
+}
+
+export interface Settings {
+  /** Langue des libellés issus du jeu. */
+  game_language: string;
+  /** Langue de l'interface de SpaceMapper : `fr` ou `en`. */
+  ui_language: string;
+  version: number;
+}
+
 export const api = {
   listDevices: () => invoke<DeviceView[]>("list_devices"),
   locateActionmaps: () => invoke<ProfileLocation[]>("locate_actionmaps"),
@@ -138,6 +157,14 @@ export const api = {
   createBackup: (path: string) => invoke<string>("create_backup", { path }),
 
   listBackups: () => invoke<BackupView[]>("list_backups"),
+
+  /** Langues réellement présentes dans l'installation du joueur. */
+  listGameLanguages: (path: string) =>
+    invoke<Language[]>("list_game_languages", { path }),
+
+  getSettings: () => invoke<Settings>("get_settings"),
+  setSettings: (settings: Settings) =>
+    invoke<void>("set_settings", { settings }),
 
   /**
    * Ouvre une session de lecture sur plusieurs périphériques à la fois.

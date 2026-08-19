@@ -5,7 +5,7 @@ import {
   type EditableBinding,
   type PendingEdit,
 } from "./lib/api";
-import { actionLabel, categoryLabel } from "./lib/actionLabels";
+import { bindingLabel, categoryLabel } from "./lib/actionLabels";
 import {
   controlLabel,
   controlsFor,
@@ -371,7 +371,7 @@ function SaveDialog({
             >
               <div className="min-w-0">
                 <p className="truncate text-sm text-ink-800">
-                  {binding ? actionLabel(binding.action) : key}
+                  {binding ? bindingLabel(binding) : key}
                 </p>
                 <p className="technical mt-0.5 truncate text-ink-400">
                   {binding?.control
@@ -568,8 +568,13 @@ function BindingRow({
       }
     >
       <div className="min-w-0">
-        <p className="truncate text-sm text-ink-800">
-          {actionLabel(binding.action)}
+        <p
+          className="truncate text-sm text-ink-800"
+          // Le jeu fournit sa propre description : c'est sa réponse à
+          // « à quoi sert cette touche ? », plus fiable que la nôtre.
+          title={binding.description ?? undefined}
+        >
+          {bindingLabel(binding)}
         </p>
         <p className="technical mt-0.5 truncate text-ink-400">
           {binding.action}
@@ -700,7 +705,7 @@ function ControlPicker({
   );
 
   return (
-    <Modal onCancel={onCancel} title={actionLabel(binding.action)}>
+    <Modal onCancel={onCancel} title={bindingLabel(binding)}>
       <div className="mb-4 flex gap-1 border-b border-ink-200">
         <SourceTab
           active={source === "keyboard"}

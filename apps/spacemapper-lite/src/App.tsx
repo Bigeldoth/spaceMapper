@@ -12,10 +12,11 @@ import {
 import { actionLabel, categoryLabel, isKnownAction } from "./lib/actionLabels";
 import { devicePrefix } from "./lib/controls";
 import BindingEditor from "./BindingEditor";
+import SettingsPanel from "./SettingsPanel";
 
 const TIPEEE_URL = "https://fr.tipeee.com/padek-interactive";
 
-type Tab = "overview" | "edit";
+type Tab = "overview" | "edit" | "settings";
 
 export default function App() {
   const [devices, setDevices] = useState<DeviceView[]>([]);
@@ -26,6 +27,8 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [build, setBuild] = useState<BuildInfo | null>(null);
   const [tab, setTab] = useState<Tab>("overview");
+  /** Incrémenté à chaque changement de réglage, pour reconstruire l'éditeur. */
+  const [settingsRevision, setSettingsRevision] = useState(0);
 
   /**
    * Ré-énumération périodique.
@@ -133,9 +136,23 @@ export default function App() {
             {selected && (
               <>
                 <Tabs active={tab} onChange={setTab} />
-                {tab === "overview"
-                  ? bindings && <BindingsSection bindings={bindings} />
-                  : <BindingEditor profilePath={selected} devices={devices} />}
+                {tab === "overview" &&
+                  bindings && <BindingsSection bindings={bindings} />}
+                {tab === "edit" && (
+                  <BindingEditor
+                    // Changer de langue doit reconstruire l'éditeur : les
+                    // libellés viennent du backend, pas d'un état local.
+                    key={settingsRevision}
+                    profilePath={selected}
+                    devices={devices}
+                  />
+                )}
+                {tab === "settings" && (
+                  <SettingsPanel
+                    profilePath={selected}
+                    onChanged={() => setSettingsRevision((n) => n + 1)}
+                  />
+                )}
               </>
             )}
           </div>
@@ -187,7 +204,8 @@ function Tabs({
 }) {
   const tabs: { id: Tab; label: string }[] = [
     { id: "overview", label: "Aperçu complet" },
-    { id: "edit", label: "Modifier les déplacements" },
+    { id: "edit", label: "Modifier les commandes" },
+    { id: "settings", label: "Réglages" },
   ];
 
   return (

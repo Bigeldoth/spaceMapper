@@ -21,6 +21,7 @@ mod capture;
 mod commands;
 mod editing;
 mod gamedata;
+mod settings;
 
 pub fn run() {
     tauri::Builder::default()
@@ -38,6 +39,9 @@ pub fn run() {
             editing::create_backup,
             editing::list_backups,
             editing::restore_backup,
+            editing::list_game_languages,
+            editing::get_settings,
+            editing::set_settings,
             capture::start_capture,
             capture::poll_capture,
             capture::clear_capture,
