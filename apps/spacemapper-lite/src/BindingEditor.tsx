@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   api,
-  type CapturedInput,
   type DeviceView,
   type EditableBinding,
   type PendingEdit,
@@ -21,6 +20,7 @@ import {
   type CaptureResult,
 } from "./lib/keyboard";
 import BackupPanel from "./BackupPanel";
+import { capturedToken, useCapture, type CaptureFeed } from "./useCapture";
 
 /** Clé stable d'une assignation, indépendante de l'ordre du fichier. */
 function keyOf(actionmap: string, action: string): string {
@@ -48,6 +48,13 @@ export default function BindingEditor({
    * validé : c'est ce qui rend le bandeau du bas nécessaire.
    */
   const [pending, setPending] = useState<Map<string, string | null>>(new Map());
+
+  // Session de capture unique, partagée par la mise en évidence et le
+  // sélecteur. Elle reste ouverte tant que l'onglet d'édition est affiché.
+  const capture = useCapture(devices, true);
+  const activeToken = capturedToken(capture.last, devices, (d) =>
+    devicePrefix(devices, d),
+  );
 
   async function reload() {
     try {
@@ -126,6 +133,17 @@ export default function BindingEditor({
 
       <BackupPanel profilePath={profilePath} onRestored={() => void reload()} />
 
+      <LiveProbe
+        capture={capture}
+        token={activeToken}
+        devices={devices}
+        matches={
+          activeToken
+            ? bindings.filter((b) => b.input_raw === activeToken).length
+            : 0
+        }
+      />
+
       {status && (
         <p className="rounded-md border border-accent-100 bg-accent-50 px-4 py-2 text-sm text-accent-700">
           {status}
@@ -162,6 +180,10 @@ export default function BindingEditor({
                     binding={b}
                     pending={pending.has(key) ? pending.get(key)! : undefined}
                     hasPending={pending.has(key)}
+                    // Une assignation dont le contrôle est actionné en ce
+                    // moment même : c'est le lien direct entre le geste et la
+                    // ligne du fichier.
+                    live={activeToken !== null && b.input_raw === activeToken}
                     onEdit={() => setEditing(b)}
                     onClear={() => stage(b, null)}
                     onRevert={() => discardOne(key)}
@@ -178,6 +200,7 @@ export default function BindingEditor({
         <ControlPicker
           binding={editing}
           devices={devices}
+          capture={capture}
           onCancel={() => setEditing(null)}
           onPick={(input) => stage(editing, input)}
         />
@@ -379,10 +402,89 @@ function PremiumBadge() {
   );
 }
 
+/**
+ * Bandeau de sonde.
+ *
+ * Actionner un contrôle éclaire les assignations correspondantes. C'est le
+ * moyen le plus direct de répondre à la question que se pose tout joueur
+ * devant une configuration héritée : « ce bouton, il sert à quoi ? »
+ */
+function LiveProbe({
+  capture,
+  token,
+  devices,
+  matches,
+}: {
+  capture: CaptureFeed;
+  token: string | null;
+  devices: DeviceView[];
+  matches: number;
+}) {
+  const device = capture.last
+    ? devices.find((d) => d.instance_guid === capture.last!.guid)
+    : undefined;
+
+  return (
+    <div
+      className={
+        "rounded-lg border p-4 " +
+        (token
+          ? "border-accent-500 bg-accent-50"
+          : "border-ink-200 bg-white")
+      }
+    >
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h3 className="text-sm font-semibold text-ink-900">
+          Identifier une commande
+        </h3>
+        <span className="text-xs text-ink-500">
+          {capture.error
+            ? "à l'arrêt"
+            : capture.listening
+              ? `${devices.length} périphérique${devices.length > 1 ? "s" : ""} à l'écoute`
+              : "ouverture…"}
+        </span>
+      </div>
+
+      {capture.error ? (
+        <p className="mt-2 text-sm text-warn-700">{capture.error}</p>
+      ) : token && capture.last && device ? (
+        <div className="mt-2">
+          <p className="text-sm text-ink-700">
+            <span className="font-medium text-accent-700">
+              {devicePrefix(devices, device)}
+            </span>{" "}
+            — {device.product_name || device.instance_name} ·{" "}
+            {controlLabel(capture.last.control)}
+            <span className="technical ml-2 text-ink-500">{token}</span>
+          </p>
+          <p className="mt-1 text-sm text-ink-600">
+            {matches === 0
+              ? "Aucune commande de déplacement n'utilise ce contrôle."
+              : `${matches} commande${matches > 1 ? "s" : ""} en surbrillance ci-dessous.`}
+          </p>
+          <button
+            onClick={capture.reset}
+            className="mt-2 text-xs font-medium text-accent-700 hover:text-accent-600"
+          >
+            Effacer
+          </button>
+        </div>
+      ) : (
+        <p className="mt-2 text-sm text-ink-500">
+          Actionnez un bouton, un axe ou une touche&nbsp;: les commandes qui
+          l'utilisent s'éclairent dans la liste.
+        </p>
+      )}
+    </div>
+  );
+}
+
 function BindingRow({
   binding,
   pending,
   hasPending,
+  live,
   onEdit,
   onClear,
   onRevert,
@@ -391,6 +493,7 @@ function BindingRow({
   binding: EditableBinding;
   pending: string | null | undefined;
   hasPending: boolean;
+  live: boolean;
   onEdit: () => void;
   onClear: () => void;
   onRevert: () => void;
@@ -402,7 +505,13 @@ function BindingRow({
     <li
       className={
         "flex items-center justify-between gap-4 px-4 py-2.5 " +
-        (hasPending ? "bg-accent-50/60" : "")
+        // La sonde prime sur la modification en attente : c'est un retour
+        // immédiat au geste de l'utilisateur.
+        (live
+          ? "bg-accent-100 ring-1 ring-inset ring-accent-500"
+          : hasPending
+            ? "bg-accent-50/60"
+            : "")
       }
     >
       <div className="min-w-0">
@@ -500,11 +609,13 @@ function UpsellDialog({
 function ControlPicker({
   binding,
   devices,
+  capture,
   onCancel,
   onPick,
 }: {
   binding: EditableBinding;
   devices: DeviceView[];
+  capture: CaptureFeed;
   onCancel: () => void;
   onPick: (input: string) => void;
 }) {
@@ -549,6 +660,7 @@ function ControlPicker({
           key={source}
           allDevices={devices}
           family={source === "joystick" ? joysticks : gamepads}
+          capture={capture}
           onCancel={onCancel}
           onPick={onPick}
         />
@@ -735,59 +847,34 @@ function KeyboardCapture({
 function DevicePicker({
   allDevices,
   family,
+  capture,
   onCancel,
   onPick,
 }: {
   allDevices: DeviceView[];
   family: DeviceView[];
+  capture: CaptureFeed;
   onCancel: () => void;
   onPick: (input: string) => void;
 }) {
-  const [captured, setCaptured] = useState<CapturedInput | null>(null);
   const [manual, setManual] = useState(false);
   const [manualIndex, setManualIndex] = useState(0);
   const [control, setControl] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  /** La session est-elle réellement ouverte ? Sans ce témoin, une capture
-   *  inactive et une capture qui n'entend rien sont indiscernables. */
-  const [listening, setListening] = useState(false);
 
-  // Clé stable de la famille : on ne relance la capture que si la liste des
-  // périphériques change réellement, pas à chaque rendu.
-  const guids = family.map((d) => d.instance_guid).join();
-
+  // On repart d'un relevé vierge à l'ouverture, sinon la fenêtre s'ouvrirait
+  // déjà remplie par le dernier contrôle actionné pour identifier une commande.
   useEffect(() => {
-    if (manual || family.length === 0) return;
+    capture.reset();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-    let cancelled = false;
-    setCaptured(null);
-    setError(null);
-    setListening(false);
-
-    // On garde la promesse de démarrage pour n'arrêter qu'une fois la session
-    // réellement ouverte : sans ce séquencement, l'arrêt peut précéder le
-    // démarrage et laisser un périphérique acquis derrière lui.
-    const started = api.startCapture(guids.split(",").filter(Boolean));
-    started.then(
-      () => !cancelled && setListening(true),
-      (e) => !cancelled && setError(String(e)),
-    );
-
-    const timer = window.setInterval(async () => {
-      try {
-        const found = await api.pollCapture();
-        if (!cancelled && found) setCaptured(found);
-      } catch (e) {
-        if (!cancelled) setError(String(e));
-      }
-    }, 80);
-
-    return () => {
-      cancelled = true;
-      window.clearInterval(timer);
-      void started.then((id) => api.stopCapture(id)).catch(() => {});
-    };
-  }, [guids, manual, family.length]);
+  // Seul un contrôle de la bonne famille est retenu : dans l'onglet Manche, un
+  // appui sur la manette ne doit pas s'inviter.
+  const captured =
+    capture.last &&
+    family.some((d) => d.instance_guid === capture.last!.guid)
+      ? capture.last
+      : null;
 
   const manualDevice = family[manualIndex];
   const options: ControlOption[] = manualDevice ? controlsFor(manualDevice) : [];
@@ -894,7 +981,7 @@ function DevicePicker({
                 Actionnez le bouton, l'axe ou le chapeau souhaité.
               </p>
               <p className="mt-1 text-xs text-ink-400">
-                {!listening
+                {!capture.listening
                   ? "Ouverture de la session…"
                   : family.length > 1
                     ? `${family.length} périphériques à l'écoute — celui que vous actionnez sera reconnu.`
@@ -905,13 +992,15 @@ function DevicePicker({
         </div>
       )}
 
-      {error && <p className="text-sm text-warn-700">{error}</p>}
+      {capture.error && (
+        <p className="text-sm text-warn-700">{capture.error}</p>
+      )}
 
       <button
         onClick={() => {
           setManual((v) => !v);
           setControl("");
-          setCaptured(null);
+          capture.reset();
         }}
         className="text-sm font-medium text-accent-700 hover:text-accent-600"
       >

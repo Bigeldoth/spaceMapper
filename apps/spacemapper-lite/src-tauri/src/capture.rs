@@ -60,8 +60,19 @@ pub fn start_capture(
 ) -> CmdResult<u64> {
     let parsed: Vec<DeviceGuid> = guids.iter().filter_map(|g| DeviceGuid::parse(g)).collect();
 
+    // Trace de mise au point : en cas de capture muette, il faut savoir si la
+    // commande est seulement atteinte, et avec quoi.
+    eprintln!(
+        "[capture] démarrage demandé : {} guid(s) reçu(s), {} exploitable(s)",
+        guids.len(),
+        parsed.len()
+    );
+
     if parsed.is_empty() {
-        return Err("aucun périphérique exploitable".into());
+        return Err(format!(
+            "aucun périphérique exploitable parmi {} identifiant(s)",
+            guids.len()
+        ));
     }
 
     // DirectInput exige une fenêtre pour fixer le niveau de coopération. On
@@ -95,6 +106,17 @@ pub fn start_capture(
             };
 
             let (session, failures) = MultiCaptureSession::open(&parsed, hwnd);
+            eprintln!(
+                "[capture] session {id} : {} ouvert(s), {} échec(s){}",
+                parsed.len() - failures.len(),
+                failures.len(),
+                if failures.is_empty() {
+                    String::new()
+                } else {
+                    format!(" — {}", failures.join(" ; "))
+                }
+            );
+
             if session.is_empty() {
                 if let Ok(mut slot) = failure.lock() {
                     *slot = Some(if failures.is_empty() {
@@ -106,8 +128,16 @@ pub fn start_capture(
                 return;
             }
 
+            let mut announced = false;
             while running.load(Ordering::Relaxed) {
                 if let Some(found) = session.poll() {
+                    if !announced {
+                        eprintln!(
+                            "[capture] session {id} : premier contrôle détecté — {}",
+                            found.control
+                        );
+                        announced = true;
+                    }
                     if let Ok(mut slot) = latest.lock() {
                         *slot = Some(CapturedInput {
                             guid: found.guid.to_string(),
@@ -117,6 +147,7 @@ pub fn start_capture(
                 }
                 std::thread::sleep(POLL_INTERVAL);
             }
+            eprintln!("[capture] session {id} : arrêtée");
             // `session` sort de portée ici : les périphériques sont relâchés.
         });
     }
