@@ -203,6 +203,22 @@ pub fn poll_capture(state: tauri::State<'_, CaptureState>) -> CmdResult<Option<C
     Ok(found)
 }
 
+/// Oublie le dernier contrôle relevé, sans fermer la session.
+///
+/// Effacer côté interface ne suffit pas : le thread conserve son relevé, et le
+/// sondage suivant le restaurerait aussitôt. Le bouton « Effacer » paraissait
+/// alors sans effet.
+#[tauri::command]
+pub fn clear_capture(state: tauri::State<'_, CaptureState>) -> CmdResult<()> {
+    let guard = state.inner.lock().map_err(|_| "état de capture corrompu")?;
+    if let Some(session) = guard.as_ref() {
+        if let Ok(mut slot) = session.latest.lock() {
+            *slot = None;
+        }
+    }
+    Ok(())
+}
+
 /// Ferme la session dont on donne le numéro, et rend les périphériques.
 ///
 /// Le numéro n'est pas un ornement. En développement, React réexécute chaque

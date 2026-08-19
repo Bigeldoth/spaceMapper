@@ -66,7 +66,17 @@ export function useCapture(devices: DeviceView[], enabled: boolean): CaptureFeed
     };
   }, [guids, enabled]);
 
-  return { last, listening, error, reset: () => setLast(null) };
+  return {
+    last,
+    listening,
+    error,
+    // L'oubli doit aussi porter côté Rust : le thread garde son relevé, et le
+    // sondage suivant le restaurerait aussitôt.
+    reset: () => {
+      setLast(null);
+      void api.clearCapture().catch(() => {});
+    },
+  };
 }
 
 /**

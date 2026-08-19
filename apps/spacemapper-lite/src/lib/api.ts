@@ -132,6 +132,9 @@ export const api = {
   /** Dernier contrôle actionné, ou `null` si rien n'a été pressé. */
   pollCapture: () => invoke<CapturedInput | null>("poll_capture"),
 
+  /** Oublie le dernier relevé sans fermer la session. */
+  clearCapture: () => invoke<void>("clear_capture"),
+
   /** N'arrête que la session désignée : voir le commentaire côté Rust. */
   stopCapture: (id: number) => invoke<void>("stop_capture", { id }),
 

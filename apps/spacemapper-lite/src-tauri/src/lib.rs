@@ -38,6 +38,7 @@ pub fn run() {
             editing::restore_backup,
             capture::start_capture,
             capture::poll_capture,
+            capture::clear_capture,
             capture::stop_capture,
         ])
         .run(tauri::generate_context!())
