@@ -51,6 +51,25 @@ export function controlsFor(device: DeviceView): ControlOption[] {
   return options;
 }
 
+/**
+ * Libellé lisible d'un contrôle relevé par la capture.
+ *
+ * La capture renvoie le nom technique (`hat1_up`) ; l'utilisateur doit
+ * reconnaître ce qu'il vient d'actionner sans avoir à décoder.
+ */
+export function controlLabel(control: string): string {
+  const button = /^button(\d+)$/.exec(control);
+  if (button) return `Bouton ${button[1]}`;
+
+  const hat = /^hat(\d+)_(\w+)$/.exec(control);
+  if (hat) return `Chapeau ${hat[1]} — ${directionLabel(hat[2]!)}`;
+
+  const slider = /^slider(\d+)$/.exec(control);
+  if (slider) return `Curseur ${slider[1]}`;
+
+  return `Axe ${control}`;
+}
+
 function directionLabel(direction: string): string {
   switch (direction) {
     case "up":

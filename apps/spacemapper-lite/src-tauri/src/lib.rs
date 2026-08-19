@@ -17,6 +17,7 @@
 //! L'export, l'import, la synchronisation et les profils nommés relèvent de
 //! l'édition Premium.
 
+mod capture;
 mod commands;
 mod editing;
 
@@ -24,6 +25,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
+        .manage(capture::CaptureState::default())
         .invoke_handler(tauri::generate_handler![
             commands::list_devices,
             commands::locate_actionmaps,
@@ -34,6 +36,9 @@ pub fn run() {
             editing::create_backup,
             editing::list_backups,
             editing::restore_backup,
+            capture::start_capture,
+            capture::poll_capture,
+            capture::stop_capture,
         ])
         .run(tauri::generate_context!())
         .expect("échec du démarrage de SpaceMapper Lite");

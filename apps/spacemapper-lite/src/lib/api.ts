@@ -75,6 +75,11 @@ export interface PendingEdit {
   input: string | null;
 }
 
+/** Contrôle relevé par la session de capture, ex. `button5`, `hat1_up`. */
+export interface CapturedInput {
+  control: string;
+}
+
 export interface BackupView {
   path: string;
   /** Millisecondes depuis l'époque Unix, sous forme de chaîne. */
@@ -110,6 +115,14 @@ export const api = {
   createBackup: (path: string) => invoke<string>("create_backup", { path }),
 
   listBackups: () => invoke<BackupView[]>("list_backups"),
+
+  /** Ouvre une session de lecture sur un périphérique. */
+  startCapture: (guid: string) => invoke<void>("start_capture", { guid }),
+
+  /** Dernier contrôle actionné, ou `null` si rien n'a été pressé. */
+  pollCapture: () => invoke<CapturedInput | null>("poll_capture"),
+
+  stopCapture: () => invoke<void>("stop_capture"),
 
   restoreBackup: (path: string, backupPath: string) =>
     invoke<void>("restore_backup", { path, backupPath }),

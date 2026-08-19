@@ -7,6 +7,8 @@
 //! près** à ceux que le jeu écrit lui-même.
 
 #[cfg(windows)]
+pub mod capture;
+#[cfg(windows)]
 pub mod directinput;
 
 use serde::{Deserialize, Serialize};

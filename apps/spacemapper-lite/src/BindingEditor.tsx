@@ -6,7 +6,12 @@ import {
   type PendingEdit,
 } from "./lib/api";
 import { actionLabel, categoryLabel } from "./lib/actionLabels";
-import { controlsFor, devicePrefix, type ControlOption } from "./lib/controls";
+import {
+  controlLabel,
+  controlsFor,
+  devicePrefix,
+  type ControlOption,
+} from "./lib/controls";
 import {
   build,
   captureErrorMessage,
@@ -681,6 +686,14 @@ function KeyboardCapture({
   );
 }
 
+/**
+ * Capture d'un contrôle de manche.
+ *
+ * On sonde DirectInput, la même interface que lit Star Citizen : le bouton 5
+ * est donc le bouton 5. Une liste déroulante reste accessible en repli, pour
+ * assigner un contrôle qu'on ne peut pas actionner sur le moment — un axe
+ * réservé, un bouton d'une boîte à interrupteurs débranchée.
+ */
 function DevicePicker({
   devices,
   onCancel,
@@ -691,11 +704,44 @@ function DevicePicker({
   onPick: (input: string) => void;
 }) {
   const [deviceIndex, setDeviceIndex] = useState(0);
+  const [captured, setCaptured] = useState<string | null>(null);
+  const [manual, setManual] = useState(false);
   const [control, setControl] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
   const device = devices[deviceIndex];
-  const options: ControlOption[] = device ? controlsFor(device) : [];
 
+  // Session de capture : ouverte sur le périphérique choisi, refermée dès que
+  // l'on change d'appareil, que l'on bascule en saisie manuelle ou que la
+  // fenêtre se ferme. Sans cela, le périphérique resterait acquis.
+  useEffect(() => {
+    if (!device || manual) return;
+
+    let cancelled = false;
+    setCaptured(null);
+    setError(null);
+
+    void api
+      .startCapture(device.instance_guid)
+      .catch((e) => !cancelled && setError(String(e)));
+
+    const timer = window.setInterval(async () => {
+      try {
+        const found = await api.pollCapture();
+        if (!cancelled && found) setCaptured(found.control);
+      } catch (e) {
+        if (!cancelled) setError(String(e));
+      }
+    }, 80);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      void api.stopCapture();
+    };
+  }, [device, manual]);
+
+  const options: ControlOption[] = device ? controlsFor(device) : [];
   const groups = useMemo(() => {
     const map = new Map<string, ControlOption[]>();
     for (const o of options) {
@@ -715,6 +761,9 @@ function DevicePicker({
     );
   }
 
+  const chosen = manual ? control : captured;
+  const token = chosen ? `${devicePrefix(deviceIndex)}_${chosen}` : null;
+
   return (
     <div className="space-y-4">
       <label className="block">
@@ -725,6 +774,7 @@ function DevicePicker({
           onChange={(e) => {
             setDeviceIndex(Number(e.target.value));
             setControl("");
+            setCaptured(null);
           }}
         >
           {devices.map((d, i) => (
@@ -735,31 +785,64 @@ function DevicePicker({
         </select>
       </label>
 
-      <label className="block">
-        <span className="text-xs font-medium text-ink-600">Contrôle</span>
-        <select
-          className="mt-1 w-full rounded-md border border-ink-300 bg-white px-3 py-1.5 text-sm"
-          value={control}
-          onChange={(e) => setControl(e.target.value)}
+      {manual ? (
+        <label className="block">
+          <span className="text-xs font-medium text-ink-600">Contrôle</span>
+          <select
+            className="mt-1 w-full rounded-md border border-ink-300 bg-white px-3 py-1.5 text-sm"
+            value={control}
+            onChange={(e) => setControl(e.target.value)}
+          >
+            <option value="">Choisir…</option>
+            {groups.map(([group, items]) => (
+              <optgroup key={group} label={group}>
+                {items.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+        </label>
+      ) : (
+        <div
+          className={
+            "rounded-lg border-2 border-dashed px-4 py-8 text-center " +
+            (captured
+              ? "border-accent-500 bg-accent-50"
+              : "border-ink-300 bg-ink-50")
+          }
         >
-          <option value="">Choisir…</option>
-          {groups.map(([group, items]) => (
-            <optgroup key={group} label={group}>
-              {items.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
-      </label>
-
-      {control && (
-        <p className="technical rounded bg-ink-50 px-3 py-2 text-ink-600">
-          {devicePrefix(deviceIndex)}_{control}
-        </p>
+          {captured ? (
+            <>
+              <p className="text-lg font-medium text-accent-700">
+                {controlLabel(captured)}
+              </p>
+              <p className="technical mt-1 text-ink-500">{token}</p>
+            </>
+          ) : (
+            <p className="text-sm text-ink-500">
+              Actionnez le bouton, l'axe ou le chapeau souhaité.
+            </p>
+          )}
+        </div>
       )}
+
+      {error && <p className="text-sm text-warn-700">{error}</p>}
+
+      <button
+        onClick={() => {
+          setManual((v) => !v);
+          setControl("");
+          setCaptured(null);
+        }}
+        className="text-sm font-medium text-accent-700 hover:text-accent-600"
+      >
+        {manual
+          ? "Revenir à la capture"
+          : "Choisir dans une liste à la place"}
+      </button>
 
       <div className="flex justify-end gap-2 pt-2">
         <button
@@ -769,8 +852,8 @@ function DevicePicker({
           Annuler
         </button>
         <button
-          disabled={!control}
-          onClick={() => onPick(`${devicePrefix(deviceIndex)}_${control}`)}
+          disabled={!token}
+          onClick={() => token && onPick(token)}
           className="rounded-md bg-accent-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-700 disabled:cursor-not-allowed disabled:bg-ink-300"
         >
           Appliquer

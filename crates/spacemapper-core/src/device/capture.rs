@@ -1,0 +1,338 @@
+//! Lecture de l'état d'un périphérique, pour capturer l'appui d'un bouton.
+//!
+//! On passe par DirectInput plutôt que par l'API Gamepad du navigateur, alors
+//! que celle-ci aurait évité tout code natif. La raison est décisive : Chromium
+//! remappe les manettes reconnues sur une disposition « standard », si bien que
+//! son `buttons[0]` ne correspond pas nécessairement au bouton 1 de
+//! DirectInput. Star Citizen, lui, lit DirectInput. Un décalage d'indice
+//! produirait une assignation silencieusement fausse — précisément ce que ce
+//! logiciel existe pour éviter.
+//!
+//! En lisant la même API que le jeu, le bouton 5 est le bouton 5.
+
+use super::DeviceGuid;
+use crate::{Error, Result};
+
+// `Interface` doit être en portée pour accéder à `IDirectInput8W::IID`.
+use windows::core::{Interface, GUID};
+use windows::Win32::Devices::HumanInterfaceDevice::{
+    DirectInput8Create, GUID_RxAxis, GUID_RyAxis, GUID_RzAxis, GUID_XAxis, GUID_YAxis, GUID_ZAxis,
+    IDirectInput8W, IDirectInputDevice8W, DIDATAFORMAT, DIDFT_ANYINSTANCE, DIDFT_AXIS,
+    DIDFT_BUTTON, DIDFT_POV, DIDF_ABSAXIS, DIJOYSTATE2, DIOBJECTDATAFORMAT, DIRECTINPUT_VERSION,
+    DISCL_BACKGROUND, DISCL_NONEXCLUSIVE,
+};
+use windows::Win32::Foundation::{HINSTANCE, HWND};
+use windows::Win32::System::LibraryLoader::GetModuleHandleW;
+
+/// Écart minimal, sur l'échelle brute d'un axe, pour considérer qu'il a bougé.
+///
+/// Les axes reposent rarement exactement au centre et dérivent avec l'usure.
+/// Un seuil trop bas capterait ce bruit à la place de l'intention du joueur.
+const AXIS_THRESHOLD: i32 = 12_000;
+
+/// Un contrôle actionné, nommé comme Star Citizen le nomme.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CapturedControl {
+    /// Ex. `button5`, `x`, `hat1_up`.
+    pub control: String,
+}
+
+/// Session de capture sur un périphérique.
+///
+/// Acquiert le périphérique à la création et le libère à la destruction.
+pub struct CaptureSession {
+    device: IDirectInputDevice8W,
+    /// Position des axes au démarrage : on compare à ce repos plutôt qu'à une
+    /// valeur théorique, que tous les manches ne respectent pas.
+    baseline: [i32; 8],
+}
+
+impl CaptureSession {
+    /// Ouvre une session sur le périphérique désigné.
+    ///
+    /// `hwnd` est la fenêtre de l'application : DirectInput l'exige pour fixer
+    /// le niveau de coopération. On demande `BACKGROUND | NONEXCLUSIVE` afin de
+    /// ne jamais priver un autre programme du périphérique.
+    pub fn open(guid: &DeviceGuid, hwnd: isize) -> Result<Self> {
+        // SAFETY: interface créée et périphérique acquis pour la durée de vie
+        // de la session ; aucun pointeur n'est conservé au-delà.
+        unsafe { Self::open_inner(guid, hwnd) }.map_err(|e| Error::DeviceEnumeration(e.to_string()))
+    }
+
+    unsafe fn open_inner(guid: &DeviceGuid, hwnd: isize) -> windows::core::Result<Self> {
+        let module = GetModuleHandleW(None)?;
+        let mut raw: Option<IDirectInput8W> = None;
+        DirectInput8Create(
+            HINSTANCE(module.0),
+            DIRECTINPUT_VERSION,
+            &IDirectInput8W::IID,
+            &mut raw as *mut _ as *mut _,
+            None,
+        )?;
+        let dinput = raw.ok_or_else(|| {
+            windows::core::Error::new(
+                windows::Win32::Foundation::E_FAIL,
+                "DirectInput8Create n'a renvoyé aucune interface",
+            )
+        })?;
+
+        let mut device = None;
+        dinput.CreateDevice(&parse_guid(guid)?, &mut device, None)?;
+        let device = device.ok_or_else(|| {
+            windows::core::Error::new(
+                windows::Win32::Foundation::E_FAIL,
+                "périphérique introuvable",
+            )
+        })?;
+
+        device.SetDataFormat(&mut joystick_format())?;
+        device.SetCooperativeLevel(HWND(hwnd as *mut _), DISCL_BACKGROUND | DISCL_NONEXCLUSIVE)?;
+        device.Acquire()?;
+
+        let mut session = CaptureSession {
+            device,
+            baseline: [0; 8],
+        };
+        // Un premier relevé sert de repos. S'il échoue, on garde des zéros :
+        // la capture des boutons reste utilisable, seuls les axes deviennent
+        // moins fiables.
+        if let Ok(state) = session.read() {
+            session.baseline = axes_of(&state);
+        }
+        Ok(session)
+    }
+
+    /// Relève le premier contrôle actionné, s'il y en a un.
+    pub fn poll(&self) -> Result<Option<CapturedControl>> {
+        let state = unsafe { self.read() }.map_err(|e| Error::DeviceEnumeration(e.to_string()))?;
+
+        // Les boutons d'abord : c'est ce que l'utilisateur vise dans la très
+        // grande majorité des cas, et un axe légèrement bruité ne doit pas
+        // prendre la priorité sur un appui franc.
+        for (index, raw) in state.rgbButtons.iter().enumerate() {
+            if raw & 0x80 != 0 {
+                return Ok(Some(CapturedControl {
+                    control: format!("button{}", index + 1),
+                }));
+            }
+        }
+
+        for (index, angle) in state.rgdwPOV.iter().enumerate() {
+            if let Some(direction) = pov_direction(*angle) {
+                return Ok(Some(CapturedControl {
+                    control: format!("hat{}_{}", index + 1, direction),
+                }));
+            }
+        }
+
+        let axes = axes_of(&state);
+        for (index, value) in axes.iter().enumerate() {
+            if (value - self.baseline[index]).abs() >= AXIS_THRESHOLD {
+                return Ok(Some(CapturedControl {
+                    control: AXIS_NAMES[index].to_string(),
+                }));
+            }
+        }
+
+        Ok(None)
+    }
+
+    unsafe fn read(&self) -> windows::core::Result<DIJOYSTATE2> {
+        // Un périphérique peut être perdu (verrouillage de session, autre
+        // application exclusive) : on tente de le réacquérir plutôt que
+        // d'abandonner la capture en cours.
+        if self.device.Poll().is_err() {
+            let _ = self.device.Acquire();
+            self.device.Poll()?;
+        }
+
+        let mut state = DIJOYSTATE2::default();
+        self.device.GetDeviceState(
+            core::mem::size_of::<DIJOYSTATE2>() as u32,
+            &mut state as *mut _ as *mut core::ffi::c_void,
+        )?;
+        Ok(state)
+    }
+}
+
+impl Drop for CaptureSession {
+    fn drop(&mut self) {
+        // SAFETY: le périphérique nous appartient et n'est plus utilisé après.
+        unsafe {
+            let _ = self.device.Unacquire();
+        }
+    }
+}
+
+/// Noms Star Citizen des huit axes, dans l'ordre de [`axes_of`].
+const AXIS_NAMES: [&str; 8] = ["x", "y", "z", "rotx", "roty", "rotz", "slider1", "slider2"];
+
+fn axes_of(state: &DIJOYSTATE2) -> [i32; 8] {
+    [
+        state.lX,
+        state.lY,
+        state.lZ,
+        state.lRx,
+        state.lRy,
+        state.lRz,
+        state.rglSlider[0],
+        state.rglSlider[1],
+    ]
+}
+
+/// Traduit l'angle d'un chapeau en direction.
+///
+/// DirectInput renvoie des centièmes de degré, et `0xFFFF` (ou tout mot haut
+/// à `0xFFFF`) quand le chapeau est au repos. Les huit positions sont ramenées
+/// aux quatre directions cardinales, seules nommées par le jeu.
+fn pov_direction(angle: u32) -> Option<&'static str> {
+    if angle == u32::MAX || (angle & 0xFFFF) == 0xFFFF {
+        return None;
+    }
+    let degrees = (angle / 100) % 360;
+    Some(match degrees {
+        45..135 => "right",
+        135..225 => "down",
+        225..315 => "left",
+        // Le secteur du haut enjambe zéro : il réunit 315..360 et 0..45.
+        _ => "up",
+    })
+}
+
+fn parse_guid(guid: &DeviceGuid) -> windows::core::Result<GUID> {
+    let text = guid.as_str().trim_matches(|c| c == '{' || c == '}');
+    let hex: String = text.chars().filter(|c| *c != '-').collect();
+    let value = u128::from_str_radix(&hex, 16).map_err(|_| {
+        windows::core::Error::new(windows::Win32::Foundation::E_INVALIDARG, "GUID illisible")
+    })?;
+    Ok(GUID::from_u128(value))
+}
+
+/// Format de données décrivant [`DIJOYSTATE2`].
+///
+/// On le construit plutôt que de lier le symbole `c_dfDIJoystick2` de
+/// `dinput8.lib` : ce dernier n'est pas exposé par le crate `windows`, et
+/// dépendre d'un symbole de données externe rendrait l'édition de liens
+/// fragile. Les décalages sont dérivés de la structure elle-même, donc justes
+/// par construction.
+fn joystick_format() -> DIDATAFORMAT {
+    // Les entrées vivent dans un tableau statique : DirectInput conserve le
+    // pointeur le temps de l'appel, et un tableau local disparaîtrait.
+    static mut OBJECTS: [DIOBJECTDATAFORMAT; 134] = [DIOBJECTDATAFORMAT {
+        pguid: std::ptr::null(),
+        dwOfs: 0,
+        dwType: 0,
+        dwFlags: 0,
+    }; 134];
+
+    // SAFETY: initialisation unique, avant toute lecture, et l'application
+    // n'ouvre qu'une session de capture à la fois.
+    unsafe {
+        let objects = &mut *std::ptr::addr_of_mut!(OBJECTS);
+        let mut index = 0;
+
+        // Six axes, chacun rattaché à son GUID pour que `lX` reçoive bien
+        // l'axe X et non le premier axe rencontré.
+        for (guid, offset) in [
+            (&GUID_XAxis, std::mem::offset_of!(DIJOYSTATE2, lX)),
+            (&GUID_YAxis, std::mem::offset_of!(DIJOYSTATE2, lY)),
+            (&GUID_ZAxis, std::mem::offset_of!(DIJOYSTATE2, lZ)),
+            (&GUID_RxAxis, std::mem::offset_of!(DIJOYSTATE2, lRx)),
+            (&GUID_RyAxis, std::mem::offset_of!(DIJOYSTATE2, lRy)),
+            (&GUID_RzAxis, std::mem::offset_of!(DIJOYSTATE2, lRz)),
+        ] {
+            objects[index] = DIOBJECTDATAFORMAT {
+                pguid: guid,
+                dwOfs: offset as u32,
+                dwType: DIDFT_AXIS | DIDFT_ANYINSTANCE,
+                dwFlags: 0,
+            };
+            index += 1;
+        }
+
+        // Curseurs et chapeaux : sans GUID imposé, DirectInput remplit dans
+        // l'ordre où le périphérique les déclare.
+        for slot in 0..2 {
+            objects[index] = DIOBJECTDATAFORMAT {
+                pguid: std::ptr::null(),
+                dwOfs: (std::mem::offset_of!(DIJOYSTATE2, rglSlider) + slot * 4) as u32,
+                dwType: DIDFT_AXIS | DIDFT_ANYINSTANCE,
+                dwFlags: 0,
+            };
+            index += 1;
+        }
+
+        for hat in 0..4 {
+            objects[index] = DIOBJECTDATAFORMAT {
+                pguid: std::ptr::null(),
+                dwOfs: (std::mem::offset_of!(DIJOYSTATE2, rgdwPOV) + hat * 4) as u32,
+                dwType: DIDFT_POV | DIDFT_ANYINSTANCE,
+                dwFlags: 0,
+            };
+            index += 1;
+        }
+
+        for button in 0..128 {
+            objects[index] = DIOBJECTDATAFORMAT {
+                pguid: std::ptr::null(),
+                dwOfs: (std::mem::offset_of!(DIJOYSTATE2, rgbButtons) + button) as u32,
+                dwType: DIDFT_BUTTON | DIDFT_ANYINSTANCE,
+                dwFlags: 0,
+            };
+            index += 1;
+        }
+
+        DIDATAFORMAT {
+            dwSize: core::mem::size_of::<DIDATAFORMAT>() as u32,
+            dwObjSize: core::mem::size_of::<DIOBJECTDATAFORMAT>() as u32,
+            dwFlags: DIDF_ABSAXIS,
+            dwDataSize: core::mem::size_of::<DIJOYSTATE2>() as u32,
+            dwNumObjs: index as u32,
+            rgodf: objects.as_mut_ptr(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pov_rest_position_is_not_a_direction() {
+        // Le repos se signale par un mot haut à 0xFFFF ; le confondre avec une
+        // direction ferait capturer un chapeau que personne n'a touché.
+        assert!(pov_direction(u32::MAX).is_none());
+        assert!(pov_direction(0xFFFF).is_none());
+    }
+
+    #[test]
+    fn pov_angles_map_to_cardinal_directions() {
+        // DirectInput compte en centièmes de degré, sens horaire depuis le haut.
+        assert_eq!(pov_direction(0), Some("up"));
+        assert_eq!(pov_direction(9_000), Some("right"));
+        assert_eq!(pov_direction(18_000), Some("down"));
+        assert_eq!(pov_direction(27_000), Some("left"));
+    }
+
+    #[test]
+    fn pov_diagonals_fall_on_the_nearest_cardinal() {
+        // Le jeu ne nomme que quatre directions : une diagonale doit choisir,
+        // pas être ignorée.
+        assert_eq!(pov_direction(4_500), Some("right"));
+        assert_eq!(pov_direction(31_500), Some("up"));
+    }
+
+    #[test]
+    fn guid_roundtrips_through_directinput_form() {
+        let text = "B10A044F-0000-0000-0000-504944564944";
+        let parsed = parse_guid(&DeviceGuid::parse(text).unwrap()).unwrap();
+        assert_eq!(parsed.data1, 0xB10A_044F);
+    }
+
+    #[test]
+    fn axis_names_cover_every_slot() {
+        // `axes_of` et `AXIS_NAMES` sont indexés ensemble : un décalage
+        // nommerait un axe pour un autre.
+        assert_eq!(AXIS_NAMES.len(), axes_of(&DIJOYSTATE2::default()).len());
+    }
+}
