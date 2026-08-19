@@ -134,13 +134,9 @@ pub fn list_backups() -> CmdResult<Vec<BackupView>> {
 }
 
 /// Restaure un point de restauration par-dessus le profil courant.
-///
-/// L'état écrasé est lui-même conservé : se tromper de sauvegarde ne doit pas
-/// être définitif.
 #[tauri::command]
 pub fn restore_backup(path: String, backup_path: String) -> CmdResult<()> {
-    let dir = backup_dir()?;
-    backup::restore(Path::new(&backup_path), Path::new(&path), &dir).map_err(|e| e.to_string())
+    backup::restore(Path::new(&backup_path), Path::new(&path)).map_err(|e| e.to_string())
 }
 
 impl From<backup::BackupEntry> for BackupView {

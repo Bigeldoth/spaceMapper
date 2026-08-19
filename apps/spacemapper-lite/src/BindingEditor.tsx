@@ -7,6 +7,7 @@ import {
 } from "./lib/api";
 import { actionLabel, categoryLabel } from "./lib/actionLabels";
 import { controlsFor, devicePrefix, type ControlOption } from "./lib/controls";
+import { capture, captureErrorMessage, type CaptureResult } from "./lib/keyboard";
 import BackupPanel from "./BackupPanel";
 
 /** Clé stable d'une assignation, indépendante de l'ordre du fichier. */
@@ -495,6 +496,156 @@ function ControlPicker({
   onCancel: () => void;
   onPick: (input: string) => void;
 }) {
+  // On ouvre sur le clavier : c'est le périphérique dont tout le monde
+  // dispose, et la capture y est immédiate.
+  const [source, setSource] = useState<"keyboard" | "device">("keyboard");
+
+  return (
+    <Modal onCancel={onCancel} title={actionLabel(binding.action)}>
+      <div className="mb-4 flex gap-1 border-b border-ink-200">
+        <SourceTab
+          active={source === "keyboard"}
+          onClick={() => setSource("keyboard")}
+        >
+          Clavier
+        </SourceTab>
+        <SourceTab
+          active={source === "device"}
+          onClick={() => setSource("device")}
+        >
+          Manche / manette
+        </SourceTab>
+      </div>
+
+      {source === "keyboard" ? (
+        <KeyboardCapture onCancel={onCancel} onPick={onPick} />
+      ) : (
+        <DevicePicker devices={devices} onCancel={onCancel} onPick={onPick} />
+      )}
+    </Modal>
+  );
+}
+
+function SourceTab({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={
+        "-mb-px border-b-2 px-3 py-1.5 text-sm font-medium " +
+        (active
+          ? "border-accent-600 text-accent-700"
+          : "border-transparent text-ink-500 hover:text-ink-800")
+      }
+    >
+      {children}
+    </button>
+  );
+}
+
+/**
+ * Capture d'un appui clavier.
+ *
+ * L'écoute est posée sur `window` en phase de capture et bloque la propagation :
+ * sans cela, Tab déplacerait le focus et Échap fermerait la fenêtre avant
+ * qu'on ait pu lire la touche.
+ */
+function KeyboardCapture({
+  onCancel,
+  onPick,
+}: {
+  onCancel: () => void;
+  onPick: (input: string) => void;
+}) {
+  const [captured, setCaptured] = useState<CaptureResult | null>(null);
+  const [hint, setHint] = useState<string | null>(null);
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      event.preventDefault();
+      event.stopPropagation();
+
+      const result = capture(event);
+      if (result.ok) {
+        setCaptured(result.value);
+        setHint(null);
+      } else {
+        // Un modificateur seul n'est pas une erreur : l'utilisateur compose.
+        if (result.error.kind !== "modifier_only") setCaptured(null);
+        setHint(captureErrorMessage(result.error));
+      }
+    }
+
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, []);
+
+  return (
+    <div className="space-y-4">
+      <div
+        className={
+          "rounded-lg border-2 border-dashed px-4 py-8 text-center " +
+          (captured
+            ? "border-accent-500 bg-accent-50"
+            : "border-ink-300 bg-ink-50")
+        }
+      >
+        {captured ? (
+          <>
+            <p className="text-lg font-medium text-accent-700">
+              {captured.label}
+            </p>
+            <p className="technical mt-1 text-ink-500">{captured.token}</p>
+          </>
+        ) : (
+          <p className="text-sm text-ink-500">
+            Appuyez sur la touche ou la combinaison souhaitée.
+          </p>
+        )}
+      </div>
+
+      {hint && <p className="text-sm text-warn-700">{hint}</p>}
+
+      <p className="text-xs text-ink-500">
+        La position physique de la touche est retenue, pas le caractère
+        imprimé&nbsp;: c'est ainsi que Star Citizen raisonne.
+      </p>
+
+      <div className="flex justify-end gap-2">
+        <button
+          onClick={onCancel}
+          className="rounded-md border border-ink-300 bg-white px-3 py-1.5 text-sm text-ink-700 hover:bg-ink-50"
+        >
+          Annuler
+        </button>
+        <button
+          disabled={!captured}
+          onClick={() => captured && onPick(captured.token)}
+          className="rounded-md bg-accent-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-700 disabled:cursor-not-allowed disabled:bg-ink-300"
+        >
+          Appliquer
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function DevicePicker({
+  devices,
+  onCancel,
+  onPick,
+}: {
+  devices: DeviceView[];
+  onCancel: () => void;
+  onPick: (input: string) => void;
+}) {
   const [deviceIndex, setDeviceIndex] = useState(0);
   const [control, setControl] = useState("");
 
@@ -513,79 +664,75 @@ function ControlPicker({
 
   if (devices.length === 0) {
     return (
-      <Modal onCancel={onCancel} title={actionLabel(binding.action)}>
-        <p className="text-sm text-ink-600">
-          Aucun périphérique détecté. Branchez votre manche puis relancez
-          SpaceMapper.
-        </p>
-      </Modal>
+      <p className="text-sm text-ink-600">
+        Aucun périphérique détecté. Branchez votre manche puis relancez
+        SpaceMapper.
+      </p>
     );
   }
 
   return (
-    <Modal onCancel={onCancel} title={actionLabel(binding.action)}>
-      <div className="space-y-4">
-        <label className="block">
-          <span className="text-xs font-medium text-ink-600">Périphérique</span>
-          <select
-            className="mt-1 w-full rounded-md border border-ink-300 bg-white px-3 py-1.5 text-sm"
-            value={deviceIndex}
-            onChange={(e) => {
-              setDeviceIndex(Number(e.target.value));
-              setControl("");
-            }}
-          >
-            {devices.map((d, i) => (
-              <option key={d.instance_guid} value={i}>
-                {devicePrefix(i)} — {d.product_name || d.instance_name}
-              </option>
-            ))}
-          </select>
-        </label>
+    <div className="space-y-4">
+      <label className="block">
+        <span className="text-xs font-medium text-ink-600">Périphérique</span>
+        <select
+          className="mt-1 w-full rounded-md border border-ink-300 bg-white px-3 py-1.5 text-sm"
+          value={deviceIndex}
+          onChange={(e) => {
+            setDeviceIndex(Number(e.target.value));
+            setControl("");
+          }}
+        >
+          {devices.map((d, i) => (
+            <option key={d.instance_guid} value={i}>
+              {devicePrefix(i)} — {d.product_name || d.instance_name}
+            </option>
+          ))}
+        </select>
+      </label>
 
-        <label className="block">
-          <span className="text-xs font-medium text-ink-600">Contrôle</span>
-          <select
-            className="mt-1 w-full rounded-md border border-ink-300 bg-white px-3 py-1.5 text-sm"
-            value={control}
-            onChange={(e) => setControl(e.target.value)}
-          >
-            <option value="">Choisir…</option>
-            {groups.map(([group, items]) => (
-              <optgroup key={group} label={group}>
-                {items.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-        </label>
+      <label className="block">
+        <span className="text-xs font-medium text-ink-600">Contrôle</span>
+        <select
+          className="mt-1 w-full rounded-md border border-ink-300 bg-white px-3 py-1.5 text-sm"
+          value={control}
+          onChange={(e) => setControl(e.target.value)}
+        >
+          <option value="">Choisir…</option>
+          {groups.map(([group, items]) => (
+            <optgroup key={group} label={group}>
+              {items.map((o) => (
+                <option key={o.value} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </optgroup>
+          ))}
+        </select>
+      </label>
 
-        {control && (
-          <p className="technical rounded bg-ink-50 px-3 py-2 text-ink-600">
-            {devicePrefix(deviceIndex)}_{control}
-          </p>
-        )}
+      {control && (
+        <p className="technical rounded bg-ink-50 px-3 py-2 text-ink-600">
+          {devicePrefix(deviceIndex)}_{control}
+        </p>
+      )}
 
-        <div className="flex justify-end gap-2 pt-2">
-          <button
-            onClick={onCancel}
-            className="rounded-md border border-ink-300 bg-white px-3 py-1.5 text-sm text-ink-700 hover:bg-ink-50"
-          >
-            Annuler
-          </button>
-          <button
-            disabled={!control}
-            onClick={() => onPick(`${devicePrefix(deviceIndex)}_${control}`)}
-            className="rounded-md bg-accent-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-700 disabled:cursor-not-allowed disabled:bg-ink-300"
-          >
-            Appliquer
-          </button>
-        </div>
+      <div className="flex justify-end gap-2 pt-2">
+        <button
+          onClick={onCancel}
+          className="rounded-md border border-ink-300 bg-white px-3 py-1.5 text-sm text-ink-700 hover:bg-ink-50"
+        >
+          Annuler
+        </button>
+        <button
+          disabled={!control}
+          onClick={() => onPick(`${devicePrefix(deviceIndex)}_${control}`)}
+          className="rounded-md bg-accent-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-700 disabled:cursor-not-allowed disabled:bg-ink-300"
+        >
+          Appliquer
+        </button>
       </div>
-    </Modal>
+    </div>
   );
 }
 

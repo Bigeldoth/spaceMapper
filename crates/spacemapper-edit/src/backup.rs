@@ -12,8 +12,9 @@
 //! qu'on en fait : profils nommés, synchronisation, adaptation d'un preset à
 //! un autre matériel.
 //!
-//! Seule exception à la règle du geste explicite : [`restore`] conserve l'état
-//! qu'il écrase, pour qu'une restauration erronée reste réversible.
+//! Aucune fonction de ce module n'est appelée automatiquement : ni écrire une
+//! assignation, ni restaurer un profil ne dépose de copie à l'insu de
+//! l'utilisateur.
 
 use crate::{Error, Result};
 use std::path::{Path, PathBuf};
@@ -100,12 +101,12 @@ pub fn list(backup_dir: &Path) -> Result<Vec<BackupEntry>> {
 
 /// Restaure une sauvegarde par-dessus `target`.
 ///
-/// L'état courant est lui-même sauvegardé au préalable : une restauration
-/// malencontreuse doit rester réversible.
-pub fn restore(backup: &Path, target: &Path, backup_dir: &Path) -> Result<()> {
-    if target.exists() {
-        create(target, backup_dir)?;
-    }
+/// Ne crée aucune copie de l'état écrasé. Une version précédente le faisait,
+/// mais cela produisait un point de restauration à chaque retour en arrière,
+/// alors que l'état écrasé venait presque toujours d'être capturé par la case
+/// « créer un point de restauration » au moment de l'enregistrement. La liste
+/// se remplissait de doublons sans valeur.
+pub fn restore(backup: &Path, target: &Path) -> Result<()> {
     std::fs::copy(backup, target).map_err(|e| Error::io(target, e))?;
     Ok(())
 }
@@ -179,7 +180,7 @@ mod tests {
     }
 
     #[test]
-    fn restore_puts_content_back_and_keeps_the_overwritten_state() {
+    fn restore_puts_content_back() {
         let dir = temp_dir("backup-restore");
         let target = dir.join("actionmaps.xml");
         let backups = dir.join("Backups");
@@ -188,16 +189,24 @@ mod tests {
         let saved = create(&target, &backups).unwrap();
         std::fs::write(&target, "<modifie/>").unwrap();
 
-        restore(&saved, &target, &backups).unwrap();
+        restore(&saved, &target).unwrap();
         assert_eq!(std::fs::read_to_string(&target).unwrap(), "<original/>");
+    }
 
-        // L'état écrasé par la restauration doit lui-même être récupérable.
-        let contents: Vec<_> = list(&backups)
-            .unwrap()
-            .iter()
-            .map(|e| std::fs::read_to_string(&e.path).unwrap())
-            .collect();
-        assert!(contents.contains(&"<modifie/>".to_string()));
+    #[test]
+    fn restore_adds_no_backup_of_its_own() {
+        // Restaurer ne doit pas gonfler la liste : l'état écrasé a presque
+        // toujours déjà été capturé au moment de l'enregistrement.
+        let dir = temp_dir("backup-restore-clean");
+        let target = dir.join("actionmaps.xml");
+        let backups = dir.join("Backups");
+
+        std::fs::write(&target, "<original/>").unwrap();
+        let saved = create(&target, &backups).unwrap();
+        std::fs::write(&target, "<modifie/>").unwrap();
+
+        restore(&saved, &target).unwrap();
+        assert_eq!(list(&backups).unwrap().len(), 1);
     }
 
     #[test]
