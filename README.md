@@ -24,6 +24,8 @@ L'édition **Premium** (export, import, synchronisation, réparation de l'ordre 
 |---|---|---|
 | Détection des périphériques par GUID | ✅ | ✅ |
 | Lecture et aperçu de toutes les assignations | ✅ | ✅ |
+| **Identifier une commande** en actionnant un contrôle | ✅ | ✅ |
+| Assignation par appui direct (touche, bouton, axe) | ✅ | ✅ |
 | Points de restauration et restauration | ✅ | ✅ |
 | **Modifier le pilotage** (`spaceship_movement`) | ✅ | ✅ |
 | **Modifier le déplacement à pied** (`player`) | ✅ | ✅ |
@@ -37,6 +39,14 @@ L'édition **Premium** (export, import, synchronisation, réparation de l'ordre 
 | Linter XML avec correction automatique | — | ✅ |
 | Presets communautaires | Aperçu | Application 1 clic |
 | Studio visuel, assistant pas-à-pas | — | ✅ |
+
+### Répondre à « ce bouton, il sert à quoi ? »
+
+Actionnez n'importe quel bouton, axe, chapeau ou touche : SpaceMapper reconnaît le périphérique concerné et **met en surbrillance les commandes qui l'utilisent**. Il vous dit aussi quand aucune commande ne l'utilise — ce qui, face à une configuration héritée d'un profil communautaire, est souvent la réponse qu'on cherchait.
+
+Pour assigner, même geste : vous appuyez, SpaceMapper écrit. Tous vos manches sont écoutés simultanément, donc vous n'avez pas à désigner le bon au préalable — indispensable en HOSAS, où deux exemplaires du même modèle sont indiscernables dans une liste.
+
+La lecture passe par **DirectInput, la même interface que Star Citizen**. Le bouton 5 est donc le bouton 5 : pas de remappage intermédiaire, pas d'assignation silencieusement décalée.
 
 ### Ce que Lite garantit
 
