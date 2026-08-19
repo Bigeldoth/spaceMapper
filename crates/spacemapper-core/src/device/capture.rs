@@ -139,19 +139,30 @@ pub struct CaptureSession {
 #[derive(Debug, Default)]
 struct AxisTracker {
     baseline: Cell<[i32; 8]>,
-    /// Le premier relevé sert de repos initial et n'est jamais interprété.
-    primed: Cell<bool>,
+    /// Nombre de relevés déjà vus, pour la période de chauffe.
+    samples: Cell<u8>,
 }
+
+/// Relevés ignorés avant de commencer à interpréter les axes.
+///
+/// Un périphérique tout juste acquis ne renvoie pas immédiatement des valeurs
+/// représentatives : le premier relevé d'un T.16000M donne une manette des gaz
+/// au centre, alors qu'elle est en butée. En s'y fiant, le repos mettait le
+/// temps de sa convergence à rattraper la réalité, et l'axe se déclarait
+/// pendant ce délai — un contrôle parasite à chaque ouverture.
+const WARMUP_SAMPLES: u8 = 8;
 
 impl AxisTracker {
     /// Indice de l'axe qui vient de bouger, et mise à jour du repos.
     fn moved(&self, axes: [i32; 8]) -> Option<usize> {
         let mut baseline = self.baseline.get();
 
-        // Le tout premier relevé définit le repos sans rien interpréter.
-        if !self.primed.get() {
+        // Pendant la chauffe, le repos suit exactement la position lue et rien
+        // n'est interprété.
+        let samples = self.samples.get();
+        if samples < WARMUP_SAMPLES {
+            self.samples.set(samples + 1);
             self.baseline.set(axes);
-            self.primed.set(true);
             return None;
         }
 
@@ -535,6 +546,33 @@ mod tests {
         );
     }
 
+    /// Fait passer la période de chauffe à position constante.
+    fn warm_up(tracker: &AxisTracker, axes: [i32; 8]) {
+        for _ in 0..WARMUP_SAMPLES {
+            assert_eq!(tracker.moved(axes), None, "relevé de chauffe interprété");
+        }
+    }
+
+    #[test]
+    fn nothing_is_reported_during_warm_up() {
+        // Un périphérique fraîchement acquis renvoie d'abord des valeurs
+        // trompeuses : la manette des gaz d'un T.16000M s'y annonce au centre
+        // alors qu'elle est en butée. S'y fier faisait apparaître un contrôle
+        // parasite à chaque ouverture de l'éditeur.
+        let tracker = AxisTracker::default();
+        let mut misleading = [0; 8];
+        misleading[6] = 32_767;
+        assert_eq!(tracker.moved(misleading), None);
+
+        // Puis la vraie position, très différente.
+        let mut real = [0; 8];
+        real[6] = 0;
+        for _ in 1..WARMUP_SAMPLES {
+            assert_eq!(tracker.moved(real), None, "chauffe interrompue trop tôt");
+        }
+        assert_eq!(tracker.moved(real), None, "axe posé signalé après chauffe");
+    }
+
     #[test]
     fn a_parked_axis_stops_being_reported() {
         // Le défaut qui rendait la capture inutilisable : la manette des gaz
@@ -545,8 +583,7 @@ mod tests {
         let mut parked = [0; 8];
         parked[6] = 32_767; // slider1, posé loin du centre
 
-        // Premier relevé : sert de repos, n'interprète rien.
-        assert_eq!(tracker.moved(parked), None);
+        warm_up(&tracker, parked);
 
         // Les relevés suivants, à position identique, doivent rester muets.
         for _ in 0..50 {
@@ -560,7 +597,7 @@ mod tests {
         // doit pas continuer à se signaler indéfiniment.
         let tracker = AxisTracker::default();
         let rest = [16_000; 8];
-        assert_eq!(tracker.moved(rest), None);
+        warm_up(&tracker, rest);
 
         let mut shifted = rest;
         shifted[6] = 0;
@@ -576,7 +613,7 @@ mod tests {
     fn a_deliberate_movement_is_reported() {
         let tracker = AxisTracker::default();
         let rest = [16_000; 8];
-        assert_eq!(tracker.moved(rest), None); // amorçage
+        warm_up(&tracker, rest);
 
         let mut pushed = rest;
         pushed[0] += AXIS_THRESHOLD; // axe X poussé franchement
