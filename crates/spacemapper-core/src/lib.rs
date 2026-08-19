@@ -11,8 +11,11 @@
 
 pub mod actionmaps;
 pub mod channel;
+pub mod cryxml;
+pub mod defaults;
 pub mod device;
 pub mod error;
 pub mod install;
+pub mod p4k;
 
 pub use error::{Error, Result};

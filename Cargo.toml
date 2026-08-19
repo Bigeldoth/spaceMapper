@@ -26,6 +26,10 @@ thiserror = "2"
 # recopier à l'identique tout ce qu'on ne modifie pas.
 roxmltree = "0.20"
 quick-xml = "0.37"
+# Data.p4k emploie la méthode de compression 100, qui est du Zstandard
+# standard — vérifié sur l'archive : les trames portent bien la signature
+# 28 b5 2f fd, sans enveloppe propriétaire.
+zstd = "0.13"
 tracing = "0.1"
 
 [profile.release]
