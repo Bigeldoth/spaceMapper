@@ -22,6 +22,7 @@ tracing = { workspace = true }
 windows = { version = "0.58", features = [
     "Win32_Foundation",
     "Win32_Devices_HumanInterfaceDevice",
+    "Win32_Globalization",
     "Win32_System_Com",
     "Win32_System_Console",
     "Win32_System_LibraryLoader",

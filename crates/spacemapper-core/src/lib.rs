@@ -16,6 +16,7 @@ pub mod defaults;
 pub mod device;
 pub mod error;
 pub mod install;
+pub mod locale;
 pub mod localization;
 pub mod p4k;
 

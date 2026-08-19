@@ -29,13 +29,19 @@
     "targets": ["nsis"],
     "publisher": "Padek-interactive",
     "copyright": "© 2026 Padek-interactive",
-    "shortDescription": "Lecture et aperçu des contrôles Star Citizen",
-    "longDescription": "SpaceMapper Lite détecte vos périphériques de vol et affiche vos assignations Star Citizen de façon lisible. Édition gratuite : lecture seule, aucun accès réseau.",
+    "shortDescription": "Configuration des contrôles Star Citizen",
+    "longDescription": "SpaceMapper Lite détecte vos périphériques de vol, affiche vos assignations Star Citizen de façon lisible et permet de réassigner les commandes de pilotage et de déplacement à pied. Édition gratuite, entièrement hors ligne : aucun accès réseau, aucune télémétrie.",
     "category": "Utility",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/icon.ico"
-    ]
+    ],
+    "windows": {
+      "nsis": {
+        "languages": ["French", "English"],
+        "displayLanguageSelector": true
+      }
+    }
   }
 }

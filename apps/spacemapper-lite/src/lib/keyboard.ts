@@ -7,12 +7,22 @@
  * touche marquée « A » doit produire `q` — la même valeur que le jeu écrira.
  * Utiliser `.key` produirait `a`, et le binding serait muet en jeu.
  *
- * ⚠️ **Portée de la vérification.** Seuls `lshift`, `ralt` et les lettres
- * minuscules ont été confirmés sur des fichiers réels. Le reste suit la
- * convention CryEngine, cohérente mais non vérifiée : la liste complète vit
- * dans `Data.p4k`, que la Phase 3 saura lire. En attendant, l'interface
- * affiche toujours le jeton produit avant de l'appliquer, pour que l'écart
- * éventuel soit visible plutôt que silencieux.
+ * **Portée de la vérification.** Cette table a été confrontée aux 99 noms de
+ * touches employés par `defaultProfile.xml`, le fichier de CIG lui-même
+ * (`cargo run -p spacemapper-core --example keyboard_vocabulary`). Tous les
+ * noms que nous produisons *et* que le jeu emploie concordent exactement :
+ * modificateurs, flèches, navigation, pavé numérique, `lbracket`/`rbracket`,
+ * `equals`, `minus`, `pgup`/`pgdn`, lettres, chiffres et F1–F12.
+ *
+ * Onze noms restent sans preuve — `apostrophe`, `backslash`, `capslock`,
+ * `delete`, `insert`, `np_enter`, `period`, `print`, `scrolllock`,
+ * `semicolon`, `tilde` — simplement parce que le jeu ne les assigne à rien
+ * par défaut. Ils suivent la même convention que leurs voisins confirmés.
+ *
+ * À noter : le fichier de CIG n'est pas normalisé. On y trouve `K` en
+ * majuscule et `]` littéral à côté de `k` et `rbracket`. Le jeu accepte donc
+ * plusieurs formes ; nous n'émettons que la forme canonique, celle qui est
+ * attestée majoritairement.
  */
 
 /** Modificateurs, reconnus séparément de la touche principale. */
