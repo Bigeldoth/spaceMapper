@@ -86,13 +86,22 @@ function directionLabel(direction: string): string {
 }
 
 /**
- * Préfixe `jsN` à attribuer à un périphérique.
+ * Préfixe d'un périphérique, tel que le jeu l'écrit.
  *
- * Le jeu numérote les joysticks selon son propre ordre d'énumération, que
- * SpaceMapper Lite ne corrige pas — c'est justement ce que l'édition Premium
- * apporte. On se cale donc sur l'ordre de détection, et l'interface affiche
- * le préfixe pour que l'utilisateur puisse vérifier lui-même.
+ * Le rang est compté **au sein de sa famille** : le premier joystick est `js1`
+ * et la première manette `gp1`, même si Windows les a énumérés dans un autre
+ * ordre. Mélanger les deux familles décalerait tous les index.
+ *
+ * Le jeu numérote selon son propre ordre d'énumération, que SpaceMapper Lite
+ * ne corrige pas — c'est justement ce qu'apporte l'édition Premium. On se cale
+ * donc sur l'ordre de détection, et l'interface affiche le préfixe pour que
+ * l'utilisateur puisse vérifier lui-même.
  */
-export function devicePrefix(index: number): string {
-  return `js${index + 1}`;
+export function devicePrefix(devices: DeviceView[], device: DeviceView): string {
+  const family = devices.filter((d) => d.category === device.category);
+  const rank = family.findIndex(
+    (d) => d.instance_guid === device.instance_guid,
+  );
+  const letters = device.category === "gamepad" ? "gp" : "js";
+  return `${letters}${rank + 1}`;
 }

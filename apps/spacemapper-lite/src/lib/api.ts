@@ -10,10 +10,14 @@
  */
 import { invoke } from "@tauri-apps/api/core";
 
+/** Détermine le préfixe employé par le jeu : `js` ou `gp`. */
+export type DeviceCategory = "joystick" | "gamepad";
+
 export interface DeviceView {
   instance_guid: string;
   product_name: string;
   instance_name: string;
+  category: DeviceCategory;
   axes: number;
   buttons: number;
   povs: number;
@@ -75,8 +79,11 @@ export interface PendingEdit {
   input: string | null;
 }
 
-/** Contrôle relevé par la session de capture, ex. `button5`, `hat1_up`. */
+/** Contrôle relevé par la session de capture, et périphérique d'origine. */
 export interface CapturedInput {
+  /** GUID du périphérique effectivement actionné. */
+  guid: string;
+  /** Ex. `button5`, `hat1_up`, `rotz`. */
   control: string;
 }
 
@@ -116,8 +123,8 @@ export const api = {
 
   listBackups: () => invoke<BackupView[]>("list_backups"),
 
-  /** Ouvre une session de lecture sur un périphérique. */
-  startCapture: (guid: string) => invoke<void>("start_capture", { guid }),
+  /** Ouvre une session de lecture sur plusieurs périphériques à la fois. */
+  startCapture: (guids: string[]) => invoke<void>("start_capture", { guids }),
 
   /** Dernier contrôle actionné, ou `null` si rien n'a été pressé. */
   pollCapture: () => invoke<CapturedInput | null>("poll_capture"),

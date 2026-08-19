@@ -10,6 +10,7 @@ import {
   type ProfileLocation,
 } from "./lib/api";
 import { actionLabel, categoryLabel, isKnownAction } from "./lib/actionLabels";
+import { devicePrefix } from "./lib/controls";
 import BindingEditor from "./BindingEditor";
 
 const TIPEEE_URL = "https://fr.tipeee.com/padek-interactive";
@@ -254,7 +255,12 @@ function DeviceSection({ devices }: { devices: DeviceView[] }) {
                 className="flex items-center justify-between gap-6 px-4 py-3"
               >
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-ink-900">
+                  <p className="flex items-center gap-2 truncate text-sm font-medium text-ink-900">
+                    {/* Le préfixe est ce que le jeu écrira : l'afficher permet
+                        de vérifier soi-même la correspondance. */}
+                    <span className="technical rounded bg-ink-100 px-1.5 py-0.5 text-ink-600">
+                      {devicePrefix(devices, d)}
+                    </span>
                     {d.product_name || d.instance_name || "Périphérique inconnu"}
                   </p>
                   <p className="technical mt-0.5 truncate text-ink-400">

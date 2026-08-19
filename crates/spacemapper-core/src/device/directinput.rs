@@ -92,6 +92,7 @@ unsafe fn enumerate_inner() -> windows::core::Result<Vec<InputDevice>> {
             product_guid,
             product_name: wide_to_string(&instance.tszProductName),
             instance_name: wide_to_string(&instance.tszInstanceName),
+            category: super::DeviceCategory::from_dev_type(instance.dwDevType),
             capabilities: read_capabilities(&dinput, &instance.guidInstance),
         });
     }

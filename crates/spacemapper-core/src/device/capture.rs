@@ -37,6 +37,64 @@ pub struct CapturedControl {
     pub control: String,
 }
 
+/// Capture simultanée sur plusieurs périphériques.
+///
+/// Sonder tous les manches à la fois plutôt qu'un seul évite à l'utilisateur
+/// de désigner d'abord le bon : il actionne ce qu'il veut assigner, et
+/// l'application reconnaît lequel a bougé. C'est aussi le seul moyen de
+/// distinguer deux exemplaires identiques d'un même modèle, cas courant en
+/// HOSAS.
+pub struct MultiCaptureSession {
+    sessions: Vec<(DeviceGuid, CaptureSession)>,
+}
+
+/// Ce qu'a produit un périphérique identifié.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CapturedFrom {
+    pub guid: DeviceGuid,
+    pub control: String,
+}
+
+impl MultiCaptureSession {
+    /// Ouvre une session sur chaque périphérique désigné.
+    ///
+    /// Les échecs individuels sont conservés et rapportés, sans empêcher les
+    /// autres de fonctionner : un manche capricieux ne doit pas rendre la
+    /// capture indisponible pour tous.
+    pub fn open(guids: &[DeviceGuid], hwnd: isize) -> (Self, Vec<String>) {
+        let mut sessions = Vec::new();
+        let mut failures = Vec::new();
+
+        for guid in guids {
+            match CaptureSession::open(guid, hwnd) {
+                Ok(session) => sessions.push((guid.clone(), session)),
+                Err(e) => failures.push(format!("{guid} : {e}")),
+            }
+        }
+
+        (MultiCaptureSession { sessions }, failures)
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.sessions.is_empty()
+    }
+
+    /// Premier contrôle actionné, tous périphériques confondus.
+    pub fn poll(&self) -> Option<CapturedFrom> {
+        for (guid, session) in &self.sessions {
+            // Un périphérique en panne ne doit pas masquer les autres : on
+            // passe au suivant plutôt que d'interrompre le balayage.
+            if let Ok(Some(found)) = session.poll() {
+                return Some(CapturedFrom {
+                    guid: guid.clone(),
+                    control: found.control,
+                });
+            }
+        }
+        None
+    }
+}
+
 /// Session de capture sur un périphérique.
 ///
 /// Acquiert le périphérique à la création et le libère à la destruction.

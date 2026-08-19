@@ -20,6 +20,8 @@ pub struct DeviceView {
     pub instance_guid: String,
     pub product_name: String,
     pub instance_name: String,
+    /// `joystick` ou `gamepad` : détermine le préfixe employé par le jeu.
+    pub category: spacemapper_core::device::DeviceCategory,
     pub axes: u32,
     pub buttons: u32,
     pub povs: u32,
@@ -31,6 +33,7 @@ impl From<InputDevice> for DeviceView {
             instance_guid: d.instance_guid.to_string(),
             product_name: d.product_name,
             instance_name: d.instance_name,
+            category: d.category,
             axes: d.capabilities.axes,
             buttons: d.capabilities.buttons,
             povs: d.capabilities.povs,

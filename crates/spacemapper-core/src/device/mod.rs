@@ -60,6 +60,46 @@ pub struct DeviceCapabilities {
     pub povs: u32,
 }
 
+/// Famille du périphérique, telle que Star Citizen la distingue.
+///
+/// La différence n'est pas cosmétique : le jeu écrit `gp1_` pour une manette
+/// et `js1_` pour un manche. Assigner un bouton de manette sous un préfixe
+/// `js` produirait une touche muette.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum DeviceCategory {
+    /// Manche, palonnier, boîte à interrupteurs — tout ce qui n'est pas une
+    /// manette de salon.
+    Joystick,
+    /// Manette à deux poignées, type Xbox.
+    Gamepad,
+}
+
+impl DeviceCategory {
+    /// Préfixe employé par le jeu dans `actionmaps.xml`.
+    pub fn prefix(self) -> &'static str {
+        match self {
+            DeviceCategory::Joystick => "js",
+            DeviceCategory::Gamepad => "gp",
+        }
+    }
+
+    /// Déduit la famille de l'octet de poids faible de `dwDevType`.
+    ///
+    /// DirectInput range les manches de vol, volants et autres sous des types
+    /// distincts ; seul `GAMEPAD` correspond à ce que le jeu traite comme une
+    /// manette, tout le reste relevant du manche.
+    pub fn from_dev_type(dev_type: u32) -> Self {
+        // `DI8DEVTYPE_GAMEPAD`, non exporté comme octet par le crate.
+        const GAMEPAD: u32 = 21;
+        if dev_type & 0xFF == GAMEPAD {
+            DeviceCategory::Gamepad
+        } else {
+            DeviceCategory::Joystick
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct InputDevice {
     /// Identité stable de cet exemplaire précis. C'est la clé de tout.
@@ -70,6 +110,7 @@ pub struct InputDevice {
     pub product_name: String,
     /// Nom de l'exemplaire, parfois suffixé par Windows en cas de doublon.
     pub instance_name: String,
+    pub category: DeviceCategory,
     pub capabilities: DeviceCapabilities,
 }
 
@@ -144,6 +185,33 @@ mod tests {
     }
 
     #[test]
+    fn gamepads_and_joysticks_use_different_prefixes() {
+        // Confondre les deux produirait une assignation muette en jeu.
+        assert_eq!(DeviceCategory::from_dev_type(21), DeviceCategory::Gamepad);
+        assert_eq!(DeviceCategory::Gamepad.prefix(), "gp");
+
+        // Manche (20), volant (22), manche de vol (23) : tous des joysticks.
+        for dev_type in [20, 22, 23] {
+            assert_eq!(
+                DeviceCategory::from_dev_type(dev_type),
+                DeviceCategory::Joystick,
+                "type {dev_type}"
+            );
+        }
+        assert_eq!(DeviceCategory::Joystick.prefix(), "js");
+    }
+
+    #[test]
+    fn device_type_ignores_the_subtype_byte() {
+        // `dwDevType` empile le sous-type dans les octets hauts ; seul le
+        // poids faible désigne la famille.
+        assert_eq!(
+            DeviceCategory::from_dev_type(0x0001_0015),
+            DeviceCategory::Gamepad
+        );
+    }
+
+    #[test]
     fn product_field_matches_game_format() {
         // Modelé sur une ligne réelle : `T.16000M  {B10A044F-...}`, deux espaces.
         let guid = "B10A044F-0000-0000-0000-504944564944";
@@ -152,6 +220,7 @@ mod tests {
             product_guid: DeviceGuid::parse(guid).unwrap(),
             product_name: "T.16000M".into(),
             instance_name: "T.16000M".into(),
+            category: DeviceCategory::Joystick,
             capabilities: DeviceCapabilities::default(),
         };
         assert_eq!(

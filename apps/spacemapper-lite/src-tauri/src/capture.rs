@@ -1,17 +1,17 @@
-//! Capture de l'appui d'un bouton de manche.
+//! Capture de l'appui d'un contrôle de manche ou de manette.
 //!
 //! Les objets DirectInput sont des interfaces COM, qui ne sont pas `Send` : les
 //! confier directement à l'état partagé de Tauri exigerait un `unsafe impl
-//! Send` que rien ne justifie. On dédie donc un thread à la session, qui la
+//! Send` que rien ne justifie. On dédie donc un thread aux sessions, qui les
 //! possède entièrement, et l'interface se contente de lire le dernier contrôle
 //! détecté.
 //!
-//! Le thread sonde en continu plutôt que de répondre à la demande : acquérir un
-//! périphérique coûte cher, et le faire à chaque sondage ferait clignoter son
-//! accès pour les autres applications.
+//! Tous les périphériques d'une même famille sont sondés à la fois. L'utilisateur
+//! n'a donc pas à désigner le bon avant d'appuyer — il actionne ce qu'il veut
+//! assigner, et l'application reconnaît lequel a bougé.
 
 use serde::Serialize;
-use spacemapper_core::device::{capture::CaptureSession, DeviceGuid};
+use spacemapper_core::device::{capture::MultiCaptureSession, DeviceGuid};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -29,28 +29,34 @@ pub struct CaptureState {
 
 /// Ce que le thread de capture partage avec l'interface.
 struct Session {
-    /// Mis à `false` pour demander l'arrêt ; le thread libère alors le
-    /// périphérique en sortant.
+    /// Mis à `false` pour demander l'arrêt ; le thread libère alors les
+    /// périphériques en sortant.
     running: Arc<AtomicBool>,
-    latest: Arc<Mutex<Option<String>>>,
-    /// Erreur d'ouverture ou de lecture, à remonter telle quelle.
+    latest: Arc<Mutex<Option<CapturedInput>>>,
+    /// Panne d'ouverture ou de lecture, à remonter telle quelle.
     failure: Arc<Mutex<Option<String>>>,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct CapturedInput {
+    /// GUID du périphérique effectivement actionné.
+    pub guid: String,
     /// Contrôle nommé comme le jeu le nomme, ex. `button5`.
     pub control: String,
 }
 
-/// Ouvre une session sur le périphérique désigné par son GUID.
+/// Ouvre une session de capture sur les périphériques désignés.
 #[tauri::command]
 pub fn start_capture(
     window: tauri::Window,
     state: tauri::State<'_, CaptureState>,
-    guid: String,
+    guids: Vec<String>,
 ) -> CmdResult<()> {
-    let parsed = DeviceGuid::parse(&guid).ok_or_else(|| format!("GUID illisible: {guid}"))?;
+    let parsed: Vec<DeviceGuid> = guids.iter().filter_map(|g| DeviceGuid::parse(g)).collect();
+
+    if parsed.is_empty() {
+        return Err("aucun périphérique exploitable".into());
+    }
 
     // DirectInput exige une fenêtre pour fixer le niveau de coopération. On
     // transmet le handle sous forme d'entier : il traverse une frontière de
@@ -73,34 +79,38 @@ pub fn start_capture(
         let failure = Arc::clone(&failure);
 
         std::thread::spawn(move || {
-            let session = match CaptureSession::open(&parsed, hwnd) {
-                Ok(s) => s,
-                Err(e) => {
-                    if let Ok(mut slot) = failure.lock() {
-                        *slot = Some(e.to_string());
-                    }
-                    return;
-                }
+            // Une panique ici laisserait l'interface attendre un appui qui ne
+            // viendrait jamais, sans le moindre message. Le garde note la
+            // sortie du thread, y compris pendant un déroulement de pile.
+            let _guard = ExitGuard {
+                failure: Arc::clone(&failure),
+                running: Arc::clone(&running),
             };
 
+            let (session, failures) = MultiCaptureSession::open(&parsed, hwnd);
+            if session.is_empty() {
+                if let Ok(mut slot) = failure.lock() {
+                    *slot = Some(if failures.is_empty() {
+                        "aucun périphérique n'a pu être ouvert".into()
+                    } else {
+                        failures.join(" ; ")
+                    });
+                }
+                return;
+            }
+
             while running.load(Ordering::Relaxed) {
-                match session.poll() {
-                    Ok(Some(found)) => {
-                        if let Ok(mut slot) = latest.lock() {
-                            *slot = Some(found.control);
-                        }
-                    }
-                    Ok(None) => {}
-                    Err(e) => {
-                        if let Ok(mut slot) = failure.lock() {
-                            *slot = Some(e.to_string());
-                        }
-                        break;
+                if let Some(found) = session.poll() {
+                    if let Ok(mut slot) = latest.lock() {
+                        *slot = Some(CapturedInput {
+                            guid: found.guid.to_string(),
+                            control: found.control,
+                        });
                     }
                 }
                 std::thread::sleep(POLL_INTERVAL);
             }
-            // `session` sort de portée ici : le périphérique est désacquis.
+            // `session` sort de portée ici : les périphériques sont relâchés.
         });
     }
 
@@ -112,10 +122,26 @@ pub fn start_capture(
     Ok(())
 }
 
+/// Note une fin de thread anormale, pour qu'elle ne passe pas pour un silence.
+struct ExitGuard {
+    failure: Arc<Mutex<Option<String>>>,
+    running: Arc<AtomicBool>,
+}
+
+impl Drop for ExitGuard {
+    fn drop(&mut self) {
+        // Sortie alors que personne n'a demandé l'arrêt : le thread a cédé.
+        if self.running.load(Ordering::Relaxed) {
+            if let Ok(mut slot) = self.failure.lock() {
+                if slot.is_none() {
+                    *slot = Some("la capture s'est interrompue".into());
+                }
+            }
+        }
+    }
+}
+
 /// Relève le dernier contrôle actionné, s'il y en a un.
-///
-/// Renvoie `None` tant que rien n'a été pressé : c'est le cas le plus
-/// fréquent, l'interface sonde en continu.
 #[tauri::command]
 pub fn poll_capture(state: tauri::State<'_, CaptureState>) -> CmdResult<Option<CapturedInput>> {
     let guard = state.inner.lock().map_err(|_| "état de capture corrompu")?;
@@ -123,24 +149,22 @@ pub fn poll_capture(state: tauri::State<'_, CaptureState>) -> CmdResult<Option<C
         return Ok(None);
     };
 
-    // Une panne du thread doit remonter à l'utilisateur, pas se traduire par
-    // une capture qui ne répond simplement jamais.
     if let Ok(slot) = session.failure.lock() {
         if let Some(message) = slot.as_ref() {
             return Err(message.clone());
         }
     }
 
-    let control = session
+    let found = session
         .latest
         .lock()
         .map_err(|_| "état de capture corrompu")?
         .clone();
 
-    Ok(control.map(|control| CapturedInput { control }))
+    Ok(found)
 }
 
-/// Ferme la session et rend le périphérique.
+/// Ferme la session et rend les périphériques.
 #[tauri::command]
 pub fn stop_capture(state: tauri::State<'_, CaptureState>) -> CmdResult<()> {
     let mut guard = state.inner.lock().map_err(|_| "état de capture corrompu")?;

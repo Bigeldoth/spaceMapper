@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   api,
+  type CapturedInput,
   type DeviceView,
   type EditableBinding,
   type PendingEdit,
@@ -507,9 +508,14 @@ function ControlPicker({
   onCancel: () => void;
   onPick: (input: string) => void;
 }) {
-  // On ouvre sur le clavier : c'est le périphérique dont tout le monde
-  // dispose, et la capture y est immédiate.
-  const [source, setSource] = useState<"keyboard" | "device">("keyboard");
+  const joysticks = devices.filter((d) => d.category === "joystick");
+  const gamepads = devices.filter((d) => d.category === "gamepad");
+
+  // On ouvre sur le manche dès qu'il y en a un : c'est le périphérique que
+  // vient configurer l'écrasante majorité des utilisateurs de ce logiciel.
+  const [source, setSource] = useState<Source>(
+    joysticks.length > 0 ? "joystick" : "keyboard",
+  );
 
   return (
     <Modal onCancel={onCancel} title={actionLabel(binding.action)}>
@@ -521,42 +527,70 @@ function ControlPicker({
           Clavier
         </SourceTab>
         <SourceTab
-          active={source === "device"}
-          onClick={() => setSource("device")}
+          active={source === "joystick"}
+          onClick={() => setSource("joystick")}
+          count={joysticks.length}
         >
-          Manche / manette
+          Manche
+        </SourceTab>
+        <SourceTab
+          active={source === "gamepad"}
+          onClick={() => setSource("gamepad")}
+          count={gamepads.length}
+        >
+          Manette
         </SourceTab>
       </div>
 
       {source === "keyboard" ? (
         <KeyboardCapture onCancel={onCancel} onPick={onPick} />
       ) : (
-        <DevicePicker devices={devices} onCancel={onCancel} onPick={onPick} />
+        <DevicePicker
+          key={source}
+          allDevices={devices}
+          family={source === "joystick" ? joysticks : gamepads}
+          onCancel={onCancel}
+          onPick={onPick}
+        />
       )}
     </Modal>
   );
 }
 
+type Source = "keyboard" | "joystick" | "gamepad";
+
 function SourceTab({
   active,
   onClick,
+  count,
   children,
 }: {
   active: boolean;
   onClick: () => void;
+  count?: number;
   children: React.ReactNode;
 }) {
+  // Un onglet sans périphérique reste visible mais inerte : le masquer
+  // laisserait croire que le mode n'existe pas.
+  const empty = count === 0;
   return (
     <button
       onClick={onClick}
+      disabled={empty}
+      title={empty ? "Aucun périphérique de ce type détecté" : undefined}
       className={
         "-mb-px border-b-2 px-3 py-1.5 text-sm font-medium " +
-        (active
-          ? "border-accent-600 text-accent-700"
-          : "border-transparent text-ink-500 hover:text-ink-800")
+        (empty
+          ? "cursor-not-allowed border-transparent text-ink-300"
+          : active
+            ? "border-accent-600 text-accent-700"
+            : "border-transparent text-ink-500 hover:text-ink-800")
       }
     >
       {children}
+      {count !== undefined && count > 1 && (
+        <span className="ml-1 text-xs text-ink-400">({count})</span>
+      )}
     </button>
   );
 }
@@ -687,48 +721,53 @@ function KeyboardCapture({
 }
 
 /**
- * Capture d'un contrôle de manche.
+ * Capture d'un contrôle de manche ou de manette.
  *
- * On sonde DirectInput, la même interface que lit Star Citizen : le bouton 5
- * est donc le bouton 5. Une liste déroulante reste accessible en repli, pour
- * assigner un contrôle qu'on ne peut pas actionner sur le moment — un axe
- * réservé, un bouton d'une boîte à interrupteurs débranchée.
+ * Tous les périphériques de la famille sont sondés simultanément : l'utilisateur
+ * n'a pas à désigner le bon avant d'appuyer, l'application reconnaît lequel a
+ * bougé. C'est indispensable en HOSAS, où deux exemplaires du même modèle sont
+ * impossibles à distinguer dans une liste.
+ *
+ * On lit DirectInput, la même interface que Star Citizen : le bouton 5 est donc
+ * le bouton 5. Une liste déroulante reste accessible en repli, pour assigner un
+ * contrôle qu'on ne peut pas actionner sur le moment.
  */
 function DevicePicker({
-  devices,
+  allDevices,
+  family,
   onCancel,
   onPick,
 }: {
-  devices: DeviceView[];
+  allDevices: DeviceView[];
+  family: DeviceView[];
   onCancel: () => void;
   onPick: (input: string) => void;
 }) {
-  const [deviceIndex, setDeviceIndex] = useState(0);
-  const [captured, setCaptured] = useState<string | null>(null);
+  const [captured, setCaptured] = useState<CapturedInput | null>(null);
   const [manual, setManual] = useState(false);
+  const [manualIndex, setManualIndex] = useState(0);
   const [control, setControl] = useState("");
   const [error, setError] = useState<string | null>(null);
 
-  const device = devices[deviceIndex];
+  // Clé stable de la famille : on ne relance la capture que si la liste des
+  // périphériques change réellement, pas à chaque rendu.
+  const guids = family.map((d) => d.instance_guid).join();
 
-  // Session de capture : ouverte sur le périphérique choisi, refermée dès que
-  // l'on change d'appareil, que l'on bascule en saisie manuelle ou que la
-  // fenêtre se ferme. Sans cela, le périphérique resterait acquis.
   useEffect(() => {
-    if (!device || manual) return;
+    if (manual || family.length === 0) return;
 
     let cancelled = false;
     setCaptured(null);
     setError(null);
 
     void api
-      .startCapture(device.instance_guid)
+      .startCapture(guids.split(",").filter(Boolean))
       .catch((e) => !cancelled && setError(String(e)));
 
     const timer = window.setInterval(async () => {
       try {
         const found = await api.pollCapture();
-        if (!cancelled && found) setCaptured(found.control);
+        if (!cancelled && found) setCaptured(found);
       } catch (e) {
         if (!cancelled) setError(String(e));
       }
@@ -739,9 +778,10 @@ function DevicePicker({
       window.clearInterval(timer);
       void api.stopCapture();
     };
-  }, [device, manual]);
+  }, [guids, manual, family.length]);
 
-  const options: ControlOption[] = device ? controlsFor(device) : [];
+  const manualDevice = family[manualIndex];
+  const options: ControlOption[] = manualDevice ? controlsFor(manualDevice) : [];
   const groups = useMemo(() => {
     const map = new Map<string, ControlOption[]>();
     for (const o of options) {
@@ -752,59 +792,73 @@ function DevicePicker({
     return [...map.entries()];
   }, [options]);
 
-  if (devices.length === 0) {
+  if (family.length === 0) {
     return (
       <p className="text-sm text-ink-600">
-        Aucun périphérique détecté. Branchez votre manche puis relancez
-        SpaceMapper.
+        Aucun périphérique de ce type détecté. Branchez-le&nbsp;: il apparaîtra
+        en quelques secondes, sans redémarrer l'application.
       </p>
     );
   }
 
-  const chosen = manual ? control : captured;
-  const token = chosen ? `${devicePrefix(deviceIndex)}_${chosen}` : null;
+  // Le périphérique effectivement actionné, retrouvé par son GUID.
+  const capturedDevice = captured
+    ? allDevices.find((d) => d.instance_guid === captured.guid)
+    : undefined;
+
+  const token = manual
+    ? manualDevice && control
+      ? `${devicePrefix(allDevices, manualDevice)}_${control}`
+      : null
+    : captured && capturedDevice
+      ? `${devicePrefix(allDevices, capturedDevice)}_${captured.control}`
+      : null;
 
   return (
     <div className="space-y-4">
-      <label className="block">
-        <span className="text-xs font-medium text-ink-600">Périphérique</span>
-        <select
-          className="mt-1 w-full rounded-md border border-ink-300 bg-white px-3 py-1.5 text-sm"
-          value={deviceIndex}
-          onChange={(e) => {
-            setDeviceIndex(Number(e.target.value));
-            setControl("");
-            setCaptured(null);
-          }}
-        >
-          {devices.map((d, i) => (
-            <option key={d.instance_guid} value={i}>
-              {devicePrefix(i)} — {d.product_name || d.instance_name}
-            </option>
-          ))}
-        </select>
-      </label>
-
       {manual ? (
-        <label className="block">
-          <span className="text-xs font-medium text-ink-600">Contrôle</span>
-          <select
-            className="mt-1 w-full rounded-md border border-ink-300 bg-white px-3 py-1.5 text-sm"
-            value={control}
-            onChange={(e) => setControl(e.target.value)}
-          >
-            <option value="">Choisir…</option>
-            {groups.map(([group, items]) => (
-              <optgroup key={group} label={group}>
-                {items.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-        </label>
+        <>
+          <label className="block">
+            <span className="text-xs font-medium text-ink-600">
+              Périphérique
+            </span>
+            <select
+              className="mt-1 w-full rounded-md border border-ink-300 bg-white px-3 py-1.5 text-sm"
+              value={manualIndex}
+              onChange={(e) => {
+                setManualIndex(Number(e.target.value));
+                setControl("");
+              }}
+            >
+              {family.map((d, i) => (
+                <option key={d.instance_guid} value={i}>
+                  {devicePrefix(allDevices, d)} —{" "}
+                  {d.product_name || d.instance_name}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block">
+            <span className="text-xs font-medium text-ink-600">Contrôle</span>
+            <select
+              className="mt-1 w-full rounded-md border border-ink-300 bg-white px-3 py-1.5 text-sm"
+              value={control}
+              onChange={(e) => setControl(e.target.value)}
+            >
+              <option value="">Choisir…</option>
+              {groups.map(([group, items]) => (
+                <optgroup key={group} label={group}>
+                  {items.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </label>
+        </>
       ) : (
         <div
           className={
@@ -814,17 +868,28 @@ function DevicePicker({
               : "border-ink-300 bg-ink-50")
           }
         >
-          {captured ? (
+          {captured && capturedDevice ? (
             <>
-              <p className="text-lg font-medium text-accent-700">
-                {controlLabel(captured)}
+              <p className="text-xs font-medium uppercase tracking-wide text-accent-700">
+                {devicePrefix(allDevices, capturedDevice)} —{" "}
+                {capturedDevice.product_name || capturedDevice.instance_name}
+              </p>
+              <p className="mt-1 text-lg font-medium text-accent-700">
+                {controlLabel(captured.control)}
               </p>
               <p className="technical mt-1 text-ink-500">{token}</p>
             </>
           ) : (
-            <p className="text-sm text-ink-500">
-              Actionnez le bouton, l'axe ou le chapeau souhaité.
-            </p>
+            <>
+              <p className="text-sm text-ink-500">
+                Actionnez le bouton, l'axe ou le chapeau souhaité.
+              </p>
+              <p className="mt-1 text-xs text-ink-400">
+                {family.length > 1
+                  ? `${family.length} périphériques écoutés — celui que vous actionnez sera reconnu.`
+                  : "Le périphérique est à l'écoute."}
+              </p>
+            </>
           )}
         </div>
       )}
@@ -839,9 +904,7 @@ function DevicePicker({
         }}
         className="text-sm font-medium text-accent-700 hover:text-accent-600"
       >
-        {manual
-          ? "Revenir à la capture"
-          : "Choisir dans une liste à la place"}
+        {manual ? "Revenir à la capture" : "Choisir dans une liste à la place"}
       </button>
 
       <div className="flex justify-end gap-2 pt-2">
