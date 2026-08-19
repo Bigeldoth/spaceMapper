@@ -12,6 +12,7 @@
 
 use super::DeviceGuid;
 use crate::{Error, Result};
+use std::cell::Cell;
 
 // `Interface` doit être en portée pour accéder à `IDirectInput8W::IID`.
 use windows::core::{Interface, GUID};
@@ -29,6 +30,13 @@ use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 /// Les axes reposent rarement exactement au centre et dérivent avec l'usure.
 /// Un seuil trop bas capterait ce bruit à la place de l'intention du joueur.
 const AXIS_THRESHOLD: i32 = 12_000;
+
+/// Vitesse à laquelle le repos rejoint la position courante d'un axe.
+///
+/// Un huitième de l'écart à chaque relevé : un axe immobile est rattrapé en
+/// une fraction de seconde, tandis qu'un mouvement franc dépasse le seuil bien
+/// avant que le repos n'ait le temps de suivre.
+const BASELINE_FOLLOW: i32 = 8;
 
 /// Un contrôle actionné, nommé comme Star Citizen le nomme.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -115,9 +123,53 @@ pub struct RawSnapshot {
 /// Acquiert le périphérique à la création et le libère à la destruction.
 pub struct CaptureSession {
     device: IDirectInputDevice8W,
-    /// Position des axes au démarrage : on compare à ce repos plutôt qu'à une
-    /// valeur théorique, que tous les manches ne respectent pas.
-    baseline: [i32; 8],
+    axes: AxisTracker,
+}
+
+/// Suivi du repos des axes.
+///
+/// Isolé du périphérique pour être éprouvable sans matériel : c'est ici que se
+/// joue la distinction entre un axe qu'on actionne et un axe simplement posé
+/// ailleurs qu'au centre.
+///
+/// Le repos est **suivi en continu**, et non figé à l'ouverture. Un manche
+/// porte souvent des axes qui ne reviennent pas au centre : la manette des gaz
+/// d'un T.16000M reste où on la laisse. Comparée à un repos figé, elle paraît
+/// actionnée en permanence et écrase tout appui de bouton au relevé suivant.
+#[derive(Debug, Default)]
+struct AxisTracker {
+    baseline: Cell<[i32; 8]>,
+    /// Le premier relevé sert de repos initial et n'est jamais interprété.
+    primed: Cell<bool>,
+}
+
+impl AxisTracker {
+    /// Indice de l'axe qui vient de bouger, et mise à jour du repos.
+    fn moved(&self, axes: [i32; 8]) -> Option<usize> {
+        let mut baseline = self.baseline.get();
+
+        // Le tout premier relevé définit le repos sans rien interpréter.
+        if !self.primed.get() {
+            self.baseline.set(axes);
+            self.primed.set(true);
+            return None;
+        }
+
+        let mut moved = None;
+        for index in 0..axes.len() {
+            let drift = axes[index] - baseline[index];
+            if moved.is_none() && drift.abs() >= AXIS_THRESHOLD {
+                moved = Some(index);
+            }
+            // Le repos rejoint la position courante, y compris pendant un
+            // mouvement : un axe maintenu finit par se taire, ce qui évite
+            // qu'il masque indéfiniment les appuis de boutons.
+            baseline[index] += drift / BASELINE_FOLLOW;
+        }
+
+        self.baseline.set(baseline);
+        moved
+    }
 }
 
 impl CaptureSession {
@@ -177,17 +229,13 @@ impl CaptureSession {
             .Acquire()
             .map_err(|e| step("acquisition du périphérique", e))?;
 
-        let mut session = CaptureSession {
+        // Le repos s'établit au premier relevé de `poll`, pas ici : un
+        // périphérique tout juste acquis ne renvoie pas toujours des valeurs
+        // représentatives.
+        Ok(CaptureSession {
             device,
-            baseline: [0; 8],
-        };
-        // Un premier relevé sert de repos. S'il échoue, on garde des zéros :
-        // la capture des boutons reste utilisable, seuls les axes deviennent
-        // moins fiables.
-        if let Ok(state) = session.read() {
-            session.baseline = axes_of(&state);
-        }
-        Ok(session)
+            axes: AxisTracker::default(),
+        })
     }
 
     /// Relève le premier contrôle actionné, s'il y en a un.
@@ -213,16 +261,12 @@ impl CaptureSession {
             }
         }
 
-        let axes = axes_of(&state);
-        for (index, value) in axes.iter().enumerate() {
-            if (value - self.baseline[index]).abs() >= AXIS_THRESHOLD {
-                return Ok(Some(CapturedControl {
-                    control: AXIS_NAMES[index].to_string(),
-                }));
-            }
-        }
-
-        Ok(None)
+        Ok(self
+            .axes
+            .moved(axes_of(&state))
+            .map(|index| CapturedControl {
+                control: AXIS_NAMES[index].to_string(),
+            }))
     }
 
     /// Relevé brut de l'état, pour diagnostic.
@@ -234,7 +278,7 @@ impl CaptureSession {
         let state = unsafe { self.read() }.map_err(|e| step("lecture d'état", e))?;
         Ok(RawSnapshot {
             axes: axes_of(&state),
-            baseline: self.baseline,
+            baseline: self.axes.baseline.get(),
             povs: state.rgdwPOV,
             pressed: state
                 .rgbButtons
@@ -489,6 +533,65 @@ mod tests {
             format.dwObjSize as usize,
             core::mem::size_of::<DIOBJECTDATAFORMAT>()
         );
+    }
+
+    #[test]
+    fn a_parked_axis_stops_being_reported() {
+        // Le défaut qui rendait la capture inutilisable : la manette des gaz
+        // d'un T.16000M reste où on la laisse. Comparée à un repos figé, elle
+        // paraissait actionnée en permanence et écrasait chaque appui de
+        // bouton au relevé suivant, à soixante relevés par seconde.
+        let tracker = AxisTracker::default();
+        let mut parked = [0; 8];
+        parked[6] = 32_767; // slider1, posé loin du centre
+
+        // Premier relevé : sert de repos, n'interprète rien.
+        assert_eq!(tracker.moved(parked), None);
+
+        // Les relevés suivants, à position identique, doivent rester muets.
+        for _ in 0..50 {
+            assert_eq!(tracker.moved(parked), None, "axe posé signalé à tort");
+        }
+    }
+
+    #[test]
+    fn an_axis_left_in_a_new_position_falls_silent_again() {
+        // Après un déplacement, l'axe reste où l'utilisateur l'a laissé. Il ne
+        // doit pas continuer à se signaler indéfiniment.
+        let tracker = AxisTracker::default();
+        let rest = [16_000; 8];
+        assert_eq!(tracker.moved(rest), None);
+
+        let mut shifted = rest;
+        shifted[6] = 0;
+        assert_eq!(tracker.moved(shifted), Some(6));
+
+        for _ in 0..50 {
+            tracker.moved(shifted);
+        }
+        assert_eq!(tracker.moved(shifted), None, "axe posé toujours signalé");
+    }
+
+    #[test]
+    fn a_deliberate_movement_is_reported() {
+        let tracker = AxisTracker::default();
+        let rest = [16_000; 8];
+        assert_eq!(tracker.moved(rest), None); // amorçage
+
+        let mut pushed = rest;
+        pushed[0] += AXIS_THRESHOLD; // axe X poussé franchement
+        assert_eq!(tracker.moved(pushed), Some(0));
+    }
+
+    #[test]
+    fn noise_below_the_threshold_is_ignored() {
+        let tracker = AxisTracker::default();
+        let rest = [16_000; 8];
+        assert_eq!(tracker.moved(rest), None);
+
+        let mut jitter = rest;
+        jitter[3] += AXIS_THRESHOLD - 1;
+        assert_eq!(tracker.moved(jitter), None);
     }
 
     #[test]
