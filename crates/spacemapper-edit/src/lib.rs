@@ -81,7 +81,10 @@ pub fn apply_to_file(target: &Path, edit: &BindingEdit) -> Result<()> {
 /// Ne crée **aucune** sauvegarde : c'est à l'appelant de proposer
 /// [`backup::create`] au moment opportun.
 pub fn apply_all_to_file(target: &Path, edits: &[BindingEdit]) -> Result<()> {
-    if let Some(refused) = edits.iter().find(|e| !scope::is_editable(&e.actionmap)) {
+    if let Some(refused) = edits
+        .iter()
+        .find(|e| !scope::is_editable(&e.actionmap, &e.action))
+    {
         return Err(Error::OutOfScope {
             actionmap: refused.actionmap.clone(),
         });

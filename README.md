@@ -27,10 +27,11 @@ L'édition **Premium** (export, import, synchronisation, réparation de l'ordre 
 | **Identifier une commande** en actionnant un contrôle | ✅ | ✅ |
 | Assignation par appui direct (touche, bouton, axe) | ✅ | ✅ |
 | Points de restauration et restauration | ✅ | ✅ |
-| **Modifier le pilotage** (`spaceship_movement`) | ✅ | ✅ |
-| **Modifier le déplacement à pied** (`player`) | ✅ | ✅ |
-| Conduite, EVA, émotes, menu d'interaction | Affichés, verrouillés | ✅ |
-| Combat, ciblage, énergie, systèmes, tourelles | — | ✅ |
+| **Configurer un vol complet** : décoller, se déplacer, se poser | ✅ | ✅ |
+| **Modifier le déplacement à pied** | ✅ | ✅ |
+| Conduite, EVA, émotes, portes, HUD | Affichés, verrouillés | ✅ |
+| Combat, ciblage, contre-mesures, tourelles, minage | — | ✅ |
+| Actions irréversibles (autodestruction, éjection) | Affichées, verrouillées | ✅ |
 | Modificateurs et modes d'activation | — | ✅ |
 | Profils nommés et commutables | — | ✅ |
 | Synchronisation entre machines | — | ✅ |
@@ -52,7 +53,11 @@ La lecture passe par **DirectInput, la même interface que Star Citizen**. Le bo
 
 **Lite fonctionne intégralement hors-ligne.** Ce n'est pas une promesse mais une propriété vérifiable : son arbre de dépendances ne contient **aucun client HTTP** — ni `reqwest`, ni `hyper`, ni `ureq`, ni `rustls`. Le binaire est techniquement incapable d'émettre une requête réseau. Pas de télémétrie, pas de compte, pas de mise à jour silencieuse. Vous pouvez le vérifier avec `cargo tree`.
 
-**Lite ne modifie que le pilotage et la marche.** Le périmètre est appliqué dans la couche d'écriture en Rust, pas dans l'interface — une catégorie hors périmètre est refusée quoi qu'affiche l'écran. Les assignations portant un modificateur ou un mode d'activation sont présentées en lecture seule plutôt que modifiées à l'aveugle.
+**Lite couvre le vol, en entier.** Allumer le vaisseau, piloter, orienter la vue, sauter en quantique, sortir le train, se poser — et rejoindre son vaisseau à pied. Le combat, les contre-mesures, les tourelles et les spécialisations relèvent du Premium.
+
+Le périmètre est appliqué dans la couche d'écriture en Rust, pas dans l'interface : une catégorie hors périmètre est refusée quoi qu'affiche l'écran. Les actions irréversibles — autodestruction, éjection — restent verrouillées même dans une catégorie autorisée, et les assignations portant un modificateur ou un mode d'activation sont présentées en lecture seule plutôt que modifiées à l'aveugle.
+
+> ℹ️ **Ce que SpaceMapper voit.** `actionmaps.xml` est un fichier de **surcharges** : il ne contient que ce que vous avez modifié. Les assignations par défaut du jeu vivent dans `Data.p4k` et n'y figurent pas. Une configuration qui fonctionne en jeu peut donc n'apparaître ici qu'en partie. Lire ces valeurs par défaut est au programme.
 
 **Rien n'est écrit sans votre accord.** Vos modifications s'accumulent à l'écran ; un bandeau vous rappelle qu'elles ne sont pas enregistrées. Au moment d'enregistrer, vous pouvez relire la liste de ce qui va changer et choisir de créer un point de restauration au préalable.
 

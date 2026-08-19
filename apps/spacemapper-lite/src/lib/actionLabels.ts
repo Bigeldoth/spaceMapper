@@ -84,7 +84,6 @@ const LABELS: Record<string, string> = {
   port_modification_select: "Sélectionner un emplacement d'équipement",
   gp_rotatepitch: "Manette — tangage de la vue",
   gp_rotateyaw: "Manette — lacet de la vue",
-  v_starmap: "Carte stellaire",
 
   // ── À plat ventre : prone ──────────────────────────────────────────────
   prone_rollleft: "Rouler à gauche",
@@ -126,15 +125,45 @@ const LABELS: Record<string, string> = {
   eva_view_yaw_left: "Vue vers la gauche",
   eva_view_yaw_right: "Vue vers la droite",
 
-  // ── Hors périmètre Lite, mais affiché dans l'aperçu ────────────────────
-  v_lights: "Feux du vaisseau",
-  v_self_destruct: "Autodestruction",
+  // ── Énergie : spaceship_power ──────────────────────────────────────────
+  v_power_toggle: "Allumer / éteindre le vaisseau",
+  v_power_toggle_shields: "Alimenter les boucliers",
+  v_power_toggle_weapons: "Alimenter les armes",
+  v_power_throttle_up: "Augmenter l'énergie",
+  v_power_throttle_down: "Réduire l'énergie",
+  v_power_throttle_max: "Énergie au maximum",
+  v_power_throttle_min: "Énergie au minimum",
+
+  // ── Vue : spaceship_view ───────────────────────────────────────────────
   v_view_mode: "Changer de vue",
+  v_view_option: "Option de vue",
+  v_view_interact: "Vue d'interaction",
+  v_view_cycle_fwd: "Vue suivante",
+  v_view_cycle_internal_fwd: "Vue interne suivante",
+  v_view_pitch: "Axe — orienter la vue verticalement",
+  v_view_pitch_up: "Regarder vers le haut",
+  v_view_pitch_down: "Regarder vers le bas",
+  v_view_yaw: "Axe — orienter la vue horizontalement",
+  v_view_yaw_left: "Regarder à gauche",
+  v_view_yaw_right: "Regarder à droite",
+  v_view_zoom_in: "Zoom avant",
+  v_view_zoom_out: "Zoom arrière",
+
+  // ── Siège et modes : seat_general, spaceship_quantum ───────────────────
   v_toggle_quantum_mode: "Mode quantique",
   v_toggle_qdrive_engagement: "Enclencher le saut quantique",
   v_toggle_scan_mode: "Mode scan",
   v_toggle_mining_mode: "Mode minage",
   v_enter_remote_turret_1: "Entrer en tourelle",
+
+  // ── Hors périmètre Lite, mais affiché dans l'aperçu ────────────────────
+  v_lights: "Feux du vaisseau",
+  v_self_destruct: "Autodestruction",
+  v_toggle_all_doors: "Ouvrir / fermer les portes",
+  v_toggle_all_doorlocks: "Verrouiller / déverrouiller les portes",
+  v_cooler_throttle_up: "Augmenter le refroidissement",
+  v_cooler_throttle_down: "Réduire le refroidissement",
+  v_starmap: "Carte stellaire",
   v_target_toggle_pin_index_1: "Épingler la cible 1",
   v_shield_raise_level_forward: "Renforcer le bouclier avant",
   v_shield_raise_level_back: "Renforcer le bouclier arrière",

@@ -170,10 +170,11 @@ fn collect_editable(maps: &ActionMaps) -> Vec<EditableBinding> {
                 None => (None, None, None),
             };
 
-            // Deux raisons distinctes de verrouiller, et l'ordre compte : une
-            // catégorie de vitrine reste verrouillée quel que soit le contenu
-            // de l'assignation, et c'est ce motif qu'il faut afficher.
-            let locked_reason = if access == EditAccess::PremiumTeaser {
+            // Plusieurs raisons distinctes de verrouiller, et l'ordre compte :
+            // c'est la plus spécifique qu'il faut afficher.
+            let locked_reason = if scope::is_dangerous(&action.name) {
+                Some("Action irréversible — réassignation réservée à l'édition Premium".to_string())
+            } else if access == EditAccess::PremiumTeaser {
                 Some("Catégorie réservée à l'édition Premium".to_string())
             } else if modifier.is_some() {
                 Some("Comporte un modificateur — réservé à l'édition Premium".to_string())
@@ -226,6 +227,12 @@ mod tests {
   <actionmap name="prone">
    <action name="prone_rollleft"><rebind input="kb1_q"/></action>
   </actionmap>
+  <actionmap name="spaceship_power">
+   <action name="v_power_toggle"><rebind input="js1_button7"/></action>
+  </actionmap>
+  <actionmap name="spaceship_general">
+   <action name="v_self_destruct"><rebind input="js1_button8"/></action>
+  </actionmap>
   <actionmap name="spaceship_weapons">
    <action name="v_attack1"><rebind input="js1_button1"/></action>
   </actionmap>
@@ -267,6 +274,28 @@ mod tests {
             assert!(found.locked, "{actionmap} devrait être verrouillée");
             assert!(found.locked_reason.as_ref().unwrap().contains("Premium"));
         }
+    }
+
+    #[test]
+    fn powering_the_ship_is_editable() {
+        // Sans cette catégorie, on ne peut pas décoller : c'est le manque qui
+        // rendait l'édition Lite inutilisable pour configurer un vol.
+        let list = editable();
+        let power = list.iter().find(|b| b.action == "v_power_toggle").unwrap();
+        assert_eq!(power.access, EditAccess::Lite);
+        assert!(!power.locked);
+    }
+
+    #[test]
+    fn self_destruct_is_locked_and_says_why() {
+        let list = editable();
+        let boom = list.iter().find(|b| b.action == "v_self_destruct").unwrap();
+        assert!(boom.locked);
+        assert!(boom
+            .locked_reason
+            .as_ref()
+            .unwrap()
+            .contains("irréversible"));
     }
 
     #[test]
