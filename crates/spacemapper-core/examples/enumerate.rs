@@ -32,9 +32,10 @@ fn main() {
     }
     for d in &devices {
         println!(
-            "  {}\n    guid   {}\n    axes {} · boutons {} · chapeaux {}",
+            "  {}\n    instance {}\n    produit  {}\n    axes {} · boutons {} · chapeaux {}",
             d.product_name,
             d.instance_guid,
+            d.product_guid,
             d.capabilities.axes,
             d.capabilities.buttons,
             d.capabilities.povs
@@ -77,8 +78,16 @@ fn main() {
         println!("  GUID du fichier");
         for guid in maps.known_guids() {
             // Le point de vérité : ce GUID correspond-il à du matériel branché ?
-            let plugged = devices.iter().any(|d| &d.instance_guid == guid);
-            let mark = if plugged { "branché" } else { "ABSENT" };
+            // On teste les deux identités séparément, parce que c'est ainsi
+            // qu'on a découvert que le jeu écrit le GUID *produit* et non le
+            // GUID d'instance.
+            let by_instance = devices.iter().any(|d| &d.instance_guid == guid);
+            let by_product = devices.iter().any(|d| &d.product_guid == guid);
+            let mark = match (by_instance, by_product) {
+                (true, _) => "instance branchée",
+                (false, true) => "modèle branché (GUID produit)",
+                (false, false) => "ABSENT",
+            };
             println!("    {guid}  [{mark}]");
         }
 

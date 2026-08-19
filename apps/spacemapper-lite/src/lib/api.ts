@@ -118,6 +118,55 @@ export interface CapturedInput {
   control: string;
 }
 
+/**
+ * Nature d'un GUID DirectInput.
+ *
+ * `product` est dérivé du couple VID/PID : deux exemplaires d'un même modèle
+ * le partagent. C'est celui que Star Citizen écrit.
+ */
+export type GuidKind = "product" | "instance" | "other";
+
+export interface LiveDevice {
+  product_name: string;
+  instance_name: string;
+  product_guid: string;
+  instance_guid: string;
+  category: DeviceCategory;
+  /** Rang dans l'énumération, par famille, à partir de 1. */
+  rank: number;
+  declared_in_file: boolean;
+}
+
+export interface DeclaredDevice {
+  name: string;
+  guid: string | null;
+  guid_kind: GuidKind | null;
+  /** Nombre de périphériques branchés partageant ce GUID produit. */
+  matching_devices: number;
+}
+
+export interface SlotUsage {
+  instance: number;
+  bindings: number;
+  /** Le bloc `<options>` de ce slot nomme-t-il un périphérique ? */
+  named: boolean;
+}
+
+/** Un constat du diagnostic. Le discriminant est `kind`. */
+export type Finding =
+  | { kind: "anonymous_slots"; instances: number[] }
+  | { kind: "ambiguous_model"; product_name: string; count: number }
+  | { kind: "declared_but_absent"; name: string }
+  | { kind: "plugged_but_unused"; name: string }
+  | { kind: "more_slots_than_devices"; slots: number; devices: number };
+
+export interface Diagnosis {
+  live: LiveDevice[];
+  declared: DeclaredDevice[];
+  slots: SlotUsage[];
+  findings: Finding[];
+}
+
 export interface BackupView {
   path: string;
   /** Millisecondes depuis l'époque Unix, sous forme de chaîne. */
@@ -145,6 +194,10 @@ export const api = {
   readFlightBindings: (path: string) =>
     invoke<FlightBindings>("read_flight_bindings", { path }),
   buildInfo: () => invoke<BuildInfo>("build_info"),
+
+  /** Confronte le profil au matériel branché. */
+  diagnoseDevices: (path: string) =>
+    invoke<Diagnosis>("diagnose_devices", { path }),
 
   /** Surcharges du joueur fusionnées avec les valeurs par défaut du jeu. */
   listEditableBindings: (path: string) =>

@@ -12,13 +12,14 @@ import {
 import { actionLabel, categoryLabel, isKnownAction } from "./lib/actionLabels";
 import { devicePrefix } from "./lib/controls";
 import BindingEditor from "./BindingEditor";
+import DiagnosisPanel from "./DiagnosisPanel";
 import SettingsPanel from "./SettingsPanel";
 import type { Key, Lang } from "./lib/i18n";
 import { TranslationProvider, useT } from "./lib/i18nContext";
 
 const TIPEEE_URL = "https://fr.tipeee.com/padek-interactive";
 
-type Tab = "overview" | "edit" | "settings";
+type Tab = "overview" | "diagnosis" | "edit" | "settings";
 
 /**
  * Racine de l'application.
@@ -168,6 +169,9 @@ function Workspace({
                 <Tabs active={tab} onChange={setTab} />
                 {tab === "overview" &&
                   bindings && <BindingsSection bindings={bindings} />}
+                {tab === "diagnosis" && (
+                  <DiagnosisPanel profilePath={selected} />
+                )}
                 {tab === "edit" && (
                   <BindingEditor
                     // Changer de langue doit reconstruire l'éditeur : les
@@ -246,6 +250,7 @@ function Tabs({
   const t = useT();
   const tabs: { id: Tab; label: Key }[] = [
     { id: "overview", label: "tab.overview" },
+    { id: "diagnosis", label: "tab.diagnosis" },
     { id: "edit", label: "tab.edit" },
     { id: "settings", label: "tab.settings" },
   ];

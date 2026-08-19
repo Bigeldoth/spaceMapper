@@ -1,13 +1,19 @@
 //! Énumération des périphériques d'entrée.
 //!
-//! Star Citizen identifie ses joysticks par leur *instance GUID* DirectInput,
-//! qu'il écrit dans l'attribut `Product` des blocs `<options>` de
-//! `actionmaps.xml`. On énumère donc via DirectInput, et non via l'API HID
-//! générique : c'est le seul moyen d'obtenir des GUID **identiques au bit
-//! près** à ceux que le jeu écrit lui-même.
+//! On énumère via DirectInput, et non via l'API HID générique : c'est le seul
+//! moyen d'obtenir des GUID **identiques au bit près** à ceux que le jeu écrit
+//! lui-même.
+//!
+//! ⚠️ Star Citizen écrit le GUID **produit**, pas le GUID d'instance —
+//! vérifié sur un fichier réel. Le GUID produit étant dérivé du couple
+//! VID/PID, deux exemplaires d'un même modèle le partagent. Toute comparaison
+//! fichier ↔ matériel doit donc passer par [`InputDevice::product_guid`], et
+//! accepter qu'elle ne distingue pas deux manches identiques. Voir
+//! [`diagnosis`] pour le détail et les relevés qui l'établissent.
 
 #[cfg(windows)]
 pub mod capture;
+pub mod diagnosis;
 #[cfg(windows)]
 pub mod directinput;
 
@@ -65,7 +71,7 @@ pub struct DeviceCapabilities {
 /// La différence n'est pas cosmétique : le jeu écrit `gp1_` pour une manette
 /// et `js1_` pour un manche. Assigner un bouton de manette sous un préfixe
 /// `js` produirait une touche muette.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum DeviceCategory {
     /// Manche, palonnier, boîte à interrupteurs — tout ce qui n'est pas une

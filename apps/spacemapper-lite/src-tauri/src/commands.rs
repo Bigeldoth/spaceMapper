@@ -7,6 +7,7 @@
 
 use serde::Serialize;
 use spacemapper_core::actionmaps::{self, ActionMaps};
+use spacemapper_core::device::diagnosis::{self, Diagnosis};
 use spacemapper_core::device::{DeviceEnumerator, InputDevice};
 use spacemapper_core::install;
 use std::path::PathBuf;
@@ -111,6 +112,17 @@ pub fn locate_actionmaps() -> Vec<ProfileLocation> {
 pub fn read_flight_bindings(path: String) -> CmdResult<FlightBindings> {
     let maps = actionmaps::parse_file(PathBuf::from(&path)).map_err(|e| e.to_string())?;
     Ok(to_flight_view(&maps))
+}
+
+/// Confronte le profil au matériel réellement branché.
+///
+/// C'est le diagnostic que le système natif ne fournit pas : le jeu n'indique
+/// nulle part que `js1_` ne désigne plus le même manche qu'hier.
+#[tauri::command]
+pub fn diagnose_devices(path: String) -> CmdResult<Diagnosis> {
+    let maps = actionmaps::parse_file(PathBuf::from(&path)).map_err(|e| e.to_string())?;
+    let devices = enumerator().enumerate().map_err(|e| e.to_string())?;
+    Ok(diagnosis::diagnose(&maps, &devices))
 }
 
 #[derive(Debug, Serialize)]

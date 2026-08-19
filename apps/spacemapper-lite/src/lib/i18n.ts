@@ -28,7 +28,7 @@ const FR = {
 
   "devices.title": "Périphériques détectés",
   "devices.hint":
-    "Identifiés par leur GUID matériel, stable quel que soit le port USB. La liste se met à jour automatiquement au branchement.",
+    "Le jeu n'enregistre que l'identifiant du modèle : deux manches identiques y sont indiscernables. L'onglet Périphériques montre ce que cela donne sur votre profil.",
   "devices.empty":
     "Aucun périphérique de jeu détecté. Branchez votre manche — il apparaîtra ici en quelques secondes.",
   "devices.axes": "axes",
@@ -151,6 +151,48 @@ const FR = {
 
   "staging.banner": "Pré-release",
   "loading": "Détection en cours…",
+
+  "tab.diagnosis": "Périphériques",
+  "diag.title": "Correspondance matériel",
+  "diag.hint":
+    "Ce que votre profil désigne, face à ce qui est réellement branché. Star Citizen ne montre nulle part cette correspondance.",
+  "diag.liveTitle": "Branché maintenant",
+  "diag.declaredTitle": "Nommé dans votre profil",
+  "diag.slotsTitle": "Emplacements utilisés",
+  "diag.noProfile": "Choisissez un profil pour lancer le diagnostic.",
+  "diag.refresh": "Actualiser",
+  "diag.rank": "Rang d'énumération",
+  "diag.rankHint":
+    "Le jeu numérote js1, js2… dans cet ordre. Cet ordre change quand vous rebranchez un manche ailleurs, et c'est ce qui inverse vos commandes.",
+  "diag.matched": "Reconnu dans le profil",
+  "diag.unmatched": "Absent du profil",
+  "diag.slotBindings": "assignations",
+  "diag.slotNamed": "périphérique nommé",
+  "diag.slotAnonymous": "aucun périphérique nommé",
+  "diag.guidProduct": "GUID de modèle",
+  "diag.guidInstance": "GUID d'exemplaire",
+  "diag.noFindings":
+    "Rien à signaler : votre profil et votre matériel concordent.",
+  "diag.findingsTitle": "Constats",
+
+  "diag.anonymousSlots":
+    "Rien, dans votre fichier, ne dit à quel manche s'adressent ces emplacements",
+  "diag.anonymousSlotsDetail":
+    "Star Citizen les attribue dans l'ordre où Windows énumère vos périphériques. Cet ordre n'est pas garanti d'un démarrage à l'autre : c'est la cause des commandes qui « sautent » d'un manche à l'autre.",
+  "diag.ambiguousModel":
+    "Deux exemplaires identiques : leur identifiant matériel est le même",
+  "diag.ambiguousModelDetail":
+    "Star Citizen n'enregistre que l'identifiant du modèle, pas celui de l'exemplaire. Aucun outil ne peut donc les distinguer par ce seul identifiant — c'est une limite du format de fichier, pas de SpaceMapper.",
+  "diag.declaredButAbsent": "Nommé dans le profil, mais non branché",
+  "diag.declaredButAbsentDetail":
+    "Les assignations de ce périphérique restent dans le fichier ; elles seront muettes tant qu'il n'est pas rebranché.",
+  "diag.pluggedButUnused": "Branché, mais aucune assignation ne le vise",
+  "diag.moreSlotsThanDevices":
+    "Votre profil vise plus d'emplacements que de manches branchés",
+
+  "diag.premiumTitle": "La réparation est une fonction Premium",
+  "diag.premiumBody":
+    "Lite constate. Premium renumérote les emplacements, réécrit les préfixes correspondants et crée un point de restauration avant d'y toucher.",
 } as const;
 
 export type Key = keyof typeof FR;
@@ -164,7 +206,7 @@ const EN: Record<Key, string> = {
 
   "devices.title": "Detected devices",
   "devices.hint":
-    "Identified by hardware GUID, stable across USB ports. The list refreshes automatically when you plug a device in.",
+    "The game records only the model id: two identical sticks are indistinguishable to it. The Devices tab shows what that means for your profile.",
   "devices.empty":
     "No game controller detected. Plug in your stick — it will appear here within seconds.",
   "devices.axes": "axes",
@@ -285,6 +327,46 @@ const EN: Record<Key, string> = {
 
   "staging.banner": "Pre-release",
   "loading": "Detecting…",
+
+  "tab.diagnosis": "Devices",
+  "diag.title": "Hardware match",
+  "diag.hint":
+    "What your profile names, against what is actually plugged in. Star Citizen shows this match nowhere.",
+  "diag.liveTitle": "Plugged in now",
+  "diag.declaredTitle": "Named in your profile",
+  "diag.slotsTitle": "Slots in use",
+  "diag.noProfile": "Pick a profile to run the diagnosis.",
+  "diag.refresh": "Refresh",
+  "diag.rank": "Enumeration rank",
+  "diag.rankHint":
+    "The game numbers js1, js2… in this order. The order changes when you move a stick to another port, and that is what swaps your controls.",
+  "diag.matched": "Found in profile",
+  "diag.unmatched": "Not in profile",
+  "diag.slotBindings": "bindings",
+  "diag.slotNamed": "device named",
+  "diag.slotAnonymous": "no device named",
+  "diag.guidProduct": "Model GUID",
+  "diag.guidInstance": "Unit GUID",
+  "diag.noFindings": "Nothing to report: your profile and hardware agree.",
+  "diag.findingsTitle": "Findings",
+
+  "diag.anonymousSlots":
+    "Nothing in your file says which stick these slots refer to",
+  "diag.anonymousSlotsDetail":
+    "Star Citizen assigns them in the order Windows enumerates your devices. That order is not guaranteed from one boot to the next: this is why controls appear to jump from one stick to the other.",
+  "diag.ambiguousModel": "Two identical units: their hardware id is the same",
+  "diag.ambiguousModelDetail":
+    "Star Citizen records only the model id, not the unit id. No tool can tell them apart from that id alone — this is a limit of the file format, not of SpaceMapper.",
+  "diag.declaredButAbsent": "Named in the profile, but not plugged in",
+  "diag.declaredButAbsentDetail":
+    "This device's bindings stay in the file; they will do nothing until it is plugged back in.",
+  "diag.pluggedButUnused": "Plugged in, but no binding targets it",
+  "diag.moreSlotsThanDevices":
+    "Your profile targets more slots than you have sticks plugged in",
+
+  "diag.premiumTitle": "Repair is a Premium feature",
+  "diag.premiumBody":
+    "Lite reports. Premium renumbers the slots, rewrites the matching prefixes, and creates a restore point before touching anything.",
 };
 
 const TABLES: Record<Lang, Record<Key, string>> = { fr: FR, en: EN };
