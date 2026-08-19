@@ -26,6 +26,31 @@ export default function App() {
   const [build, setBuild] = useState<BuildInfo | null>(null);
   const [tab, setTab] = useState<Tab>("overview");
 
+  /**
+   * Ré-énumération périodique.
+   *
+   * DirectInput ne prévient pas d'un branchement : sans ce rappel, un manche
+   * branché après le démarrage resterait invisible jusqu'à un redémarrage de
+   * l'application. On ne remplace la liste que si elle a réellement changé,
+   * pour ne pas réinitialiser l'écran toutes les trois secondes.
+   */
+  useEffect(() => {
+    const timer = window.setInterval(async () => {
+      try {
+        const found = await api.listDevices();
+        setDevices((previous) => {
+          const before = previous.map((d) => d.instance_guid).join();
+          const after = found.map((d) => d.instance_guid).join();
+          return before === after ? previous : found;
+        });
+      } catch {
+        // Un échec ponctuel d'énumération ne doit pas vider la liste ni
+        // afficher une erreur : le prochain passage reprendra.
+      }
+    }, 3000);
+    return () => window.clearInterval(timer);
+  }, []);
+
   // Découverte initiale : périphériques branchés et profils sur le disque.
   useEffect(() => {
     let cancelled = false;
@@ -215,12 +240,12 @@ function Card({ children }: { children: React.ReactNode }) {
 function DeviceSection({ devices }: { devices: DeviceView[] }) {
   return (
     <Section
-      title="Périphériques détectés"
-      hint="Identifiés par leur GUID matériel, stable quel que soit le port USB."
+      title={`Périphériques détectés (${devices.length})`}
+      hint="Identifiés par leur GUID matériel, stable quel que soit le port USB. La liste se met à jour automatiquement au branchement."
     >
       <Card>
         {devices.length === 0 ? (
-          <EmptyState text="Aucun périphérique de jeu détecté. Branchez votre manche puis relancez l'application." />
+          <EmptyState text="Aucun périphérique de jeu détecté. Branchez votre manche — il apparaîtra ici en quelques secondes." />
         ) : (
           <ul className="divide-y divide-ink-100">
             {devices.map((d) => (

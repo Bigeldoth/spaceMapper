@@ -16,10 +16,10 @@ use crate::{Error, Result};
 // `Interface` doit être en portée pour accéder à `IDirectInput8W::IID`.
 use windows::core::{Interface, GUID};
 use windows::Win32::Devices::HumanInterfaceDevice::{
-    DirectInput8Create, GUID_RxAxis, GUID_RyAxis, GUID_RzAxis, GUID_XAxis, GUID_YAxis, GUID_ZAxis,
-    IDirectInput8W, IDirectInputDevice8W, DIDATAFORMAT, DIDFT_ANYINSTANCE, DIDFT_AXIS,
-    DIDFT_BUTTON, DIDFT_POV, DIDF_ABSAXIS, DIJOYSTATE2, DIOBJECTDATAFORMAT, DIRECTINPUT_VERSION,
-    DISCL_BACKGROUND, DISCL_NONEXCLUSIVE,
+    DirectInput8Create, GUID_RxAxis, GUID_RyAxis, GUID_RzAxis, GUID_Slider, GUID_XAxis, GUID_YAxis,
+    GUID_ZAxis, IDirectInput8W, IDirectInputDevice8W, DIDATAFORMAT, DIDFT_ANYINSTANCE, DIDFT_AXIS,
+    DIDFT_BUTTON, DIDFT_POV, DIDF_ABSAXIS, DIDOI_ASPECTPOSITION, DIJOYSTATE2, DIOBJECTDATAFORMAT,
+    DIRECTINPUT_VERSION, DISCL_BACKGROUND, DISCL_NONEXCLUSIVE, GUID_POV,
 };
 use windows::Win32::Foundation::{HINSTANCE, HWND};
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
@@ -54,13 +54,25 @@ impl CaptureSession {
     /// le niveau de coopération. On demande `BACKGROUND | NONEXCLUSIVE` afin de
     /// ne jamais priver un autre programme du périphérique.
     pub fn open(guid: &DeviceGuid, hwnd: isize) -> Result<Self> {
+        // Un handle nul produirait un E_INVALIDARG opaque au moment de fixer
+        // le niveau de coopération ; autant nommer la cause tout de suite.
+        if hwnd == 0 {
+            return Err(Error::DeviceEnumeration(
+                "capture impossible sans fenêtre : DirectInput exige un handle valide".into(),
+            ));
+        }
+
         // SAFETY: interface créée et périphérique acquis pour la durée de vie
         // de la session ; aucun pointeur n'est conservé au-delà.
-        unsafe { Self::open_inner(guid, hwnd) }.map_err(|e| Error::DeviceEnumeration(e.to_string()))
+        unsafe { Self::open_inner(guid, hwnd) }
     }
 
-    unsafe fn open_inner(guid: &DeviceGuid, hwnd: isize) -> windows::core::Result<Self> {
-        let module = GetModuleHandleW(None)?;
+    unsafe fn open_inner(guid: &DeviceGuid, hwnd: isize) -> Result<Self> {
+        // Chaque étape est nommée : sans cela, toutes les pannes se
+        // ressemblent, et l'utilisateur comme le développeur ignorent laquelle
+        // du format, du niveau de coopération ou de l'acquisition a cédé.
+        let module = GetModuleHandleW(None).map_err(|e| step("handle de module", e))?;
+
         let mut raw: Option<IDirectInput8W> = None;
         DirectInput8Create(
             HINSTANCE(module.0),
@@ -68,26 +80,29 @@ impl CaptureSession {
             &IDirectInput8W::IID,
             &mut raw as *mut _ as *mut _,
             None,
-        )?;
+        )
+        .map_err(|e| step("création de DirectInput", e))?;
+
         let dinput = raw.ok_or_else(|| {
-            windows::core::Error::new(
-                windows::Win32::Foundation::E_FAIL,
-                "DirectInput8Create n'a renvoyé aucune interface",
-            )
+            Error::DeviceEnumeration("DirectInput8Create n'a renvoyé aucune interface".into())
         })?;
 
         let mut device = None;
-        dinput.CreateDevice(&parse_guid(guid)?, &mut device, None)?;
-        let device = device.ok_or_else(|| {
-            windows::core::Error::new(
-                windows::Win32::Foundation::E_FAIL,
-                "périphérique introuvable",
-            )
-        })?;
+        dinput
+            .CreateDevice(&parse_guid(guid)?, &mut device, None)
+            .map_err(|e| step("ouverture du périphérique", e))?;
+        let device =
+            device.ok_or_else(|| Error::DeviceEnumeration("périphérique introuvable".into()))?;
 
-        device.SetDataFormat(&mut joystick_format())?;
-        device.SetCooperativeLevel(HWND(hwnd as *mut _), DISCL_BACKGROUND | DISCL_NONEXCLUSIVE)?;
-        device.Acquire()?;
+        device
+            .SetDataFormat(&mut joystick_format())
+            .map_err(|e| step("format de données", e))?;
+        device
+            .SetCooperativeLevel(HWND(hwnd as *mut _), DISCL_BACKGROUND | DISCL_NONEXCLUSIVE)
+            .map_err(|e| step("niveau de coopération", e))?;
+        device
+            .Acquire()
+            .map_err(|e| step("acquisition du périphérique", e))?;
 
         let mut session = CaptureSession {
             device,
@@ -167,6 +182,21 @@ impl Drop for CaptureSession {
 /// Noms Star Citizen des huit axes, dans l'ordre de [`axes_of`].
 const AXIS_NAMES: [&str; 8] = ["x", "y", "z", "rotx", "roty", "rotz", "slider1", "slider2"];
 
+/// Composition du format de données, telle que [`joystick_format`] la décrit.
+const NAMED_AXES: usize = 6;
+const SLIDERS: usize = 2;
+const POVS: usize = 4;
+const BUTTONS: usize = 128;
+const OBJECT_COUNT: usize = NAMED_AXES + SLIDERS + POVS + BUTTONS;
+
+/// Rend un objet facultatif dans le format de données.
+///
+/// Le crate `windows` n'expose pas cette constante. Sans elle, DirectInput
+/// exige que le périphérique possède **tous** les objets déclarés : un format
+/// décrivant 128 boutons serait refusé par un manche qui n'en a que seize, ce
+/// qui est le cas de tous les manches réels.
+const DIDFT_OPTIONAL: u32 = 0x8000_0000;
+
 fn axes_of(state: &DIJOYSTATE2) -> [i32; 8] {
     [
         state.lX,
@@ -199,13 +229,17 @@ fn pov_direction(angle: u32) -> Option<&'static str> {
     })
 }
 
-fn parse_guid(guid: &DeviceGuid) -> windows::core::Result<GUID> {
+/// Nomme l'étape qui a échoué, pour que l'erreur soit exploitable.
+fn step(stage: &str, source: windows::core::Error) -> Error {
+    Error::DeviceEnumeration(format!("{stage}: {source}"))
+}
+
+fn parse_guid(guid: &DeviceGuid) -> Result<GUID> {
     let text = guid.as_str().trim_matches(|c| c == '{' || c == '}');
     let hex: String = text.chars().filter(|c| *c != '-').collect();
-    let value = u128::from_str_radix(&hex, 16).map_err(|_| {
-        windows::core::Error::new(windows::Win32::Foundation::E_INVALIDARG, "GUID illisible")
-    })?;
-    Ok(GUID::from_u128(value))
+    u128::from_str_radix(&hex, 16)
+        .map(GUID::from_u128)
+        .map_err(|_| Error::DeviceEnumeration(format!("GUID illisible: {guid}")))
 }
 
 /// Format de données décrivant [`DIJOYSTATE2`].
@@ -218,12 +252,16 @@ fn parse_guid(guid: &DeviceGuid) -> windows::core::Result<GUID> {
 fn joystick_format() -> DIDATAFORMAT {
     // Les entrées vivent dans un tableau statique : DirectInput conserve le
     // pointeur le temps de l'appel, et un tableau local disparaîtrait.
-    static mut OBJECTS: [DIOBJECTDATAFORMAT; 134] = [DIOBJECTDATAFORMAT {
+    //
+    // La taille est calculée depuis les parties plutôt que saisie à la main :
+    // une première version comptait 134 au lieu de 140, et le débordement
+    // tuait le thread de capture sans que rien ne le signale à l'utilisateur.
+    static mut OBJECTS: [DIOBJECTDATAFORMAT; OBJECT_COUNT] = [DIOBJECTDATAFORMAT {
         pguid: std::ptr::null(),
         dwOfs: 0,
         dwType: 0,
         dwFlags: 0,
-    }; 134];
+    }; OBJECT_COUNT];
 
     // SAFETY: initialisation unique, avant toute lecture, et l'application
     // n'ouvre qu'une session de capture à la fois.
@@ -233,6 +271,10 @@ fn joystick_format() -> DIDATAFORMAT {
 
         // Six axes, chacun rattaché à son GUID pour que `lX` reçoive bien
         // l'axe X et non le premier axe rencontré.
+        // Chaque objet est facultatif : aucun manche ne possède les six axes,
+        // les deux curseurs, les quatre chapeaux et les cent vingt-huit
+        // boutons décrits ici. `DIDOI_ASPECTPOSITION` précise qu'on veut la
+        // position de l'axe et non sa vitesse ou l'effort appliqué.
         for (guid, offset) in [
             (&GUID_XAxis, std::mem::offset_of!(DIJOYSTATE2, lX)),
             (&GUID_YAxis, std::mem::offset_of!(DIJOYSTATE2, lY)),
@@ -244,43 +286,45 @@ fn joystick_format() -> DIDATAFORMAT {
             objects[index] = DIOBJECTDATAFORMAT {
                 pguid: guid,
                 dwOfs: offset as u32,
-                dwType: DIDFT_AXIS | DIDFT_ANYINSTANCE,
-                dwFlags: 0,
+                dwType: DIDFT_OPTIONAL | DIDFT_AXIS | DIDFT_ANYINSTANCE,
+                dwFlags: DIDOI_ASPECTPOSITION,
             };
             index += 1;
         }
 
-        // Curseurs et chapeaux : sans GUID imposé, DirectInput remplit dans
-        // l'ordre où le périphérique les déclare.
-        for slot in 0..2 {
+        for slot in 0..SLIDERS {
             objects[index] = DIOBJECTDATAFORMAT {
-                pguid: std::ptr::null(),
+                pguid: &GUID_Slider,
                 dwOfs: (std::mem::offset_of!(DIJOYSTATE2, rglSlider) + slot * 4) as u32,
-                dwType: DIDFT_AXIS | DIDFT_ANYINSTANCE,
-                dwFlags: 0,
+                dwType: DIDFT_OPTIONAL | DIDFT_AXIS | DIDFT_ANYINSTANCE,
+                dwFlags: DIDOI_ASPECTPOSITION,
             };
             index += 1;
         }
 
-        for hat in 0..4 {
+        for hat in 0..POVS {
             objects[index] = DIOBJECTDATAFORMAT {
-                pguid: std::ptr::null(),
+                pguid: &GUID_POV,
                 dwOfs: (std::mem::offset_of!(DIJOYSTATE2, rgdwPOV) + hat * 4) as u32,
-                dwType: DIDFT_POV | DIDFT_ANYINSTANCE,
+                dwType: DIDFT_OPTIONAL | DIDFT_POV | DIDFT_ANYINSTANCE,
                 dwFlags: 0,
             };
             index += 1;
         }
 
-        for button in 0..128 {
+        // Les boutons n'ont pas de GUID imposé : DirectInput les affecte dans
+        // l'ordre où le périphérique les déclare, qui est celui du jeu.
+        for button in 0..BUTTONS {
             objects[index] = DIOBJECTDATAFORMAT {
                 pguid: std::ptr::null(),
                 dwOfs: (std::mem::offset_of!(DIJOYSTATE2, rgbButtons) + button) as u32,
-                dwType: DIDFT_BUTTON | DIDFT_ANYINSTANCE,
+                dwType: DIDFT_OPTIONAL | DIDFT_BUTTON | DIDFT_ANYINSTANCE,
                 dwFlags: 0,
             };
             index += 1;
         }
+
+        debug_assert_eq!(index, OBJECT_COUNT, "format incomplet ou débordant");
 
         DIDATAFORMAT {
             dwSize: core::mem::size_of::<DIDATAFORMAT>() as u32,
@@ -327,6 +371,29 @@ mod tests {
         let text = "B10A044F-0000-0000-0000-504944564944";
         let parsed = parse_guid(&DeviceGuid::parse(text).unwrap()).unwrap();
         assert_eq!(parsed.data1, 0xB10A_044F);
+    }
+
+    #[test]
+    fn data_format_declares_every_object_it_describes() {
+        // Une première version dimensionnait le tableau à 134 pour 140
+        // écritures. Le débordement tuait le thread de capture, et comme une
+        // panique ne remplit aucun champ d'erreur, l'interface attendait un
+        // appui qui ne viendrait jamais — sans le moindre message.
+        assert_eq!(OBJECT_COUNT, NAMED_AXES + SLIDERS + POVS + BUTTONS);
+        assert_eq!(joystick_format().dwNumObjs as usize, OBJECT_COUNT);
+    }
+
+    #[test]
+    fn data_format_matches_the_state_structure() {
+        let format = joystick_format();
+        assert_eq!(
+            format.dwDataSize as usize,
+            core::mem::size_of::<DIJOYSTATE2>()
+        );
+        assert_eq!(
+            format.dwObjSize as usize,
+            core::mem::size_of::<DIOBJECTDATAFORMAT>()
+        );
     }
 
     #[test]
