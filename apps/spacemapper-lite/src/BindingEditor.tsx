@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   api,
   type DeviceView,
@@ -7,7 +7,13 @@ import {
 } from "./lib/api";
 import { actionLabel, categoryLabel } from "./lib/actionLabels";
 import { controlsFor, devicePrefix, type ControlOption } from "./lib/controls";
-import { capture, captureErrorMessage, type CaptureResult } from "./lib/keyboard";
+import {
+  build,
+  captureErrorMessage,
+  fromKeyPress,
+  modifierOf,
+  type CaptureResult,
+} from "./lib/keyboard";
 import BackupPanel from "./BackupPanel";
 
 /** Clé stable d'une assignation, indépendante de l'ordre du fichier. */
@@ -556,6 +562,11 @@ function SourceTab({
  * L'écoute est posée sur `window` en phase de capture et bloque la propagation :
  * sans cela, Tab déplacerait le focus et Échap fermerait la fenêtre avant
  * qu'on ait pu lire la touche.
+ *
+ * Un modificateur ne se décide qu'au **relâchement**. Tant qu'il est maintenu,
+ * on ne peut pas savoir si l'utilisateur assigne « Maj » seul ou s'apprête à
+ * composer « Maj + F » — et « Maj » seul est une assignation courante, c'est la
+ * postcombustion par défaut du jeu.
  */
 function KeyboardCapture({
   onCancel,
@@ -566,25 +577,57 @@ function KeyboardCapture({
 }) {
   const [captured, setCaptured] = useState<CaptureResult | null>(null);
   const [hint, setHint] = useState<string | null>(null);
+  /** Modificateurs physiquement enfoncés, dans l'ordre d'appui. */
+  const held = useRef<string[]>([]);
+  /** Une touche principale a-t-elle été frappée pendant ce maintien ? */
+  const composed = useRef(false);
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
       event.preventDefault();
       event.stopPropagation();
+      if (event.repeat) return;
 
-      const result = capture(event);
+      const modifier = modifierOf(event.code);
+      if (modifier) {
+        if (!held.current.includes(modifier)) held.current.push(modifier);
+        return;
+      }
+
+      const result = fromKeyPress(event.code, held.current);
+      composed.current = true;
       if (result.ok) {
         setCaptured(result.value);
         setHint(null);
       } else {
-        // Un modificateur seul n'est pas une erreur : l'utilisateur compose.
-        if (result.error.kind !== "modifier_only") setCaptured(null);
+        setCaptured(null);
         setHint(captureErrorMessage(result.error));
       }
     }
 
+    function onKeyUp(event: KeyboardEvent) {
+      const modifier = modifierOf(event.code);
+      if (!modifier) return;
+      event.preventDefault();
+      event.stopPropagation();
+
+      // Relâché sans qu'aucune touche principale n'ait été frappée : c'est
+      // bien le modificateur seul que l'utilisateur veut assigner.
+      if (!composed.current && held.current.length === 1) {
+        setCaptured(build(null, modifier));
+        setHint(null);
+      }
+
+      held.current = held.current.filter((m) => m !== modifier);
+      if (held.current.length === 0) composed.current = false;
+    }
+
     window.addEventListener("keydown", onKeyDown, true);
-    return () => window.removeEventListener("keydown", onKeyDown, true);
+    window.addEventListener("keyup", onKeyUp, true);
+    return () => {
+      window.removeEventListener("keydown", onKeyDown, true);
+      window.removeEventListener("keyup", onKeyUp, true);
+    };
   }, []);
 
   return (
@@ -614,8 +657,9 @@ function KeyboardCapture({
       {hint && <p className="text-sm text-warn-700">{hint}</p>}
 
       <p className="text-xs text-ink-500">
-        La position physique de la touche est retenue, pas le caractère
-        imprimé&nbsp;: c'est ainsi que Star Citizen raisonne.
+        Une touche modificatrice seule — Maj, Ctrl, Alt — est retenue quand vous
+        la relâchez. La position physique de la touche est enregistrée, pas le
+        caractère imprimé&nbsp;: c'est ainsi que Star Citizen raisonne.
       </p>
 
       <div className="flex justify-end gap-2">

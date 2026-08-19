@@ -78,50 +78,56 @@ export interface CaptureResult {
 }
 
 export type CaptureError =
-  | { kind: "modifier_only" }
   | { kind: "too_many_modifiers" }
   | { kind: "unsupported"; code: string };
 
+/** Nom Star Citizen d'une touche modificatrice, ou `null`. */
+export function modifierOf(code: string): string | null {
+  return MODIFIERS[code] ?? null;
+}
+
 /**
- * Convertit un appui en jeton Star Citizen.
+ * Construit le jeton d'une assignation.
  *
- * Renvoie une erreur explicite plutôt que `null` : l'utilisateur doit savoir
- * *pourquoi* son appui n'a pas été retenu.
+ * `modifier` est le nom Star Citizen d'une touche modificatrice réellement
+ * maintenue, ou `null`. On ne le déduit pas de `event.shiftKey` : ce drapeau ne
+ * dit pas *quelle* touche Maj est enfoncée, et une combinaison faite avec la
+ * touche droite serait écrite comme si elle venait de la gauche.
  */
-export function capture(
-  event: KeyboardEvent,
+export function build(modifier: string | null, key: string): CaptureResult {
+  const control = modifier ? `${modifier}+${key}` : key;
+  return {
+    token: `kb1_${control}`,
+    label: modifier
+      ? `${modifierLabel(modifier)} + ${keyLabel(key)}`
+      : keyLabel(key),
+  };
+}
+
+/**
+ * Traduit l'appui d'une touche non modificatrice.
+ *
+ * Les modificateurs sont traités séparément, au relâchement : un `Maj` seul est
+ * une assignation parfaitement valide — c'est la postcombustion par défaut de
+ * Star Citizen — et le refuser rendrait la touche clavier la plus courante du
+ * jeu inassignable.
+ */
+export function fromKeyPress(
+  code: string,
+  heldModifiers: string[],
 ): { ok: true; value: CaptureResult } | { ok: false; error: CaptureError } {
-  // Un modificateur seul ne constitue pas une assignation : l'utilisateur est
-  // en train de composer son raccourci, on attend la touche principale.
-  if (event.code in MODIFIERS) {
-    return { ok: false, error: { kind: "modifier_only" } };
-  }
-
-  const held: string[] = [];
-  if (event.shiftKey) held.push(event.location === 2 ? "rshift" : "lshift");
-  if (event.ctrlKey) held.push("lctrl");
-  if (event.altKey) held.push("ralt");
-
-  // Le jeu n'écrit qu'un modificateur devant la touche. Accepter une
-  // combinaison plus riche produirait un jeton qu'il ignorerait en silence.
-  if (held.length > 1) {
+  // Le jeu n'écrit qu'un modificateur devant la touche. En accepter deux
+  // produirait un jeton qu'il ignorerait en silence.
+  if (heldModifiers.length > 1) {
     return { ok: false, error: { kind: "too_many_modifiers" } };
   }
 
-  const key = keyName(event.code);
+  const key = keyName(code);
   if (!key) {
-    return { ok: false, error: { kind: "unsupported", code: event.code } };
+    return { ok: false, error: { kind: "unsupported", code } };
   }
 
-  const modifier = held[0];
-  const control = modifier ? `${modifier}+${key}` : key;
-  return {
-    ok: true,
-    value: {
-      token: `kb1_${control}`,
-      label: modifier ? `${modifierLabel(modifier)} + ${keyLabel(key)}` : keyLabel(key),
-    },
-  };
+  return { ok: true, value: build(heldModifiers[0] ?? null, key) };
 }
 
 function keyName(code: string): string | null {
@@ -166,6 +172,7 @@ const KEY_LABELS: Record<string, string> = {
 
 function keyLabel(key: string): string {
   if (KEY_LABELS[key]) return KEY_LABELS[key];
+  if (MODIFIER_LABELS[key]) return MODIFIER_LABELS[key];
   if (key.startsWith("np_")) return `Pavé num. ${key.slice(3)}`;
   return key.toUpperCase();
 }
@@ -173,8 +180,6 @@ function keyLabel(key: string): string {
 /** Message d'erreur destiné à l'utilisateur. */
 export function captureErrorMessage(error: CaptureError): string {
   switch (error.kind) {
-    case "modifier_only":
-      return "Maintenez le modificateur et appuyez sur la touche voulue.";
     case "too_many_modifiers":
       return "Star Citizen n'accepte qu'un seul modificateur par raccourci.";
     case "unsupported":
