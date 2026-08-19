@@ -748,6 +748,9 @@ function DevicePicker({
   const [manualIndex, setManualIndex] = useState(0);
   const [control, setControl] = useState("");
   const [error, setError] = useState<string | null>(null);
+  /** La session est-elle réellement ouverte ? Sans ce témoin, une capture
+   *  inactive et une capture qui n'entend rien sont indiscernables. */
+  const [listening, setListening] = useState(false);
 
   // Clé stable de la famille : on ne relance la capture que si la liste des
   // périphériques change réellement, pas à chaque rendu.
@@ -759,10 +762,16 @@ function DevicePicker({
     let cancelled = false;
     setCaptured(null);
     setError(null);
+    setListening(false);
 
-    void api
-      .startCapture(guids.split(",").filter(Boolean))
-      .catch((e) => !cancelled && setError(String(e)));
+    // On garde la promesse de démarrage pour n'arrêter qu'une fois la session
+    // réellement ouverte : sans ce séquencement, l'arrêt peut précéder le
+    // démarrage et laisser un périphérique acquis derrière lui.
+    const started = api.startCapture(guids.split(",").filter(Boolean));
+    started.then(
+      () => !cancelled && setListening(true),
+      (e) => !cancelled && setError(String(e)),
+    );
 
     const timer = window.setInterval(async () => {
       try {
@@ -776,7 +785,7 @@ function DevicePicker({
     return () => {
       cancelled = true;
       window.clearInterval(timer);
-      void api.stopCapture();
+      void started.then((id) => api.stopCapture(id)).catch(() => {});
     };
   }, [guids, manual, family.length]);
 
@@ -885,9 +894,11 @@ function DevicePicker({
                 Actionnez le bouton, l'axe ou le chapeau souhaité.
               </p>
               <p className="mt-1 text-xs text-ink-400">
-                {family.length > 1
-                  ? `${family.length} périphériques écoutés — celui que vous actionnez sera reconnu.`
-                  : "Le périphérique est à l'écoute."}
+                {!listening
+                  ? "Ouverture de la session…"
+                  : family.length > 1
+                    ? `${family.length} périphériques à l'écoute — celui que vous actionnez sera reconnu.`
+                    : "Périphérique à l'écoute."}
               </p>
             </>
           )}

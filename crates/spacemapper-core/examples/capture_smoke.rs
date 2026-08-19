@@ -4,8 +4,10 @@
 //! cargo run -p spacemapper-core --example capture_smoke
 //! ```
 //!
-//! Chaque étape de l'ouverture est tracée séparément : quand la capture ne
-//! réagit pas, il faut savoir *laquelle* échoue plutôt que de supposer.
+//! Affiche l'état **brut** renvoyé par DirectInput pendant vingt secondes.
+//! Quand la capture ne réagit pas, il faut pouvoir distinguer trois situations
+//! qui se ressemblent de l'extérieur : l'ouverture échoue, DirectInput ne
+//! renvoie rien, ou il renvoie quelque chose que nous interprétons mal.
 
 use spacemapper_core::device::{capture::CaptureSession, DeviceEnumerator};
 use std::time::{Duration, Instant};
@@ -25,73 +27,72 @@ fn main() {
         return;
     }
 
-    println!("== {} périphérique(s) ==", devices.len());
-    for d in &devices {
-        println!(
-            "  {} | {} | {} axes, {} boutons, {} chapeaux",
-            d.product_name,
-            d.instance_guid,
-            d.capabilities.axes,
-            d.capabilities.buttons,
-            d.capabilities.povs
-        );
-    }
-
-    // Une fenêtre est nécessaire au niveau de coopération. En console, celle
-    // du terminal fait l'affaire.
     let hwnd = console_window();
-    println!("\nHWND utilisé : {hwnd:#x}");
+    println!("HWND : {hwnd:#x}\n");
 
+    let mut sessions = Vec::new();
     for device in &devices {
-        println!("\n== {} ==", device.product_name);
-
-        let session = match CaptureSession::open(&device.instance_guid, hwnd) {
+        print!("{} [{}] : ", device.product_name, device.category.prefix());
+        match CaptureSession::open(&device.instance_guid, hwnd) {
             Ok(s) => {
-                println!("  ouverture : OK");
-                s
+                println!("ouverture OK");
+                sessions.push((device.product_name.clone(), s));
             }
-            Err(e) => {
-                println!("  ouverture : ÉCHEC — {e}");
-                continue;
-            }
-        };
-
-        println!("  actionnez un bouton ou un axe (8 secondes)…");
-        let started = Instant::now();
-        let mut seen: Vec<String> = Vec::new();
-        let mut errors = 0usize;
-
-        while started.elapsed() < Duration::from_secs(8) {
-            match session.poll() {
-                Ok(Some(found)) => {
-                    if !seen.contains(&found.control) {
-                        println!("    détecté : {}", found.control);
-                        seen.push(found.control);
-                    }
-                }
-                Ok(None) => {}
-                Err(e) => {
-                    errors += 1;
-                    if errors == 1 {
-                        println!("    lecture : ÉCHEC — {e}");
-                    }
-                }
-            }
-            std::thread::sleep(Duration::from_millis(16));
+            Err(e) => println!("ÉCHEC — {e}"),
         }
-
-        if seen.is_empty() && errors == 0 {
-            println!("  aucun contrôle détecté (lecture réussie mais toujours au repos)");
-        }
-        println!("  erreurs de lecture : {errors}");
     }
+
+    if sessions.is_empty() {
+        return;
+    }
+
+    println!("\n>>> ACTIONNEZ VOS BOUTONS MAINTENANT (20 secondes) <<<\n");
+
+    let started = Instant::now();
+    let mut last_print = Instant::now();
+    let mut ever_pressed = false;
+
+    while started.elapsed() < Duration::from_secs(20) {
+        for (name, session) in &sessions {
+            match session.snapshot() {
+                Ok(snap) => {
+                    if !snap.pressed.is_empty() {
+                        ever_pressed = true;
+                        println!("  {name} : boutons {:?}", snap.pressed);
+                    }
+
+                    // Relevé périodique même au repos : c'est lui qui révèle
+                    // si les axes bougent ou si tout reste obstinément à zéro.
+                    if last_print.elapsed() >= Duration::from_secs(4) {
+                        println!(
+                            "  [{name}] axes {:?} | repos {:?} | povs {:?} | octets non nuls {}",
+                            snap.axes, snap.baseline, snap.povs, snap.nonzero_bytes
+                        );
+                    }
+                }
+                Err(e) => println!("  {name} : lecture ÉCHEC — {e}"),
+            }
+        }
+        if last_print.elapsed() >= Duration::from_secs(4) {
+            last_print = Instant::now();
+        }
+        std::thread::sleep(Duration::from_millis(60));
+    }
+
+    println!(
+        "\nBilan : {}",
+        if ever_pressed {
+            "au moins un appui a été détecté."
+        } else {
+            "AUCUN appui détecté."
+        }
+    );
 }
 
 /// Une fenêtre valide, que DirectInput exige pour le niveau de coopération.
 ///
 /// `GetConsoleWindow` renvoie zéro quand la sortie est redirigée — c'est le cas
-/// dès qu'on passe par un tube — d'où le repli sur la fenêtre au premier plan,
-/// qui est le terminal lui-même.
+/// dès qu'on passe par un tube — d'où le repli sur la fenêtre au premier plan.
 #[cfg(windows)]
 fn console_window() -> isize {
     use windows::Win32::System::Console::GetConsoleWindow;

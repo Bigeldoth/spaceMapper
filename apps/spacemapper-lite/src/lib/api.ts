@@ -123,13 +123,17 @@ export const api = {
 
   listBackups: () => invoke<BackupView[]>("list_backups"),
 
-  /** Ouvre une session de lecture sur plusieurs périphériques à la fois. */
-  startCapture: (guids: string[]) => invoke<void>("start_capture", { guids }),
+  /**
+   * Ouvre une session de lecture sur plusieurs périphériques à la fois.
+   * Renvoie le numéro de session, à repasser à `stopCapture`.
+   */
+  startCapture: (guids: string[]) => invoke<number>("start_capture", { guids }),
 
   /** Dernier contrôle actionné, ou `null` si rien n'a été pressé. */
   pollCapture: () => invoke<CapturedInput | null>("poll_capture"),
 
-  stopCapture: () => invoke<void>("stop_capture"),
+  /** N'arrête que la session désignée : voir le commentaire côté Rust. */
+  stopCapture: (id: number) => invoke<void>("stop_capture", { id }),
 
   restoreBackup: (path: string, backupPath: string) =>
     invoke<void>("restore_backup", { path, backupPath }),

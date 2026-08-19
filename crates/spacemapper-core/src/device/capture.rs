@@ -95,6 +95,21 @@ impl MultiCaptureSession {
     }
 }
 
+/// État brut d'un périphérique, tel que DirectInput le renvoie.
+#[derive(Debug, Clone)]
+pub struct RawSnapshot {
+    pub axes: [i32; 8],
+    /// Repos relevé à l'ouverture, auquel les axes sont comparés.
+    pub baseline: [i32; 8],
+    pub povs: [u32; 4],
+    /// Numéros des boutons enfoncés, à partir de 1.
+    pub pressed: Vec<usize>,
+    /// Octets de bouton non nuls, y compris ceux dont le bit de poids fort
+    /// n'est pas mis : distingue « rien ne remonte » de « le format ne
+    /// correspond pas ».
+    pub nonzero_bytes: usize,
+}
+
 /// Session de capture sur un périphérique.
 ///
 /// Acquiert le périphérique à la création et le libère à la destruction.
@@ -208,6 +223,28 @@ impl CaptureSession {
         }
 
         Ok(None)
+    }
+
+    /// Relevé brut de l'état, pour diagnostic.
+    ///
+    /// Quand la capture ne réagit pas, il faut pouvoir distinguer « DirectInput
+    /// ne renvoie rien » de « il renvoie quelque chose que nous interprétons
+    /// mal ». Sans cette lecture, les deux se ressemblent.
+    pub fn snapshot(&self) -> Result<RawSnapshot> {
+        let state = unsafe { self.read() }.map_err(|e| step("lecture d'état", e))?;
+        Ok(RawSnapshot {
+            axes: axes_of(&state),
+            baseline: self.baseline,
+            povs: state.rgdwPOV,
+            pressed: state
+                .rgbButtons
+                .iter()
+                .enumerate()
+                .filter(|(_, b)| *b & 0x80 != 0)
+                .map(|(i, _)| i + 1)
+                .collect(),
+            nonzero_bytes: state.rgbButtons.iter().filter(|b| **b != 0).count(),
+        })
     }
 
     unsafe fn read(&self) -> windows::core::Result<DIJOYSTATE2> {

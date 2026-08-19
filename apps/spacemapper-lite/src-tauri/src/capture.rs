@@ -12,7 +12,7 @@
 
 use serde::Serialize;
 use spacemapper_core::device::{capture::MultiCaptureSession, DeviceGuid};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -25,10 +25,14 @@ const POLL_INTERVAL: Duration = Duration::from_millis(16);
 #[derive(Default)]
 pub struct CaptureState {
     inner: Mutex<Option<Session>>,
+    /// Numéro de la prochaine session. Voir [`stop_capture`] pour la raison
+    /// d'être de cette numérotation.
+    next_id: AtomicU64,
 }
 
 /// Ce que le thread de capture partage avec l'interface.
 struct Session {
+    id: u64,
     /// Mis à `false` pour demander l'arrêt ; le thread libère alors les
     /// périphériques en sortant.
     running: Arc<AtomicBool>,
@@ -46,12 +50,14 @@ pub struct CapturedInput {
 }
 
 /// Ouvre une session de capture sur les périphériques désignés.
+///
+/// Renvoie le numéro de la session, à repasser à [`stop_capture`].
 #[tauri::command]
 pub fn start_capture(
     window: tauri::Window,
     state: tauri::State<'_, CaptureState>,
     guids: Vec<String>,
-) -> CmdResult<()> {
+) -> CmdResult<u64> {
     let parsed: Vec<DeviceGuid> = guids.iter().filter_map(|g| DeviceGuid::parse(g)).collect();
 
     if parsed.is_empty() {
@@ -69,6 +75,7 @@ pub fn start_capture(
     let mut guard = state.inner.lock().map_err(|_| "état de capture corrompu")?;
     stop_session(&mut guard);
 
+    let id = state.next_id.fetch_add(1, Ordering::Relaxed) + 1;
     let running = Arc::new(AtomicBool::new(true));
     let latest = Arc::new(Mutex::new(None));
     let failure = Arc::new(Mutex::new(None));
@@ -115,11 +122,12 @@ pub fn start_capture(
     }
 
     *guard = Some(Session {
+        id,
         running,
         latest,
         failure,
     });
-    Ok(())
+    Ok(id)
 }
 
 /// Note une fin de thread anormale, pour qu'elle ne passe pas pour un silence.
@@ -164,11 +172,19 @@ pub fn poll_capture(state: tauri::State<'_, CaptureState>) -> CmdResult<Option<C
     Ok(found)
 }
 
-/// Ferme la session et rend les périphériques.
+/// Ferme la session dont on donne le numéro, et rend les périphériques.
+///
+/// Le numéro n'est pas un ornement. En développement, React réexécute chaque
+/// effet — montage, nettoyage, montage — et ces appels étant asynchrones, un
+/// arrêt tardif pouvait tuer la session que le second montage venait d'ouvrir.
+/// La capture restait alors muette sans qu'aucune erreur ne soit levée. Un
+/// arrêt qui ne désigne plus la session courante est désormais ignoré.
 #[tauri::command]
-pub fn stop_capture(state: tauri::State<'_, CaptureState>) -> CmdResult<()> {
+pub fn stop_capture(state: tauri::State<'_, CaptureState>, id: u64) -> CmdResult<()> {
     let mut guard = state.inner.lock().map_err(|_| "état de capture corrompu")?;
-    stop_session(&mut guard);
+    if guard.as_ref().is_some_and(|s| s.id == id) {
+        stop_session(&mut guard);
+    }
     Ok(())
 }
 
