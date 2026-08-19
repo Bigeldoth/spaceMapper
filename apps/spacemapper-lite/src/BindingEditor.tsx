@@ -20,6 +20,8 @@ import {
   type CaptureResult,
 } from "./lib/keyboard";
 import BackupPanel from "./BackupPanel";
+import FilterBar from "./FilterBar";
+import * as filter from "./lib/filter";
 import { capturedToken, useCapture, type CaptureFeed } from "./useCapture";
 
 /** Clé stable d'une assignation, indépendante de l'ordre du fichier. */
@@ -43,6 +45,7 @@ export default function BindingEditor({
   const [upsell, setUpsell] = useState<string | null>(null);
   /** Les valeurs par défaut du jeu n'ont pas pu être lues. */
   const [defaultsError, setDefaultsError] = useState<string | null>(null);
+  const [filters, setFilters] = useState<filter.Filters>(filter.NO_FILTERS);
 
   /**
    * Modifications non enregistrées, par clé d'assignation. `null` signifie
@@ -121,15 +124,29 @@ export default function BindingEditor({
     }
   }
 
+  // Les modifications en attente restent visibles quoi qu'affichent les
+  // filtres : les masquer laisserait le bandeau du bas annoncer des
+  // changements introuvables à l'écran.
+  const visible = useMemo(() => {
+    const kept = filter.apply(bindings, filters);
+    const shown = new Set(kept.map((b) => keyOf(b.actionmap, b.action)));
+    const staged = bindings.filter(
+      (b) =>
+        pending.has(keyOf(b.actionmap, b.action)) &&
+        !shown.has(keyOf(b.actionmap, b.action)),
+    );
+    return [...kept, ...staged];
+  }, [bindings, filters, pending]);
+
   const grouped = useMemo(() => {
     const map = new Map<string, EditableBinding[]>();
-    for (const b of bindings) {
+    for (const b of visible) {
       const list = map.get(b.actionmap);
       if (list) list.push(b);
       else map.set(b.actionmap, [b]);
     }
     return [...map.entries()];
-  }, [bindings]);
+  }, [visible]);
 
   return (
     <div className="space-y-6 pb-4">
@@ -170,6 +187,19 @@ export default function BindingEditor({
       {error && (
         <p className="rounded-md border border-warn-200 bg-warn-50 px-4 py-2 text-sm text-warn-700">
           {error}
+        </p>
+      )}
+
+      <FilterBar
+        filters={filters}
+        onChange={setFilters}
+        shown={visible.length}
+        total={bindings.length}
+      />
+
+      {visible.length === 0 && bindings.length > 0 && (
+        <p className="rounded-lg border border-ink-200 bg-white px-4 py-6 text-center text-sm text-ink-500">
+          Aucune commande ne correspond. Élargissez la recherche ou les filtres.
         </p>
       )}
 
