@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, type Language, type Settings } from "./lib/api";
+import { useT } from "./lib/i18nContext";
 
 /**
  * Réglages de l'application.
@@ -19,6 +20,7 @@ export default function SettingsPanel({
   profilePath: string;
   onChanged: () => void;
 }) {
+  const t = useT();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [languages, setLanguages] = useState<Language[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -51,7 +53,7 @@ export default function SettingsPanel({
     setSettings(next);
     try {
       await api.setSettings(next);
-      setStatus("Réglages enregistrés.");
+      setStatus(t("settings.saved"));
       setError(null);
       onChanged();
     } catch (e) {
@@ -60,46 +62,40 @@ export default function SettingsPanel({
   }
 
   if (!settings) {
-    return (
-      <p className="text-sm text-ink-500">Chargement des réglages…</p>
-    );
+    return <p className="text-sm text-ink-500">{t("settings.loading")}</p>;
   }
 
   return (
     <div className="space-y-6">
       <Section
-        title="Langue des commandes"
-        hint="Les noms et descriptions viennent de Star Citizen lui-même, dans la langue choisie."
+        title={t("settings.gameLanguage")}
+        hint={t("settings.gameLanguageHint")}
       >
         {languages.length === 0 ? (
-          <p className="text-sm text-ink-500">
-            Aucune langue détectée dans votre installation. Les noms de
-            commandes de SpaceMapper seront utilisés.
-          </p>
+          <p className="text-sm text-ink-500">{t("settings.noLanguages")}</p>
         ) : (
-          <select
-            className="w-full max-w-sm rounded-md border border-ink-300 bg-white px-3 py-1.5 text-sm"
-            value={settings.game_language}
-            onChange={(e) =>
-              void update({ ...settings, game_language: e.target.value })
-            }
-          >
-            {languages.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.label}
-              </option>
-            ))}
-          </select>
+          <>
+            <select
+              className="w-full max-w-sm rounded-md border border-ink-300 bg-white px-3 py-1.5 text-sm"
+              value={settings.game_language}
+              onChange={(e) =>
+                void update({ ...settings, game_language: e.target.value })
+              }
+            >
+              {languages.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.label}
+                </option>
+              ))}
+            </select>
+            <p className="mt-2 text-xs text-ink-500">{languages.length}</p>
+          </>
         )}
-        <p className="mt-2 text-xs text-ink-500">
-          {languages.length} langue{languages.length > 1 ? "s" : ""} présente
-          {languages.length > 1 ? "s" : ""} sur votre disque.
-        </p>
       </Section>
 
       <Section
-        title="Langue de SpaceMapper"
-        hint="Celle de cette interface, indépendante de la précédente."
+        title={t("settings.uiLanguage")}
+        hint={t("settings.uiLanguageHint")}
       >
         <div className="flex gap-2">
           {[
@@ -122,9 +118,7 @@ export default function SettingsPanel({
             </button>
           ))}
         </div>
-        <p className="mt-2 text-xs text-ink-500">
-          Ce choix sera aussi proposé à l'installation.
-        </p>
+        <p className="mt-2 text-xs text-ink-500">{t("settings.installHint")}</p>
       </Section>
 
       {status && <p className="text-sm text-accent-700">{status}</p>}

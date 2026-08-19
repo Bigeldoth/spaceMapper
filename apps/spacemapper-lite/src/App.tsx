@@ -13,12 +13,42 @@ import { actionLabel, categoryLabel, isKnownAction } from "./lib/actionLabels";
 import { devicePrefix } from "./lib/controls";
 import BindingEditor from "./BindingEditor";
 import SettingsPanel from "./SettingsPanel";
+import type { Key, Lang } from "./lib/i18n";
+import { TranslationProvider, useT } from "./lib/i18nContext";
 
 const TIPEEE_URL = "https://fr.tipeee.com/padek-interactive";
 
 type Tab = "overview" | "edit" | "settings";
 
+/**
+ * Racine de l'application.
+ *
+ * Elle porte la langue de l'interface : la charger ici, et non dans chaque
+ * écran, garantit qu'un changement de réglage se propage d'un coup.
+ */
 export default function App() {
+  const [lang, setLang] = useState<Lang>("fr");
+
+  useEffect(() => {
+    void api
+      .getSettings()
+      .then((s) => setLang(s.ui_language === "en" ? "en" : "fr"))
+      .catch(() => {});
+  }, []);
+
+  return (
+    <TranslationProvider lang={lang}>
+      <Workspace onLanguageChange={setLang} />
+    </TranslationProvider>
+  );
+}
+
+function Workspace({
+  onLanguageChange,
+}: {
+  onLanguageChange: (lang: Lang) => void;
+}) {
+  const t = useT();
   const [devices, setDevices] = useState<DeviceView[]>([]);
   const [profiles, setProfiles] = useState<ProfileLocation[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
@@ -121,7 +151,7 @@ export default function App() {
       <Header />
       <main className="mx-auto w-full max-w-6xl flex-1 overflow-y-auto px-8 py-8">
         {loading ? (
-          <p className="text-sm text-ink-500">Détection en cours…</p>
+          <p className="text-sm text-ink-500">{t("loading")}</p>
         ) : (
           <div className="space-y-8">
             <DeviceSection devices={devices} />
@@ -150,7 +180,17 @@ export default function App() {
                 {tab === "settings" && (
                   <SettingsPanel
                     profilePath={selected}
-                    onChanged={() => setSettingsRevision((n) => n + 1)}
+                    onChanged={() => {
+                      setSettingsRevision((n) => n + 1);
+                      // La langue de l'interface vit à la racine : on la
+                      // relit pour que le changement se voie immédiatement.
+                      void api
+                        .getSettings()
+                        .then((s) =>
+                          onLanguageChange(s.ui_language === "en" ? "en" : "fr"),
+                        )
+                        .catch(() => {});
+                    }}
                   />
                 )}
               </>
@@ -176,6 +216,7 @@ function StagingBanner({ version }: { version: string }) {
 }
 
 function Header() {
+  const t = useT();
   return (
     <header className="border-b border-ink-200 bg-white">
       <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-8 py-4">
@@ -188,7 +229,7 @@ function Header() {
           </span>
         </div>
         <p className="text-xs text-ink-500">
-          Sauvegarde automatique avant chaque modification
+          {t("app.readOnlyNotice")}
         </p>
       </div>
     </header>
@@ -202,26 +243,27 @@ function Tabs({
   active: Tab;
   onChange: (tab: Tab) => void;
 }) {
-  const tabs: { id: Tab; label: string }[] = [
-    { id: "overview", label: "Aperçu complet" },
-    { id: "edit", label: "Modifier les commandes" },
-    { id: "settings", label: "Réglages" },
+  const t = useT();
+  const tabs: { id: Tab; label: Key }[] = [
+    { id: "overview", label: "tab.overview" },
+    { id: "edit", label: "tab.edit" },
+    { id: "settings", label: "tab.settings" },
   ];
 
   return (
     <div className="flex gap-1 border-b border-ink-200">
-      {tabs.map((t) => (
+      {tabs.map((tab) => (
         <button
-          key={t.id}
-          onClick={() => onChange(t.id)}
+          key={tab.id}
+          onClick={() => onChange(tab.id)}
           className={
             "-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors " +
-            (active === t.id
+            (active === tab.id
               ? "border-accent-600 text-accent-700"
               : "border-transparent text-ink-500 hover:text-ink-800")
           }
         >
-          {t.label}
+          {t(tab.label)}
         </button>
       ))}
     </div>
@@ -257,14 +299,15 @@ function Card({ children }: { children: React.ReactNode }) {
 }
 
 function DeviceSection({ devices }: { devices: DeviceView[] }) {
+  const t = useT();
   return (
     <Section
-      title={`Périphériques détectés (${devices.length})`}
-      hint="Identifiés par leur GUID matériel, stable quel que soit le port USB. La liste se met à jour automatiquement au branchement."
+      title={`${t("devices.title")} (${devices.length})`}
+      hint={t("devices.hint")}
     >
       <Card>
         {devices.length === 0 ? (
-          <EmptyState text="Aucun périphérique de jeu détecté. Branchez votre manche — il apparaîtra ici en quelques secondes." />
+          <EmptyState text={t("devices.empty")} />
         ) : (
           <ul className="divide-y divide-ink-100">
             {devices.map((d) => (
@@ -286,7 +329,8 @@ function DeviceSection({ devices }: { devices: DeviceView[] }) {
                   </p>
                 </div>
                 <p className="shrink-0 text-xs text-ink-500">
-                  {d.axes} axes · {d.buttons} boutons · {d.povs} chapeaux
+                  {d.axes} {t("devices.axes")} · {d.buttons}{" "}
+                  {t("devices.buttons")} · {d.povs} {t("devices.hats")}
                 </p>
               </li>
             ))}
@@ -308,8 +352,9 @@ function ProfileSection({
   onSelect: (path: string) => void;
   onBrowse: () => void;
 }) {
+  const t = useT();
   return (
-    <Section title="Profil analysé">
+    <Section title={t("profile.title")}>
       <Card>
         <div className="flex flex-wrap items-center gap-3 px-4 py-3">
           {profiles.length > 0 ? (
@@ -326,14 +371,14 @@ function ProfileSection({
             </select>
           ) : (
             <p className="text-sm text-ink-500">
-              Aucune installation détectée automatiquement.
+              {t("profile.none")}
             </p>
           )}
           <button
             onClick={onBrowse}
             className="rounded-md border border-ink-300 bg-white px-3 py-1.5 text-sm font-medium text-ink-700 hover:bg-ink-50"
           >
-            Choisir un fichier…
+            {t("profile.browse")}
           </button>
         </div>
         {selected && (

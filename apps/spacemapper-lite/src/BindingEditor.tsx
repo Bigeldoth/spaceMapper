@@ -3,6 +3,7 @@ import {
   api,
   type DeviceView,
   type EditableBinding,
+  type LockReason,
   type PendingEdit,
 } from "./lib/api";
 import { bindingLabel, categoryLabel } from "./lib/actionLabels";
@@ -23,6 +24,7 @@ import BackupPanel from "./BackupPanel";
 import FilterBar from "./FilterBar";
 import * as filter from "./lib/filter";
 import { capturedToken, useCapture, type CaptureFeed } from "./useCapture";
+import { useT } from "./lib/i18nContext";
 
 /** Clé stable d'une assignation, indépendante de l'ordre du fichier. */
 function keyOf(actionmap: string, action: string): string {
@@ -36,13 +38,14 @@ export default function BindingEditor({
   profilePath: string;
   devices: DeviceView[];
 }) {
+  const t = useT();
   const [bindings, setBindings] = useState<EditableBinding[]>([]);
   const [editing, setEditing] = useState<EditableBinding | null>(null);
   const [saving, setSaving] = useState(false);
   const [reviewing, setReviewing] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [upsell, setUpsell] = useState<string | null>(null);
+  const [upsell, setUpsell] = useState<LockReason | null>(null);
   /** Les valeurs par défaut du jeu n'ont pas pu être lues. */
   const [defaultsError, setDefaultsError] = useState<string | null>(null);
   const [filters, setFilters] = useState<filter.Filters>(filter.NO_FILTERS);
@@ -168,12 +171,10 @@ export default function BindingEditor({
       {defaultsError && (
         <div className="rounded-lg border border-warn-200 bg-warn-50 p-4">
           <p className="text-sm font-medium text-warn-700">
-            Valeurs par défaut du jeu indisponibles
+            {t("defaults.unavailable")}
           </p>
           <p className="mt-1 text-sm text-ink-600">
-            Seules vos modifications enregistrées sont affichées. Une
-            configuration qui fonctionne repose en grande partie sur les
-            réglages d'origine, absents de votre fichier.
+            {t("defaults.unavailableHint")}
           </p>
           <p className="technical mt-1 text-ink-500">{defaultsError}</p>
         </div>
@@ -199,7 +200,7 @@ export default function BindingEditor({
 
       {visible.length === 0 && bindings.length > 0 && (
         <p className="rounded-lg border border-ink-200 bg-white px-4 py-6 text-center text-sm text-ink-500">
-          Aucune commande ne correspond. Élargissez la recherche ou les filtres.
+          {t("filter.noMatch")}
         </p>
       )}
 
@@ -235,7 +236,7 @@ export default function BindingEditor({
                     onEdit={() => setEditing(b)}
                     onClear={() => stage(b, null)}
                     onRevert={() => discardOne(key)}
-                    onLockedClick={() => setUpsell(b.locked_reason)}
+                    onLockedClick={() => setUpsell(b.lock)}
                   />
                 );
               })}
@@ -296,12 +297,12 @@ function UnsavedBar({
   onReview: () => void;
   onDiscardAll: () => void;
 }) {
+  const t = useT();
   return (
     <div className="sticky bottom-0 z-[5] -mx-2 mt-2">
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warn-200 bg-warn-50 px-4 py-3 shadow-lg">
         <p className="text-sm font-medium text-warn-700">
-          {count} modification{count > 1 ? "s" : ""} non enregistrée
-          {count > 1 ? "s" : ""}
+          {count} {t(count > 1 ? "save.unsavedPlural" : "save.unsaved")}
         </p>
         <div className="flex items-center gap-2">
           <button
@@ -309,14 +310,14 @@ function UnsavedBar({
             disabled={saving}
             className="rounded-md px-2.5 py-1.5 text-sm text-ink-600 hover:text-warn-700 disabled:text-ink-400"
           >
-            Tout annuler
+            {t("save.discardAll")}
           </button>
           <button
             onClick={onReview}
             disabled={saving}
             className="rounded-md bg-accent-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-700 disabled:bg-ink-300"
           >
-            {saving ? "Enregistrement…" : "Enregistrer…"}
+            {t(saving ? "save.saving" : "save.open")}
           </button>
         </div>
       </div>
@@ -337,6 +338,7 @@ function SaveDialog({
   onConfirm: (createRestorePoint: boolean) => void;
   onDiscardOne: (key: string) => void;
 }) {
+  const t = useT();
   const [withBackup, setWithBackup] = useState(true);
   const [showDetail, setShowDetail] = useState(false);
 
@@ -348,18 +350,17 @@ function SaveDialog({
   });
 
   return (
-    <Modal onCancel={onCancel} title="Enregistrer les modifications">
+    <Modal onCancel={onCancel} title={t("save.title")}>
       <p className="text-sm text-ink-600">
-        {rows.length} modification{rows.length > 1 ? "s" : ""} sera
-        {rows.length > 1 ? "ont" : ""} écrite{rows.length > 1 ? "s" : ""} dans
-        votre profil Star Citizen.
+        {rows.length}{" "}
+        {t(rows.length > 1 ? "save.unsavedPlural" : "save.unsaved")}
       </p>
 
       <button
         onClick={() => setShowDetail((v) => !v)}
         className="mt-2 text-sm font-medium text-accent-700 hover:text-accent-600"
       >
-        {showDetail ? "Masquer le détail" : "Voir les modifications"}
+        {t(showDetail ? "save.hideReview" : "save.review")}
       </button>
 
       {showDetail && (
@@ -376,16 +377,18 @@ function SaveDialog({
                 <p className="technical mt-0.5 truncate text-ink-400">
                   {binding?.control
                     ? `${binding.device}_${binding.control}`
-                    : "non assignée"}
+                    : t("binding.unassigned")}
                   {" → "}
-                  <span className="text-accent-700">{input ?? "effacée"}</span>
+                  <span className="text-accent-700">
+                    {input ?? t("binding.clear")}
+                  </span>
                 </p>
               </div>
               <button
                 onClick={() => onDiscardOne(key)}
                 className="shrink-0 rounded px-2 py-1 text-xs text-ink-500 hover:text-warn-700"
               >
-                Retirer
+                {t("save.remove")}
               </button>
             </li>
           ))}
@@ -400,9 +403,9 @@ function SaveDialog({
           className="mt-0.5"
         />
         <span className="text-sm text-ink-700">
-          Créer un point de restauration avant d'écrire
+          {t("save.restorePoint")}
           <span className="mt-0.5 block text-xs text-ink-500">
-            Sans lui, ces modifications ne seront pas annulables.
+            {t("save.restorePointHint")}
           </span>
         </span>
       </label>
@@ -412,13 +415,13 @@ function SaveDialog({
           onClick={onCancel}
           className="rounded-md border border-ink-300 bg-white px-3 py-1.5 text-sm text-ink-700 hover:bg-ink-50"
         >
-          Annuler
+          {t("save.cancel")}
         </button>
         <button
           onClick={() => onConfirm(withBackup)}
           className="rounded-md bg-accent-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-700"
         >
-          Enregistrer
+          {t("save.confirm")}
         </button>
       </div>
     </Modal>
@@ -426,23 +429,12 @@ function SaveDialog({
 }
 
 function ScopeNotice() {
+  const t = useT();
   return (
     <div className="rounded-lg border border-ink-200 bg-white p-4">
-      <p className="text-sm text-ink-700">
-        L'édition Lite couvre tout ce qu'il faut pour{" "}
-        <strong>décoller, se déplacer et se poser</strong>. Les autres
-        catégories sont affichées mais verrouillées.
-      </p>
-      <p className="mt-2 text-sm text-ink-500">
-        Les commandes marquées <em>défaut</em> viennent des réglages d'origine
-        du jeu&nbsp;: elles fonctionnent sans figurer dans votre fichier, et
-        les modifier y crée une surcharge.
-      </p>
-      <p className="mt-2 text-sm text-ink-500">
-        Rien n'est écrit tant que vous n'avez pas enregistré. Fermez Star
-        Citizen avant d'éditer&nbsp;: le jeu réécrit ce fichier en quittant et
-        écraserait vos changements.
-      </p>
+      <p className="text-sm text-ink-700">{t("scope.title")}</p>
+      <p className="mt-2 text-sm text-ink-500">{t("scope.defaults")}</p>
+      <p className="mt-2 text-sm text-ink-500">{t("scope.closeGame")}</p>
     </div>
   );
 }
@@ -473,6 +465,7 @@ function LiveProbe({
   devices: DeviceView[];
   matches: number;
 }) {
+  const t = useT();
   const device = capture.last
     ? devices.find((d) => d.instance_guid === capture.last!.guid)
     : undefined;
@@ -488,14 +481,14 @@ function LiveProbe({
     >
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h3 className="text-sm font-semibold text-ink-900">
-          Identifier une commande
+          {t("probe.title")}
         </h3>
         <span className="text-xs text-ink-500">
           {capture.error
-            ? "à l'arrêt"
+            ? t("probe.stopped")
             : capture.listening
-              ? `${devices.length} périphérique${devices.length > 1 ? "s" : ""} à l'écoute`
-              : "ouverture…"}
+              ? `${devices.length} · ${t("probe.listening")}`
+              : t("probe.opening")}
         </span>
       </div>
 
@@ -512,22 +505,17 @@ function LiveProbe({
             <span className="technical ml-2 text-ink-500">{token}</span>
           </p>
           <p className="mt-1 text-sm text-ink-600">
-            {matches === 0
-              ? "Aucune commande de déplacement n'utilise ce contrôle."
-              : `${matches} commande${matches > 1 ? "s" : ""} en surbrillance ci-dessous.`}
+            {matches === 0 ? t("probe.noMatch") : `${matches}`}
           </p>
           <button
             onClick={capture.reset}
             className="mt-2 text-xs font-medium text-accent-700 hover:text-accent-600"
           >
-            Effacer
+            {t("probe.clear")}
           </button>
         </div>
       ) : (
-        <p className="mt-2 text-sm text-ink-500">
-          Actionnez un bouton, un axe ou une touche&nbsp;: les commandes qui
-          l'utilisent s'éclairent dans la liste.
-        </p>
+        <p className="mt-2 text-sm text-ink-500">{t("probe.idle")}</p>
       )}
     </div>
   );
@@ -552,6 +540,7 @@ function BindingRow({
   onRevert: () => void;
   onLockedClick: () => void;
 }) {
+  const t = useT();
   const assigned = binding.control !== null;
 
   return (
@@ -599,10 +588,10 @@ function BindingRow({
             {binding.origin === "game_default" ? (
               <>
                 <span
-                  title="Réglage d'origine du jeu — absent de votre fichier"
+                  title={t("binding.defaultTitle")}
                   className="rounded border border-ink-200 px-1.5 py-0.5 text-[0.6875rem] font-medium text-ink-500"
                 >
-                  défaut
+                  {t("binding.default")}
                 </span>
                 <Key>{binding.control}</Key>
               </>
@@ -614,23 +603,25 @@ function BindingRow({
             )}
           </span>
         ) : (
-          <span className="text-xs italic text-ink-400">non assignée</span>
+          <span className="text-xs italic text-ink-400">
+            {t("binding.unassigned")}
+          </span>
         )}
 
-        {binding.locked ? (
+        {binding.lock ? (
           <button
             onClick={onLockedClick}
-            title={binding.locked_reason ?? undefined}
+            title={t(`lock.${binding.lock}`)}
             className="cursor-not-allowed rounded border border-ink-200 bg-ink-50 px-2 py-1 text-xs text-ink-400"
           >
-            Verrouillé
+            {t("binding.locked")}
           </button>
         ) : hasPending ? (
           <button
             onClick={onRevert}
             className="rounded-md border border-ink-300 bg-white px-2.5 py-1 text-xs font-medium text-ink-700 hover:bg-ink-50"
           >
-            Rétablir
+            {t("binding.revert")}
           </button>
         ) : (
           <>
@@ -638,14 +629,14 @@ function BindingRow({
               onClick={onEdit}
               className="rounded-md border border-ink-300 bg-white px-2.5 py-1 text-xs font-medium text-ink-700 hover:bg-ink-50"
             >
-              Modifier
+              {t("binding.edit")}
             </button>
             {assigned && (
               <button
                 onClick={onClear}
                 className="rounded-md px-2 py-1 text-xs text-ink-500 hover:text-warn-700"
               >
-                Effacer
+                {t("binding.clear")}
               </button>
             )}
           </>
@@ -659,23 +650,20 @@ function UpsellDialog({
   reason,
   onClose,
 }: {
-  reason: string;
+  reason: LockReason;
   onClose: () => void;
 }) {
+  const t = useT();
   return (
-    <Modal onCancel={onClose} title="Réservé à l'édition Premium">
-      <p className="text-sm text-ink-600">{reason}</p>
-      <p className="mt-3 text-sm text-ink-600">
-        SpaceMapper Premium débloque toutes les catégories — combat, énergie,
-        systèmes de bord, tourelles — ainsi que les modificateurs, les modes
-        d'activation, les profils nommés et la synchronisation entre machines.
-      </p>
+    <Modal onCancel={onClose} title={t("upsell.title")}>
+      <p className="text-sm text-ink-600">{t(`lock.${reason}`)}</p>
+      <p className="mt-3 text-sm text-ink-600">{t("upsell.body")}</p>
       <div className="mt-5 flex justify-end">
         <button
           onClick={onClose}
           className="rounded-md border border-ink-300 bg-white px-3 py-1.5 text-sm text-ink-700 hover:bg-ink-50"
         >
-          Fermer
+          {t("upsell.close")}
         </button>
       </div>
     </Modal>
@@ -698,6 +686,7 @@ function ControlPicker({
   const joysticks = devices.filter((d) => d.category === "joystick");
   const gamepads = devices.filter((d) => d.category === "gamepad");
 
+  const t = useT();
   // On ouvre sur le manche dès qu'il y en a un : c'est le périphérique que
   // vient configurer l'écrasante majorité des utilisateurs de ce logiciel.
   const [source, setSource] = useState<Source>(
@@ -711,21 +700,21 @@ function ControlPicker({
           active={source === "keyboard"}
           onClick={() => setSource("keyboard")}
         >
-          Clavier
+          {t("picker.keyboard")}
         </SourceTab>
         <SourceTab
           active={source === "joystick"}
           onClick={() => setSource("joystick")}
           count={joysticks.length}
         >
-          Manche
+          {t("picker.joystick")}
         </SourceTab>
         <SourceTab
           active={source === "gamepad"}
           onClick={() => setSource("gamepad")}
           count={gamepads.length}
         >
-          Manette
+          {t("picker.gamepad")}
         </SourceTab>
       </div>
 
@@ -758,6 +747,7 @@ function SourceTab({
   count?: number;
   children: React.ReactNode;
 }) {
+  const t = useT();
   // Un onglet sans périphérique reste visible mais inerte : le masquer
   // laisserait croire que le mode n'existe pas.
   const empty = count === 0;
@@ -765,7 +755,7 @@ function SourceTab({
     <button
       onClick={onClick}
       disabled={empty}
-      title={empty ? "Aucun périphérique de ce type détecté" : undefined}
+      title={empty ? t("picker.noDevice") : undefined}
       className={
         "-mb-px border-b-2 px-3 py-1.5 text-sm font-medium " +
         (empty
@@ -802,6 +792,7 @@ function KeyboardCapture({
   onCancel: () => void;
   onPick: (input: string) => void;
 }) {
+  const t = useT();
   const [captured, setCaptured] = useState<CaptureResult | null>(null);
   const [hint, setHint] = useState<string | null>(null);
   /** Modificateurs physiquement enfoncés, dans l'ordre d'appui. */
@@ -876,32 +867,28 @@ function KeyboardCapture({
           </>
         ) : (
           <p className="text-sm text-ink-500">
-            Appuyez sur la touche ou la combinaison souhaitée.
+            {t("picker.pressKey")}
           </p>
         )}
       </div>
 
       {hint && <p className="text-sm text-warn-700">{hint}</p>}
 
-      <p className="text-xs text-ink-500">
-        Une touche modificatrice seule — Maj, Ctrl, Alt — est retenue quand vous
-        la relâchez. La position physique de la touche est enregistrée, pas le
-        caractère imprimé&nbsp;: c'est ainsi que Star Citizen raisonne.
-      </p>
+      <p className="text-xs text-ink-500">{t("picker.keyHint")}</p>
 
       <div className="flex justify-end gap-2">
         <button
           onClick={onCancel}
           className="rounded-md border border-ink-300 bg-white px-3 py-1.5 text-sm text-ink-700 hover:bg-ink-50"
         >
-          Annuler
+          {t("save.cancel")}
         </button>
         <button
           disabled={!captured}
           onClick={() => captured && onPick(captured.token)}
           className="rounded-md bg-accent-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-700 disabled:cursor-not-allowed disabled:bg-ink-300"
         >
-          Appliquer
+          {t("picker.apply")}
         </button>
       </div>
     </div>
@@ -933,6 +920,7 @@ function DevicePicker({
   onCancel: () => void;
   onPick: (input: string) => void;
 }) {
+  const t = useT();
   const [manual, setManual] = useState(false);
   const [manualIndex, setManualIndex] = useState(0);
   const [control, setControl] = useState("");
@@ -967,8 +955,7 @@ function DevicePicker({
   if (family.length === 0) {
     return (
       <p className="text-sm text-ink-600">
-        Aucun périphérique de ce type détecté. Branchez-le&nbsp;: il apparaîtra
-        en quelques secondes, sans redémarrer l'application.
+        {t("picker.noDevice")}
       </p>
     );
   }
@@ -992,7 +979,7 @@ function DevicePicker({
         <>
           <label className="block">
             <span className="text-xs font-medium text-ink-600">
-              Périphérique
+              {t("picker.device")}
             </span>
             <select
               className="mt-1 w-full rounded-md border border-ink-300 bg-white px-3 py-1.5 text-sm"
@@ -1012,13 +999,15 @@ function DevicePicker({
           </label>
 
           <label className="block">
-            <span className="text-xs font-medium text-ink-600">Contrôle</span>
+            <span className="text-xs font-medium text-ink-600">
+              {t("picker.control")}
+            </span>
             <select
               className="mt-1 w-full rounded-md border border-ink-300 bg-white px-3 py-1.5 text-sm"
               value={control}
               onChange={(e) => setControl(e.target.value)}
             >
-              <option value="">Choisir…</option>
+              <option value="">{t("picker.choose")}</option>
               {groups.map(([group, items]) => (
                 <optgroup key={group} label={group}>
                   {items.map((o) => (
@@ -1054,14 +1043,12 @@ function DevicePicker({
           ) : (
             <>
               <p className="text-sm text-ink-500">
-                Actionnez le bouton, l'axe ou le chapeau souhaité.
+                {t("picker.pressControl")}
               </p>
               <p className="mt-1 text-xs text-ink-400">
-                {!capture.listening
-                  ? "Ouverture de la session…"
-                  : family.length > 1
-                    ? `${family.length} périphériques à l'écoute — celui que vous actionnez sera reconnu.`
-                    : "Périphérique à l'écoute."}
+                {capture.listening
+                  ? `${family.length} · ${t("probe.listening")}`
+                  : t("probe.opening")}
               </p>
             </>
           )}
@@ -1080,7 +1067,7 @@ function DevicePicker({
         }}
         className="text-sm font-medium text-accent-700 hover:text-accent-600"
       >
-        {manual ? "Revenir à la capture" : "Choisir dans une liste à la place"}
+        {t(manual ? "picker.useCapture" : "picker.useList")}
       </button>
 
       <div className="flex justify-end gap-2 pt-2">
@@ -1088,14 +1075,14 @@ function DevicePicker({
           onClick={onCancel}
           className="rounded-md border border-ink-300 bg-white px-3 py-1.5 text-sm text-ink-700 hover:bg-ink-50"
         >
-          Annuler
+          {t("save.cancel")}
         </button>
         <button
           disabled={!token}
           onClick={() => token && onPick(token)}
           className="rounded-md bg-accent-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-700 disabled:cursor-not-allowed disabled:bg-ink-300"
         >
-          Appliquer
+          {t("picker.apply")}
         </button>
       </div>
     </div>

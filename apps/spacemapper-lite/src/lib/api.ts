@@ -81,9 +81,21 @@ export interface EditableBinding {
   input_raw: string;
   device: string | null;
   control: string | null;
-  locked: boolean;
-  locked_reason: string | null;
+  /** Motif du verrouillage, ou `null` si l'assignation est modifiable. */
+  lock: LockReason | null;
 }
+
+/**
+ * Pourquoi une assignation ne peut pas être modifiée ici.
+ *
+ * Un code plutôt qu'une phrase : le texte dépend de la langue de l'interface,
+ * que le backend ne connaît pas.
+ */
+export type LockReason =
+  | "dangerous_action"
+  | "premium_category"
+  | "has_modifier"
+  | "has_activation_mode";
 
 export interface MergedBindings {
   bindings: EditableBinding[];

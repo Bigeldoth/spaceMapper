@@ -1,6 +1,8 @@
 import type { DeviceFamily, Filters } from "./lib/filter";
 import { isFiltering, NO_FILTERS } from "./lib/filter";
 import type { Origin } from "./lib/api";
+import type { Key } from "./lib/i18n";
+import { useT } from "./lib/i18nContext";
 
 /**
  * Barre de recherche et de filtres.
@@ -19,53 +21,53 @@ export default function FilterBar({
   shown: number;
   total: number;
 }) {
-  const origins: { id: Origin | "all"; label: string }[] = [
-    { id: "all", label: "Tout" },
-    { id: "override", label: "Mes réglages" },
-    { id: "game_default", label: "Réglages d'origine" },
+  const t = useT();
+
+  const origins: { id: Origin | "all"; label: Key }[] = [
+    { id: "all", label: "filter.origin.all" },
+    { id: "override", label: "filter.origin.override" },
+    { id: "game_default", label: "filter.origin.default" },
   ];
 
-  const devices: { id: DeviceFamily | "all"; label: string }[] = [
-    { id: "all", label: "Tous" },
-    { id: "js", label: "Manche" },
-    { id: "kb", label: "Clavier" },
-    { id: "gp", label: "Manette" },
-    { id: "mo", label: "Souris" },
+  const devices: { id: DeviceFamily | "all"; label: Key }[] = [
+    { id: "all", label: "filter.device.all" },
+    { id: "js", label: "filter.device.joystick" },
+    { id: "kb", label: "filter.device.keyboard" },
+    { id: "gp", label: "filter.device.gamepad" },
+    { id: "mo", label: "filter.device.mouse" },
   ];
 
   return (
     <div className="space-y-3 rounded-lg border border-ink-200 bg-white p-4">
-      <div className="relative">
-        <input
-          type="search"
-          value={filters.query}
-          onChange={(e) => onChange({ ...filters, query: e.target.value })}
-          placeholder="Rechercher une commande, une touche, un bouton…"
-          className="w-full rounded-md border border-ink-300 bg-white px-3 py-2 text-sm placeholder:text-ink-400 focus:border-accent-500 focus:outline-none"
-        />
-      </div>
+      <input
+        type="search"
+        value={filters.query}
+        onChange={(e) => onChange({ ...filters, query: e.target.value })}
+        placeholder={t("filter.placeholder")}
+        className="w-full rounded-md border border-ink-300 bg-white px-3 py-2 text-sm placeholder:text-ink-400 focus:border-accent-500 focus:outline-none"
+      />
 
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-        <Group label="Origine">
+        <Group label={t("filter.origin")}>
           {origins.map((o) => (
             <Chip
               key={o.id}
               active={filters.origin === o.id}
               onClick={() => onChange({ ...filters, origin: o.id })}
             >
-              {o.label}
+              {t(o.label)}
             </Chip>
           ))}
         </Group>
 
-        <Group label="Appareil">
+        <Group label={t("filter.device")}>
           {devices.map((d) => (
             <Chip
               key={d.id}
               active={filters.device === d.id}
               onClick={() => onChange({ ...filters, device: d.id })}
             >
-              {d.label}
+              {t(d.label)}
             </Chip>
           ))}
         </Group>
@@ -76,22 +78,20 @@ export default function FilterBar({
             onChange({ ...filters, editableOnly: !filters.editableOnly })
           }
         >
-          Modifiables seulement
+          {t("filter.editableOnly")}
         </Chip>
       </div>
 
       <div className="flex items-center justify-between border-t border-ink-100 pt-2">
         <p className="text-xs text-ink-500">
-          {shown === total
-            ? `${total} commande${total > 1 ? "s" : ""}`
-            : `${shown} sur ${total} commandes`}
+          {shown === total ? `${total}` : `${shown} / ${total}`}
         </p>
         {isFiltering(filters) && (
           <button
             onClick={() => onChange(NO_FILTERS)}
             className="text-xs font-medium text-accent-700 hover:text-accent-600"
           >
-            Tout afficher
+            {t("filter.showAll")}
           </button>
         )}
       </div>

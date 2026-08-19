@@ -55,7 +55,7 @@ export function apply(
   return bindings.filter((b) => {
     if (filters.origin !== "all" && b.origin !== filters.origin) return false;
     if (filters.device !== "all" && familyOf(b) !== filters.device) return false;
-    if (filters.editableOnly && b.locked) return false;
+    if (filters.editableOnly && b.lock !== null) return false;
     if (needle === "") return true;
 
     // On cherche dans tout ce que l'utilisateur peut avoir sous les yeux ou en

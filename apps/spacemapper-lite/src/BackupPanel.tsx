@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, type BackupView } from "./lib/api";
+import { useT } from "./lib/i18nContext";
 
 /**
  * Points de restauration.
@@ -16,6 +17,7 @@ export default function BackupPanel({
   profilePath: string;
   onRestored: () => void;
 }) {
+  const t = useT();
   const [backups, setBackups] = useState<BackupView[]>([]);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -40,7 +42,7 @@ export default function BackupPanel({
     setBusy(true);
     try {
       await api.createBackup(profilePath);
-      setStatus("Point de restauration créé.");
+      setStatus(t("backup.title"));
       setError(null);
       await reload();
     } catch (e) {
@@ -55,10 +57,7 @@ export default function BackupPanel({
     setConfirming(null);
     try {
       await api.restoreBackup(profilePath, backup.path);
-      setStatus(
-        `Profil restauré au ${formatTimestamp(backup.timestamp)}. ` +
-          "L'état précédent a été conservé comme nouveau point de restauration.",
-      );
+      setStatus(formatTimestamp(backup.timestamp));
       setError(null);
       await reload();
       onRestored();
@@ -74,19 +73,16 @@ export default function BackupPanel({
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-ink-100 px-4 py-3">
         <div>
           <h3 className="text-sm font-semibold text-ink-900">
-            Points de restauration
+            {t("backup.title")}
           </h3>
-          <p className="mt-0.5 text-xs text-ink-500">
-            Copies de votre profil, conservées hors du dossier du jeu. Format
-            XML lisible&nbsp;: elles restent exploitables même sans SpaceMapper.
-          </p>
+          <p className="mt-0.5 text-xs text-ink-500">{t("backup.hint")}</p>
         </div>
         <button
           onClick={() => void save()}
           disabled={busy}
           className="shrink-0 rounded-md bg-accent-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-700 disabled:bg-ink-300"
         >
-          Sauvegarder maintenant
+          {t("backup.create")}
         </button>
       </div>
 
@@ -103,7 +99,7 @@ export default function BackupPanel({
 
       {backups.length === 0 ? (
         <p className="px-4 py-5 text-center text-sm text-ink-500">
-          Aucun point de restauration.
+          {t("backup.empty")}
         </p>
       ) : (
         <ul className="divide-y divide-ink-100">
@@ -120,7 +116,7 @@ export default function BackupPanel({
                 disabled={busy}
                 className="rounded-md border border-ink-300 bg-white px-2.5 py-1 text-xs font-medium text-ink-700 hover:bg-ink-50 disabled:text-ink-400"
               >
-                Restaurer
+                {t("backup.restore")}
               </button>
             </li>
           ))}
@@ -147,6 +143,7 @@ function ConfirmRestore({
   onCancel: () => void;
   onConfirm: () => void;
 }) {
+  const t = useT();
   return (
     <div
       className="fixed inset-0 z-10 flex items-center justify-center bg-ink-900/30 p-8"
@@ -157,28 +154,24 @@ function ConfirmRestore({
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="text-sm font-semibold text-ink-900">
-          Restaurer le profil ?
+          {t("backup.confirmTitle")}
         </h3>
         <p className="mt-2 text-sm text-ink-600">
-          Vos assignations actuelles seront remplacées par celles du{" "}
-          {formatTimestamp(backup.timestamp)}.
+          {formatTimestamp(backup.timestamp)}
         </p>
-        <p className="mt-2 text-sm text-ink-500">
-          L'état actuel sera conservé comme nouveau point de restauration&nbsp;:
-          vous pourrez revenir en arrière.
-        </p>
+        <p className="mt-2 text-sm text-ink-500">{t("backup.confirmKept")}</p>
         <div className="mt-4 flex justify-end gap-2">
           <button
             onClick={onCancel}
             className="rounded-md border border-ink-300 bg-white px-3 py-1.5 text-sm text-ink-700 hover:bg-ink-50"
           >
-            Annuler
+            {t("save.cancel")}
           </button>
           <button
             onClick={onConfirm}
             className="rounded-md bg-accent-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-700"
           >
-            Restaurer
+            {t("backup.restore")}
           </button>
         </div>
       </div>
@@ -190,7 +183,7 @@ function ConfirmRestore({
 function formatTimestamp(raw: string): string {
   const ms = Number(raw);
   if (!Number.isFinite(ms)) return raw;
-  return new Date(ms).toLocaleString("fr-FR", {
+  return new Date(ms).toLocaleString(undefined, {
     dateStyle: "medium",
     timeStyle: "short",
   });

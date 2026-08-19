@@ -21,6 +21,24 @@ use std::path::{Path, PathBuf};
 
 type CmdResult<T> = Result<T, String>;
 
+/// Pourquoi une assignation ne peut pas être modifiée ici.
+///
+/// Un code plutôt qu'une phrase : le texte affiché dépend de la langue de
+/// l'interface, que seul le frontend connaît. Renvoyer du français figé
+/// rendrait l'application intraduisible.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LockReason {
+    /// Action irréversible : autodestruction, éjection.
+    DangerousAction,
+    /// Catégorie de vitrine, réservée au Premium.
+    PremiumCategory,
+    /// Porte un modificateur que l'édition simplifiée ne sait pas restituer.
+    HasModifier,
+    /// Porte un mode d'activation, idem.
+    HasActivationMode,
+}
+
 /// D'où vient une assignation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -50,10 +68,8 @@ pub struct EditableBinding {
     pub input_raw: String,
     pub device: Option<String>,
     pub control: Option<String>,
-    /// L'action ne peut pas être modifiée dans cette édition.
-    pub locked: bool,
-    /// Motif du verrouillage, à afficher tel quel.
-    pub locked_reason: Option<String>,
+    /// Motif du verrouillage, ou `None` si l'assignation est modifiable.
+    pub lock: Option<LockReason>,
 }
 
 /// Une modification en attente, telle que la transmet l'interface.
@@ -329,8 +345,7 @@ fn collect_editable(maps: &ActionMaps, defaults: Option<&DefaultProfile>) -> Vec
                     .as_ref()
                     .map(|i| format!("{}{}", i.device_kind.prefix(), i.instance)),
                 control: input.as_ref().map(|i| i.control.clone()),
-                locked: locked_reason.is_some(),
-                locked_reason,
+                lock: locked_reason,
             });
         }
     }
@@ -357,16 +372,16 @@ fn lock_reason(
     input: Option<&InputBinding>,
     activation_mode: Option<&str>,
     multi_tap: Option<&str>,
-) -> Option<String> {
+) -> Option<LockReason> {
     // L'ordre compte : c'est la raison la plus spécifique qu'il faut afficher.
     if scope::is_dangerous(action) {
-        Some("Action irréversible — réassignation réservée à l'édition Premium".to_string())
+        Some(LockReason::DangerousAction)
     } else if access == EditAccess::PremiumTeaser {
-        Some("Catégorie réservée à l'édition Premium".to_string())
+        Some(LockReason::PremiumCategory)
     } else if input.is_some_and(|i| i.modifier.is_some()) {
-        Some("Comporte un modificateur — réservé à l'édition Premium".to_string())
+        Some(LockReason::HasModifier)
     } else if activation_mode.is_some_and(|m| !m.is_empty()) || multi_tap.is_some() {
-        Some("Comporte un mode d'activation — réservé à l'édition Premium".to_string())
+        Some(LockReason::HasActivationMode)
     } else {
         None
     }
@@ -410,8 +425,7 @@ fn collect_overrides(maps: &ActionMaps) -> Vec<EditableBinding> {
                 input_raw: rebind.input_raw.clone(),
                 device,
                 control,
-                locked: locked_reason.is_some(),
-                locked_reason,
+                lock: locked_reason,
             })
         })
         .collect()
@@ -486,7 +500,7 @@ mod tests {
         assert_eq!(pitch.origin, Origin::GameDefault);
         assert_eq!(pitch.input_raw, "js1_y");
         assert_eq!(pitch.control.as_deref(), Some("y"));
-        assert!(!pitch.locked);
+        assert!(pitch.lock.is_none());
     }
 
     #[test]
@@ -549,8 +563,11 @@ mod tests {
                 .unwrap_or_else(|| panic!("{actionmap} absente de la liste"));
 
             assert_eq!(found.access, EditAccess::PremiumTeaser);
-            assert!(found.locked, "{actionmap} devrait être verrouillée");
-            assert!(found.locked_reason.as_ref().unwrap().contains("Premium"));
+            assert_eq!(
+                found.lock,
+                Some(LockReason::PremiumCategory),
+                "{actionmap} devrait être verrouillée"
+            );
         }
     }
 
@@ -561,19 +578,14 @@ mod tests {
         let list = editable();
         let power = list.iter().find(|b| b.action == "v_power_toggle").unwrap();
         assert_eq!(power.access, EditAccess::Lite);
-        assert!(!power.locked);
+        assert!(power.lock.is_none());
     }
 
     #[test]
     fn self_destruct_is_locked_and_says_why() {
         let list = editable();
         let boom = list.iter().find(|b| b.action == "v_self_destruct").unwrap();
-        assert!(boom.locked);
-        assert!(boom
-            .locked_reason
-            .as_ref()
-            .unwrap()
-            .contains("irréversible"));
+        assert_eq!(boom.lock, Some(LockReason::DangerousAction));
     }
 
     #[test]
@@ -581,7 +593,7 @@ mod tests {
         let list = editable();
         let boost = list.iter().find(|b| b.action == "v_afterburner").unwrap();
         assert_eq!(boost.access, EditAccess::Lite);
-        assert!(!boost.locked);
+        assert!(boost.lock.is_none());
         assert_eq!(boost.device.as_deref(), Some("js1"));
         assert_eq!(boost.control.as_deref(), Some("button5"));
     }
@@ -591,7 +603,7 @@ mod tests {
         // Assigner une action vierge fait partie du périmètre Lite.
         let list = editable();
         let libre = list.iter().find(|b| b.action == "v_strafe_up").unwrap();
-        assert!(!libre.locked);
+        assert!(libre.lock.is_none());
         assert!(libre.control.is_none());
     }
 
@@ -601,23 +613,13 @@ mod tests {
         // écraserait un réglage invisible dans l'interface simplifiée.
         let list = editable();
         let pitch = list.iter().find(|b| b.action == "v_pitch_up").unwrap();
-        assert!(pitch.locked);
-        assert!(pitch
-            .locked_reason
-            .as_ref()
-            .unwrap()
-            .contains("modificateur"));
+        assert_eq!(pitch.lock, Some(LockReason::HasModifier));
     }
 
     #[test]
     fn bindings_with_activation_modes_are_locked() {
         let list = editable();
         let roll = list.iter().find(|b| b.action == "v_roll_left").unwrap();
-        assert!(roll.locked);
-        assert!(roll
-            .locked_reason
-            .as_ref()
-            .unwrap()
-            .contains("mode d'activation"));
+        assert_eq!(roll.lock, Some(LockReason::HasActivationMode));
     }
 }
