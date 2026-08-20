@@ -9,6 +9,7 @@ import {
 } from "./lib/api";
 import { useT } from "./lib/i18nContext";
 import { useCapture } from "./useCapture";
+import UpgradeLink from "./UpgradeLink";
 
 /** Durée d'allumage d'une ligne après le dernier mouvement détecté. */
 const HIGHLIGHT_MS = 1200;
@@ -233,6 +234,12 @@ function describe(
         title: t("diag.moreSlotsThanDevices"),
         subject: `${finding.slots} / ${finding.devices}`,
       };
+    case "corrupt_bindings":
+      return {
+        title: t("diag.corruptBindings"),
+        detail: t("diag.corruptBindingsDetail"),
+        subject: String(finding.count),
+      };
   }
 }
 
@@ -254,6 +261,11 @@ function LiveList({
         <p className="mt-0.5 text-xs text-ink-500">{t("diag.rankHint")}</p>
         <ListeningBadge active={active} />
       </div>
+      {devices.length === 0 && (
+        <p className="px-4 py-6 text-center text-sm text-ink-500">
+          {t("devices.empty")}
+        </p>
+      )}
       <ul className="divide-y divide-ink-100">
         {devices.map((d) => {
           const lit = active.guid === d.instance_guid;
@@ -406,6 +418,7 @@ function PremiumNote() {
         {t("diag.premiumTitle")}
       </h3>
       <p className="mt-1 text-xs text-accent-700">{t("diag.premiumBody")}</p>
+      <UpgradeLink />
     </section>
   );
 }

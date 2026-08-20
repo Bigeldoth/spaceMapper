@@ -1,24 +1,18 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   api,
-  type BindingView,
   type BuildInfo,
   type DeviceView,
-  type FlightBindings,
   type ProfileLocation,
 } from "./lib/api";
-import { actionLabel, categoryLabel, isKnownAction } from "./lib/actionLabels";
 import BindingEditor from "./BindingEditor";
 import DiagnosisPanel from "./DiagnosisPanel";
 import SettingsPanel from "./SettingsPanel";
 import type { Key, Lang } from "./lib/i18n";
 import { TranslationProvider, useT } from "./lib/i18nContext";
 
-const TIPEEE_URL = "https://fr.tipeee.com/padek-interactive";
-
-type Tab = "overview" | "diagnosis" | "edit" | "settings";
+type Tab = "diagnosis" | "edit" | "settings";
 
 /**
  * Racine de l'application.
@@ -52,11 +46,12 @@ function Workspace({
   const [devices, setDevices] = useState<DeviceView[]>([]);
   const [profiles, setProfiles] = useState<ProfileLocation[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
-  const [bindings, setBindings] = useState<FlightBindings | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [build, setBuild] = useState<BuildInfo | null>(null);
-  const [tab, setTab] = useState<Tab>("overview");
+  // L'édition est la raison d'être de l'application ; le diagnostic est à un
+  // clic pour qui vient réparer quelque chose.
+  const [tab, setTab] = useState<Tab>("edit");
   /** Incrémenté à chaque changement de réglage, pour reconstruire l'éditeur. */
   const [settingsRevision, setSettingsRevision] = useState(0);
 
@@ -113,27 +108,11 @@ function Workspace({
     };
   }, []);
 
-  // Relecture à chaque changement de profil sélectionné.
+  // Changer de profil efface l'erreur du précédent : chaque onglet relit ce
+  // dont il a besoin, et un message resté à l'écran parlerait d'un fichier
+  // qu'on ne regarde plus.
   useEffect(() => {
-    if (!selected) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const read = await api.readFlightBindings(selected);
-        if (!cancelled) {
-          setBindings(read);
-          setError(null);
-        }
-      } catch (e) {
-        if (!cancelled) {
-          setBindings(null);
-          setError(String(e));
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+    setError(null);
   }, [selected]);
 
   async function browseForProfile() {
@@ -173,8 +152,6 @@ function Workspace({
             {selected && (
               <>
                 <Tabs active={tab} onChange={setTab} />
-                {tab === "overview" &&
-                  bindings && <BindingsSection bindings={bindings} />}
                 {tab === "diagnosis" && (
                   <DiagnosisPanel profilePath={selected} devices={devices} />
                 )}
@@ -255,7 +232,6 @@ function Tabs({
 }) {
   const t = useT();
   const tabs: { id: Tab; label: Key }[] = [
-    { id: "overview", label: "tab.overview" },
     { id: "diagnosis", label: "tab.diagnosis" },
     { id: "edit", label: "tab.edit" },
     { id: "settings", label: "tab.settings" },
@@ -359,158 +335,13 @@ function ProfileSection({
   );
 }
 
-function BindingsSection({ bindings }: { bindings: FlightBindings }) {
-  // Regroupement par catégorie, en préservant l'ordre du fichier : c'est
-  // l'ordre dans lequel le joueur retrouvera ses touches dans le jeu.
-  const grouped = useMemo(() => {
-    const map = new Map<string, BindingView[]>();
-    for (const b of bindings.bindings) {
-      const list = map.get(b.category);
-      if (list) list.push(b);
-      else map.set(b.category, [b]);
-    }
-    return [...map.entries()];
-  }, [bindings]);
-
-  return (
-    <Section
-      title="Assignations de vol"
-      hint={`${bindings.bindings.length} assignations · joysticks utilisés : ${
-        bindings.joysticks_in_use.map((i) => `js${i}`).join(", ") || "aucun"
-      }`}
-    >
-      {bindings.corrupt_count > 0 && (
-        <CorruptNotice count={bindings.corrupt_count} />
-      )}
-
-      {grouped.length === 0 ? (
-        <Card>
-          <EmptyState text="Aucune assignation de vol dans ce profil." />
-        </Card>
-      ) : (
-        <div className="space-y-4">
-          {grouped.map(([category, items]) => (
-            <Card key={category}>
-              <h3 className="border-b border-ink-100 bg-ink-50 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-ink-500">
-                {categoryLabel(category)}
-              </h3>
-              <ul className="divide-y divide-ink-100">
-                {items.map((b, i) => (
-                  <BindingRow key={`${b.action}-${i}`} binding={b} />
-                ))}
-              </ul>
-            </Card>
-          ))}
-        </div>
-      )}
-    </Section>
-  );
-}
-
-function BindingRow({ binding }: { binding: BindingView }) {
-  const known = isKnownAction(binding.action);
-
-  return (
-    <li className="flex items-center justify-between gap-6 px-4 py-2.5">
-      <div className="min-w-0">
-        <p className="truncate text-sm text-ink-800">
-          {actionLabel(binding.action)}
-        </p>
-        {/* Le nom interne reste visible quand il est déjà traduit : les
-            joueurs partagent leurs configs en s'échangeant ces identifiants. */}
-        {known && (
-          <p className="technical mt-0.5 truncate text-ink-400">
-            {binding.action}
-          </p>
-        )}
-      </div>
-
-      <div className="flex shrink-0 items-center gap-2">
-        {binding.activation_mode && (
-          <Tag>{binding.activation_mode}</Tag>
-        )}
-        {binding.multi_tap && <Tag>×{binding.multi_tap}</Tag>}
-        {binding.corrupt ? (
-          <span className="technical rounded border border-warn-200 bg-warn-50 px-2 py-1 text-warn-700">
-            {binding.input_raw || "(vide)"}
-          </span>
-        ) : (
-          <Binding binding={binding} />
-        )}
-      </div>
-    </li>
-  );
-}
-
-function Binding({ binding }: { binding: BindingView }) {
-  return (
-    <span className="technical flex items-center gap-1">
-      <Key>{binding.device}</Key>
-      {binding.modifier && (
-        <>
-          <Key>{binding.modifier}</Key>
-          <span className="text-ink-400">+</span>
-        </>
-      )}
-      <Key>{binding.control}</Key>
-    </span>
-  );
-}
-
-function Key({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="rounded border border-ink-200 bg-ink-50 px-1.5 py-0.5 text-ink-700">
-      {children}
-    </span>
-  );
-}
-
-function Tag({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="rounded bg-accent-50 px-1.5 py-0.5 text-xs font-medium text-accent-700">
-      {children}
-    </span>
-  );
-}
-
-function CorruptNotice({ count }: { count: number }) {
-  return (
-    <div className="mb-4 rounded-lg border border-warn-200 bg-warn-50 p-4">
-      <p className="text-sm font-medium text-warn-700">
-        {count} assignation{count > 1 ? "s" : ""} illisible
-        {count > 1 ? "s" : ""} détectée{count > 1 ? "s" : ""}
-      </p>
-      <p className="mt-1 text-sm text-ink-600">
-        Le client Star Citizen a écrit des valeurs que le jeu ne pourra pas
-        relire — ces touches resteront muettes. SpaceMapper Lite vous les
-        signale ; l'édition Premium les répare.
-      </p>
-      <UpgradeLink />
-    </div>
-  );
-}
-
-function UpgradeLink() {
+function ErrorNotice({ message }: { message: string }) {
   const t = useT();
   return (
-    <button
-      onClick={() => void openUrl(TIPEEE_URL).catch(() => {})}
-      className="mt-3 rounded-md bg-accent-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-700"
-    >
-      {t("upgrade.cta")}
-    </button>
-  );
-}
-
-function ErrorNotice({ message }: { message: string }) {
-  return (
     <div className="rounded-lg border border-warn-200 bg-warn-50 p-4">
-      <p className="text-sm font-medium text-warn-700">Lecture impossible</p>
+      <p className="text-sm font-medium text-warn-700">{t("error.title")}</p>
       <p className="technical mt-1 text-ink-600">{message}</p>
     </div>
   );
 }
 
-function EmptyState({ text }: { text: string }) {
-  return <p className="px-4 py-6 text-center text-sm text-ink-500">{text}</p>;
-}

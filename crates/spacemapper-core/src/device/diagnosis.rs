@@ -133,6 +133,11 @@ pub enum Finding {
     PluggedButUnused { name: String },
     /// Le fichier vise plus de slots qu'il n'y a de manches branchés.
     MoreSlotsThanDevices { slots: usize, devices: usize },
+    /// Des assignations que le jeu lui-même ne saura pas relire.
+    ///
+    /// Ce n'est pas un problème de périphérique, mais c'est le seul endroit de
+    /// l'édition Lite qui répond à « pourquoi cette touche ne fait rien ? ».
+    CorruptBindings { count: usize },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -151,7 +156,8 @@ pub fn diagnose(maps: &ActionMaps, devices: &[InputDevice]) -> Diagnosis {
     let live = live_devices(maps, devices);
     let declared = declared_devices(maps, devices);
     let slots = slot_usage(maps);
-    let findings = findings(&live, &declared, &slots);
+    let corrupt = maps.rebinds().filter(|(_, _, r)| r.is_corrupt()).count();
+    let findings = findings(&live, &declared, &slots, corrupt);
 
     Diagnosis {
         live,
@@ -257,8 +263,19 @@ fn slot_usage(maps: &ActionMaps) -> Vec<SlotUsage> {
         .collect()
 }
 
-fn findings(live: &[LiveDevice], declared: &[DeclaredDevice], slots: &[SlotUsage]) -> Vec<Finding> {
+fn findings(
+    live: &[LiveDevice],
+    declared: &[DeclaredDevice],
+    slots: &[SlotUsage],
+    corrupt: usize,
+) -> Vec<Finding> {
     let mut out = Vec::new();
+
+    // En tête : une assignation illisible est une touche muette en jeu, ce qui
+    // se remarque avant tout problème d'ordre des manches.
+    if corrupt > 0 {
+        out.push(Finding::CorruptBindings { count: corrupt });
+    }
 
     let anonymous: Vec<u8> = slots.iter().filter(|s| !s.named).map(|s| s.instance).collect();
     if !anonymous.is_empty() {
@@ -431,6 +448,30 @@ mod tests {
             })
             .expect("les slots nus doivent être signalés");
         assert_eq!(anonymous, vec![1, 2]);
+    }
+
+    #[test]
+    fn corrupt_bindings_are_reported_first() {
+        // `js3_ ` est normal et massivement majoritaire ; seul un jeton
+        // réellement illisible doit compter.
+        let xml = REAL_SHAPE.replace(
+            r#"<action name="v_ignore"><rebind input="js3_ "/></action>"#,
+            r#"<action name="v_broken"><rebind input="BAD TOKEN"/></action>"#,
+        );
+        let maps = actionmaps::parse_str(&xml).unwrap();
+
+        let d = diagnose(&maps, &[]);
+        assert!(matches!(
+            d.findings.first(),
+            Some(Finding::CorruptBindings { count: 1 })
+        ));
+
+        // Et le fichier d'origine, lui, n'en signale aucune.
+        let healthy = actionmaps::parse_str(REAL_SHAPE).unwrap();
+        assert!(!diagnose(&healthy, &[])
+            .findings
+            .iter()
+            .any(|f| matches!(f, Finding::CorruptBindings { .. })));
     }
 
     #[test]

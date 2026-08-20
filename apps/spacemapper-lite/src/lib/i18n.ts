@@ -25,13 +25,9 @@ const FR = {
   // n'existe plus depuis que les points de restauration sont manuels.
   "app.readOnlyNotice": "Fonctionne hors ligne — aucune donnée ne sort de votre machine",
 
-  "tab.overview": "Aperçu complet",
   "tab.edit": "Modifier les commandes",
   "tab.settings": "Réglages",
 
-  "devices.title": "Périphériques détectés",
-  "devices.hint":
-    "Le jeu n'enregistre que l'identifiant du modèle : deux manches identiques y sont indiscernables. L'onglet Périphériques montre ce que cela donne sur votre profil.",
   "devices.empty":
     "Aucun périphérique de jeu détecté. Branchez votre manche — il apparaîtra ici en quelques secondes.",
   "devices.axes": "axes",
@@ -155,6 +151,11 @@ const FR = {
   "staging.banner": "Pré-release",
   "loading": "Détection en cours…",
   "upgrade.cta": "Découvrir SpaceMapper Premium — 15 €",
+  "error.title": "Lecture impossible",
+
+  "diag.corruptBindings": "Assignations que le jeu ne saura pas relire",
+  "diag.corruptBindingsDetail":
+    "Le client Star Citizen a écrit des valeurs illisibles : ces touches resteront muettes en jeu. SpaceMapper Lite vous les signale, l'édition Premium les répare.",
 
   "tab.diagnosis": "Périphériques",
   "diag.title": "Correspondance matériel",
@@ -209,13 +210,9 @@ export type Key = keyof typeof FR;
 const EN: Record<Key, string> = {
   "app.readOnlyNotice": "Works offline — no data leaves your machine",
 
-  "tab.overview": "Full overview",
   "tab.edit": "Edit controls",
   "tab.settings": "Settings",
 
-  "devices.title": "Detected devices",
-  "devices.hint":
-    "The game records only the model id: two identical sticks are indistinguishable to it. The Devices tab shows what that means for your profile.",
   "devices.empty":
     "No game controller detected. Plug in your stick — it will appear here within seconds.",
   "devices.axes": "axes",
@@ -337,6 +334,11 @@ const EN: Record<Key, string> = {
   "staging.banner": "Pre-release",
   "loading": "Detecting…",
   "upgrade.cta": "Discover SpaceMapper Premium — €15",
+  "error.title": "Cannot read this file",
+
+  "diag.corruptBindings": "Bindings the game will not be able to read",
+  "diag.corruptBindingsDetail":
+    "The Star Citizen client wrote unreadable values: these keys will do nothing in game. SpaceMapper Lite reports them, the Premium edition repairs them.",
 
   "tab.diagnosis": "Devices",
   "diag.title": "Hardware match",

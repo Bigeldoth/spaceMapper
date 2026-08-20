@@ -6,7 +6,7 @@
 //! abîmer une configuration, même en cas de bug.
 
 use serde::Serialize;
-use spacemapper_core::actionmaps::{self, ActionMaps};
+use spacemapper_core::actionmaps;
 use spacemapper_core::device::diagnosis::{self, Diagnosis};
 use spacemapper_core::device::{DeviceEnumerator, InputDevice};
 use spacemapper_core::install;
@@ -48,38 +48,6 @@ pub struct ProfileLocation {
     pub path: String,
 }
 
-#[derive(Debug, Serialize)]
-pub struct BindingView {
-    /// Nom de la catégorie, ex. `spaceship_movement`.
-    pub category: String,
-    /// Nom interne de l'action, ex. `v_boost`.
-    pub action: String,
-    /// Valeur brute, telle qu'écrite dans le fichier.
-    pub input_raw: String,
-    /// Périphérique visé (`js`, `kb`, …) et son index, ex. `js1`.
-    pub device: Option<String>,
-    pub modifier: Option<String>,
-    pub control: Option<String>,
-    pub activation_mode: Option<String>,
-    pub multi_tap: Option<String>,
-    /// L'assignation est présente mais indéchiffrable.
-    pub corrupt: bool,
-    pub line: u32,
-}
-
-#[derive(Debug, Serialize)]
-pub struct FlightBindings {
-    pub profile_name: Option<String>,
-    /// Index de joystick réellement utilisés par au moins une assignation.
-    pub joysticks_in_use: Vec<u8>,
-    /// GUID trouvés dans le fichier, toutes sources confondues.
-    pub known_guids: Vec<String>,
-    pub bindings: Vec<BindingView>,
-    /// Nombre d'assignations corrompues — l'accroche vers l'édition Premium,
-    /// qui sait les réparer.
-    pub corrupt_count: usize,
-}
-
 /// Périphériques d'entrée actuellement branchés.
 #[tauri::command]
 pub fn list_devices() -> CmdResult<Vec<DeviceView>> {
@@ -102,16 +70,6 @@ pub fn locate_actionmaps() -> Vec<ProfileLocation> {
             path: p.path.to_string_lossy().into_owned(),
         })
         .collect()
-}
-
-/// Lit les assignations de pilotage d'un `actionmaps.xml`.
-///
-/// C'est le cœur de l'édition Lite : montrer, lisiblement, ce que le joueur a
-/// réellement configuré pour voler.
-#[tauri::command]
-pub fn read_flight_bindings(path: String) -> CmdResult<FlightBindings> {
-    let maps = actionmaps::parse_file(PathBuf::from(&path)).map_err(|e| e.to_string())?;
-    Ok(to_flight_view(&maps))
 }
 
 /// Confronte le profil au matériel réellement branché.
@@ -148,51 +106,6 @@ pub fn build_info() -> BuildInfo {
     }
 }
 
-fn to_flight_view(maps: &ActionMaps) -> FlightBindings {
-    let mut bindings = Vec::new();
-    let mut corrupt_count = 0;
-
-    for (map, action, rebind) in maps.rebinds() {
-        if !map.is_flight() || rebind.is_unbound() {
-            continue;
-        }
-        let corrupt = rebind.is_corrupt();
-        if corrupt {
-            corrupt_count += 1;
-        }
-
-        let (device, modifier, control) = match &rebind.input {
-            Some(input) => (
-                Some(format!("{}{}", input.device_kind.prefix(), input.instance)),
-                input.modifier.clone(),
-                Some(input.control.clone()),
-            ),
-            None => (None, None, None),
-        };
-
-        bindings.push(BindingView {
-            category: map.name.clone(),
-            action: action.name.clone(),
-            input_raw: rebind.input_raw.clone(),
-            device,
-            modifier,
-            control,
-            activation_mode: rebind.activation_mode.clone(),
-            multi_tap: rebind.multi_tap.clone(),
-            corrupt,
-            line: rebind.line,
-        });
-    }
-
-    FlightBindings {
-        profile_name: maps.profile_name.clone(),
-        joysticks_in_use: maps.joystick_instances_in_use(),
-        known_guids: maps.known_guids().iter().map(|g| g.to_string()).collect(),
-        bindings,
-        corrupt_count,
-    }
-}
-
 #[cfg(windows)]
 fn enumerator() -> impl DeviceEnumerator {
     spacemapper_core::device::directinput::DirectInputEnumerator::new()
@@ -203,63 +116,3 @@ fn enumerator() -> impl DeviceEnumerator {
     spacemapper_core::device::FakeEnumerator::default()
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    const SAMPLE: &str = r#"<ActionMaps>
- <ActionProfiles profileName="default">
-  <actionmap name="spaceship_movement">
-   <action name="v_boost"><rebind input="js1_rctrl+button10"/></action>
-   <action name="v_broken"><rebind input="BAD TOKEN"/></action>
-   <action name="v_unbound_on_js3"><rebind input="js3_ " activationMode="press"/></action>
-   <action name="v_unbound"><rebind input=""/></action>
-  </actionmap>
-  <actionmap name="player">
-   <action name="v_use"><rebind input="kb1_f"/></action>
-  </actionmap>
- </ActionProfiles>
-</ActionMaps>"#;
-
-    #[test]
-    fn flight_view_keeps_only_flight_and_bound_actions() {
-        let maps = actionmaps::parse_str(SAMPLE).unwrap();
-        let view = to_flight_view(&maps);
-
-        let actions: Vec<_> = view.bindings.iter().map(|b| b.action.as_str()).collect();
-        // `v_use` est à pied ; `v_unbound` et `v_unbound_on_js3` ne sont pas
-        // assignées — cette dernière est le cas massivement majoritaire dans un
-        // fichier réel, et l'afficher noierait la liste sous du vide.
-        assert_eq!(actions, ["v_boost", "v_broken"]);
-    }
-
-    #[test]
-    fn flight_view_decomposes_modifier() {
-        let maps = actionmaps::parse_str(SAMPLE).unwrap();
-        let view = to_flight_view(&maps);
-        let boost = &view.bindings[0];
-
-        assert_eq!(boost.device.as_deref(), Some("js1"));
-        assert_eq!(boost.modifier.as_deref(), Some("rctrl"));
-        assert_eq!(boost.control.as_deref(), Some("button10"));
-        assert!(!boost.corrupt);
-    }
-
-    #[test]
-    fn flight_view_counts_corrupt_bindings() {
-        let maps = actionmaps::parse_str(SAMPLE).unwrap();
-        let view = to_flight_view(&maps);
-
-        assert_eq!(view.corrupt_count, 1);
-        let broken = view.bindings.iter().find(|b| b.corrupt).unwrap();
-        assert_eq!(broken.input_raw, "BAD TOKEN");
-        assert!(broken.device.is_none());
-    }
-
-    #[test]
-    fn flight_view_reports_joysticks_actually_used() {
-        let maps = actionmaps::parse_str(SAMPLE).unwrap();
-        // `js3_ ` est illisible, donc js3 ne compte pas comme utilisé.
-        assert_eq!(to_flight_view(&maps).joysticks_in_use, vec![1]);
-    }
-}

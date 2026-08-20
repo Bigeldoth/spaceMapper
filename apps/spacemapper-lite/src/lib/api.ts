@@ -161,7 +161,8 @@ export type Finding =
   | { kind: "ambiguous_model"; product_name: string; count: number }
   | { kind: "declared_but_absent"; name: string }
   | { kind: "plugged_but_unused"; name: string }
-  | { kind: "more_slots_than_devices"; slots: number; devices: number };
+  | { kind: "more_slots_than_devices"; slots: number; devices: number }
+  | { kind: "corrupt_bindings"; count: number };
 
 export interface Diagnosis {
   live: LiveDevice[];

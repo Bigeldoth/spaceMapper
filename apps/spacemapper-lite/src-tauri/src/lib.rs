@@ -32,7 +32,6 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             commands::list_devices,
             commands::locate_actionmaps,
-            commands::read_flight_bindings,
             commands::diagnose_devices,
             commands::build_info,
             editing::list_editable_bindings,
