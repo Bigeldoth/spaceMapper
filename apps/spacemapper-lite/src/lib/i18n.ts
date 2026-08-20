@@ -112,6 +112,11 @@ const FR = {
   "backup.create": "Sauvegarder maintenant",
   "backup.empty": "Aucun point de restauration.",
   "backup.restore": "Restaurer",
+  "backup.delete": "Supprimer",
+  "backup.deleted": "Point de restauration supprimé.",
+  "backup.confirmDeleteTitle": "Supprimer ce point de restauration ?",
+  "backup.confirmDeleteBody":
+    "La suppression est définitive : ce point ne pourra plus être restauré. Votre profil de jeu, lui, n'est pas touché.",
   "backup.confirmTitle": "Restaurer le profil ?",
   "backup.confirmKept":
     "L'état actuel sera conservé comme nouveau point de restauration : vous pourrez revenir en arrière.",
@@ -295,6 +300,11 @@ const EN: Record<Key, string> = {
   "backup.create": "Back up now",
   "backup.empty": "No restore point.",
   "backup.restore": "Restore",
+  "backup.delete": "Delete",
+  "backup.deleted": "Restore point deleted.",
+  "backup.confirmDeleteTitle": "Delete this restore point?",
+  "backup.confirmDeleteBody":
+    "Deletion is permanent: this point can no longer be restored. Your game profile itself is untouched.",
   "backup.confirmTitle": "Restore this profile?",
   "backup.confirmKept":
     "The current state will be kept as a new restore point: you can go back.",

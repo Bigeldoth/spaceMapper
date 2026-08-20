@@ -111,6 +111,35 @@ pub fn restore(backup: &Path, target: &Path) -> Result<()> {
     Ok(())
 }
 
+/// Supprime définitivement une sauvegarde.
+///
+/// `backup_dir` n'est pas un ornement : le chemin à supprimer vient de
+/// l'interface, et rien n'empêcherait un appel malformé de désigner
+/// `actionmaps.xml` lui-même, ou n'importe quel fichier du disque. On vérifie
+/// donc que la cible est bien **dans** le dossier de sauvegardes et qu'elle en
+/// porte le nom horodaté. Une suppression est irréversible : c'est le seul
+/// endroit du code où une erreur ne se rattrape pas.
+pub fn delete(backup: &Path, backup_dir: &Path) -> Result<()> {
+    // On compare des chemins canoniques : `Backups/../actionmaps.xml` désigne
+    // un fichier hors du dossier tout en commençant par son préfixe textuel.
+    let dir = backup_dir
+        .canonicalize()
+        .map_err(|e| Error::io(backup_dir, e))?;
+    let file = backup.canonicalize().map_err(|e| Error::io(backup, e))?;
+
+    let inside = file.parent() == Some(dir.as_path());
+    let named_like_a_backup = parse_timestamp(&file).is_some();
+
+    if !inside || !named_like_a_backup {
+        return Err(Error::refused(format!(
+            "refus de supprimer {} : hors du dossier de sauvegardes",
+            file.display()
+        )));
+    }
+
+    std::fs::remove_file(&file).map_err(|e| Error::io(&file, e))
+}
+
 /// Extrait l'horodatage de `actionmaps.1755540000123.xml`, ou de sa variante
 /// suffixée `actionmaps.1755540000123-1.xml` en cas de collision.
 fn parse_timestamp(path: &Path) -> Option<u128> {
@@ -251,6 +280,71 @@ mod tests {
         }
 
         assert_eq!(list(&backups).unwrap().len(), RETAINED);
+    }
+
+    #[test]
+    fn delete_removes_only_the_designated_backup() {
+        let dir = temp_dir("backup-delete");
+        let source = dir.join("actionmaps.xml");
+        let backups = dir.join("Backups");
+
+        for i in 0..3 {
+            std::fs::write(&source, format!("<n>{i}</n>")).unwrap();
+            create(&source, &backups).unwrap();
+        }
+
+        let listed = list(&backups).unwrap();
+        let victim = listed[1].path.clone();
+        delete(&victim, &backups).unwrap();
+
+        let after = list(&backups).unwrap();
+        assert_eq!(after.len(), 2);
+        assert!(!after.iter().any(|e| e.path == victim));
+        assert!(!victim.exists());
+    }
+
+    #[test]
+    fn delete_refuses_a_file_outside_the_backup_directory() {
+        // Le scénario redouté : un chemin venu de l'interface qui désigne le
+        // profil du joueur. Le supprimer effacerait toute sa configuration.
+        let dir = temp_dir("backup-delete-guard");
+        let source = dir.join("actionmaps.xml");
+        let backups = dir.join("Backups");
+        std::fs::write(&source, "<ActionMaps/>").unwrap();
+        create(&source, &backups).unwrap();
+
+        assert!(delete(&source, &backups).is_err());
+        assert!(source.exists(), "le profil du joueur a été supprimé");
+    }
+
+    #[test]
+    fn delete_refuses_an_escape_through_the_parent_directory() {
+        // `Backups/../actionmaps.xml` commence bien par le chemin du dossier
+        // de sauvegardes, mais n'y est pas. Comparer les préfixes textuels
+        // laisserait passer celui-ci ; on compare des chemins canoniques.
+        let dir = temp_dir("backup-delete-escape");
+        let source = dir.join("actionmaps.xml");
+        let backups = dir.join("Backups");
+        std::fs::write(&source, "<ActionMaps/>").unwrap();
+        create(&source, &backups).unwrap();
+
+        let sneaky = backups.join("..").join("actionmaps.xml");
+        assert!(delete(&sneaky, &backups).is_err());
+        assert!(source.exists(), "le profil du joueur a été supprimé");
+    }
+
+    #[test]
+    fn delete_refuses_a_foreign_file_even_inside_the_directory() {
+        // Un fichier déposé là par l'utilisateur n'est pas une sauvegarde :
+        // son nom ne porte pas d'horodatage, on n'y touche pas.
+        let dir = temp_dir("backup-delete-foreign");
+        let backups = dir.join("Backups");
+        std::fs::create_dir_all(&backups).unwrap();
+        let notes = backups.join("notes.txt");
+        std::fs::write(&notes, "mes reglages").unwrap();
+
+        assert!(delete(&notes, &backups).is_err());
+        assert!(notes.exists());
     }
 
     #[test]

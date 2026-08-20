@@ -227,6 +227,15 @@ export const api = {
 
   listBackups: () => invoke<BackupView[]>("list_backups"),
 
+  /**
+   * Supprime définitivement un point de restauration.
+   *
+   * Le backend refuse toute cible qui n'est pas une sauvegarde de SpaceMapper :
+   * il détermine lui-même le dossier autorisé et ne se fie pas à ce chemin.
+   */
+  deleteBackup: (backupPath: string) =>
+    invoke<void>("delete_backup", { backupPath }),
+
   /** Langues réellement présentes dans l'installation du joueur. */
   listGameLanguages: (path: string) =>
     invoke<Language[]>("list_game_languages", { path }),

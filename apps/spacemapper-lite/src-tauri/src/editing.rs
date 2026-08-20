@@ -273,6 +273,17 @@ pub fn list_backups() -> CmdResult<Vec<BackupView>> {
         .map(|entries| entries.into_iter().map(BackupView::from).collect())
 }
 
+/// Supprime définitivement un point de restauration.
+///
+/// Le dossier de sauvegardes est déterminé **ici**, jamais transmis par
+/// l'interface : c'est ce qui permet à `backup::delete` de refuser toute cible
+/// qui n'est pas une sauvegarde de SpaceMapper.
+#[tauri::command]
+pub fn delete_backup(backup_path: String) -> CmdResult<()> {
+    let dir = backup_dir()?;
+    backup::delete(Path::new(&backup_path), &dir).map_err(|e| e.to_string())
+}
+
 /// Restaure un point de restauration par-dessus le profil courant.
 #[tauri::command]
 pub fn restore_backup(path: String, backup_path: String) -> CmdResult<()> {

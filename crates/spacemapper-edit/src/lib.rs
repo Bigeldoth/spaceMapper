@@ -59,6 +59,12 @@ pub enum Error {
          qui se limite aux déplacements à pied et en vol"
     )]
     OutOfScope { actionmap: String },
+
+    /// Une opération destructrice visait une cible hors de son périmètre.
+    ///
+    /// Distincte d'une erreur d'entrée-sortie : rien n'a échoué, on a refusé.
+    #[error("{0}")]
+    Refused(String),
 }
 
 impl Error {
@@ -67,6 +73,10 @@ impl Error {
             path: path.into(),
             source,
         }
+    }
+
+    pub(crate) fn refused(message: impl Into<String>) -> Self {
+        Error::Refused(message.into())
     }
 }
 

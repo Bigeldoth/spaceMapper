@@ -38,6 +38,7 @@ pub fn run() {
             editing::save_bindings,
             editing::create_backup,
             editing::list_backups,
+            editing::delete_backup,
             editing::restore_backup,
             editing::list_game_languages,
             editing::get_settings,

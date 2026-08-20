@@ -22,7 +22,11 @@ export default function BackupPanel({
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [confirming, setConfirming] = useState<BackupView | null>(null);
+  /** Une seule confirmation à la fois, restauration comme suppression. */
+  const [confirming, setConfirming] = useState<{
+    backup: BackupView;
+    action: "restore" | "delete";
+  } | null>(null);
 
   async function reload() {
     try {
@@ -61,6 +65,21 @@ export default function BackupPanel({
       setError(null);
       await reload();
       onRestored();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove(backup: BackupView) {
+    setBusy(true);
+    setConfirming(null);
+    try {
+      await api.deleteBackup(backup.path);
+      setStatus(t("backup.deleted"));
+      setError(null);
+      await reload();
     } catch (e) {
       setError(String(e));
     } finally {
@@ -111,39 +130,66 @@ export default function BackupPanel({
               <span className="text-sm text-ink-700">
                 {formatTimestamp(b.timestamp)}
               </span>
-              <button
-                onClick={() => setConfirming(b)}
-                disabled={busy}
-                className="rounded-md border border-ink-300 bg-white px-2.5 py-1 text-xs font-medium text-ink-700 hover:bg-ink-50 disabled:text-ink-400"
-              >
-                {t("backup.restore")}
-              </button>
+              <span className="flex shrink-0 gap-2">
+                <button
+                  onClick={() => setConfirming({ backup: b, action: "restore" })}
+                  disabled={busy}
+                  className="rounded-md border border-ink-300 bg-white px-2.5 py-1 text-xs font-medium text-ink-700 hover:bg-ink-50 disabled:text-ink-400"
+                >
+                  {t("backup.restore")}
+                </button>
+                {/* Discret face à « Restaurer » : supprimer est irréversible,
+                    ce n'est pas l'action qu'on veut cliquer par réflexe. */}
+                <button
+                  onClick={() => setConfirming({ backup: b, action: "delete" })}
+                  disabled={busy}
+                  className="rounded-md px-2.5 py-1 text-xs font-medium text-ink-500 hover:bg-warn-50 hover:text-warn-700 disabled:text-ink-300"
+                >
+                  {t("backup.delete")}
+                </button>
+              </span>
             </li>
           ))}
         </ul>
       )}
 
       {confirming && (
-        <ConfirmRestore
-          backup={confirming}
+        <Confirm
+          backup={confirming.backup}
+          action={confirming.action}
           onCancel={() => setConfirming(null)}
-          onConfirm={() => void restore(confirming)}
+          onConfirm={() =>
+            void (confirming.action === "restore"
+              ? restore(confirming.backup)
+              : remove(confirming.backup))
+          }
         />
       )}
     </div>
   );
 }
 
-function ConfirmRestore({
+/**
+ * Confirmation commune à la restauration et à la suppression.
+ *
+ * Les deux méritent une confirmation, mais pas le même ton : restaurer se
+ * défait en restaurant autre chose, supprimer ne se défait pas. Seul le second
+ * porte donc l'habillage d'alerte.
+ */
+function Confirm({
   backup,
+  action,
   onCancel,
   onConfirm,
 }: {
   backup: BackupView;
+  action: "restore" | "delete";
   onCancel: () => void;
   onConfirm: () => void;
 }) {
   const t = useT();
+  const destructive = action === "delete";
+
   return (
     <div
       className="fixed inset-0 z-10 flex items-center justify-center bg-ink-900/30 p-8"
@@ -154,12 +200,18 @@ function ConfirmRestore({
         onClick={(e) => e.stopPropagation()}
       >
         <h3 className="text-sm font-semibold text-ink-900">
-          {t("backup.confirmTitle")}
+          {t(destructive ? "backup.confirmDeleteTitle" : "backup.confirmTitle")}
         </h3>
         <p className="mt-2 text-sm text-ink-600">
           {formatTimestamp(backup.timestamp)}
         </p>
-        <p className="mt-2 text-sm text-ink-500">{t("backup.confirmKept")}</p>
+        <p
+          className={
+            "mt-2 text-sm " + (destructive ? "text-warn-700" : "text-ink-500")
+          }
+        >
+          {t(destructive ? "backup.confirmDeleteBody" : "backup.confirmKept")}
+        </p>
         <div className="mt-4 flex justify-end gap-2">
           <button
             onClick={onCancel}
@@ -169,9 +221,14 @@ function ConfirmRestore({
           </button>
           <button
             onClick={onConfirm}
-            className="rounded-md bg-accent-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-700"
+            className={
+              "rounded-md px-3 py-1.5 text-sm font-medium text-white " +
+              (destructive
+                ? "bg-warn-600 hover:bg-warn-700"
+                : "bg-accent-600 hover:bg-accent-700")
+            }
           >
-            {t("backup.restore")}
+            {t(destructive ? "backup.delete" : "backup.restore")}
           </button>
         </div>
       </div>
