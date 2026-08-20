@@ -67,6 +67,11 @@ pub struct EditableBinding {
     pub description: Option<String>,
     pub input_raw: String,
     pub device: Option<String>,
+    /// Touche modificatrice, ex. `lshift` dans `kb1_lshift+f`.
+    ///
+    /// Séparée du contrôle et non repliée dedans : sans elle, l'interface
+    /// affichait `kb1 f` pour une assignation qui exige en réalité Maj+F.
+    pub modifier: Option<String>,
     pub control: Option<String>,
     /// Motif du verrouillage, ou `None` si l'assignation est modifiable.
     pub lock: Option<LockReason>,
@@ -355,6 +360,7 @@ fn collect_editable(maps: &ActionMaps, defaults: Option<&DefaultProfile>) -> Vec
                 device: input
                     .as_ref()
                     .map(|i| format!("{}{}", i.device_kind.prefix(), i.instance)),
+                modifier: input.as_ref().and_then(|i| i.modifier.clone()),
                 control: input.as_ref().map(|i| i.control.clone()),
                 lock: locked_reason,
             });
@@ -409,12 +415,13 @@ fn collect_overrides(maps: &ActionMaps) -> Vec<EditableBinding> {
             }
             let category = scope::category_of(&map.name)?;
 
-            let (device, control) = match &rebind.input {
+            let (device, modifier, control) = match &rebind.input {
                 Some(input) => (
                     Some(format!("{}{}", input.device_kind.prefix(), input.instance)),
+                    input.modifier.clone(),
                     Some(input.control.clone()),
                 ),
-                None => (None, None),
+                None => (None, None, None),
             };
 
             let locked_reason = lock_reason(
@@ -435,6 +442,7 @@ fn collect_overrides(maps: &ActionMaps) -> Vec<EditableBinding> {
                 description: None,
                 input_raw: rebind.input_raw.clone(),
                 device,
+                modifier,
                 control,
                 lock: locked_reason,
             })

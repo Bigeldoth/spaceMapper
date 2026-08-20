@@ -17,7 +17,10 @@ import {
   build,
   captureErrorMessage,
   fromKeyPress,
+  fromMouse,
+  fromWheel,
   modifierOf,
+  type CaptureError,
   type CaptureResult,
 } from "./lib/keyboard";
 import BackupPanel from "./BackupPanel";
@@ -151,6 +154,26 @@ export default function BindingEditor({
     return [...map.entries()];
   }, [visible]);
 
+  /**
+   * Libellés portés par plusieurs commandes différentes.
+   *
+   * Le jeu définit parfois deux commandes distinctes sous le même nom et sur
+   * la même touche — `player/mobiglas` et `spaceship_hud/mobiglas` sont tous
+   * deux « mobiGlas (ON/OFF) » sur F1. Les catégories les séparent à l'écran,
+   * mais deux lignes rigoureusement identiques passent pour un doublon. On
+   * affiche alors le nom interne, qui les distingue.
+   */
+  const ambiguous = useMemo(() => {
+    const seen = new Map<string, number>();
+    for (const b of visible) {
+      const label = bindingLabel(b);
+      seen.set(label, (seen.get(label) ?? 0) + 1);
+    }
+    return new Set(
+      [...seen.entries()].filter(([, n]) => n > 1).map(([label]) => label),
+    );
+  }, [visible]);
+
   return (
     <div className="space-y-6 pb-4">
       <ScopeNotice />
@@ -225,8 +248,14 @@ export default function BindingEditor({
                 const key = keyOf(b.actionmap, b.action);
                 return (
                   <BindingRow
-                    key={key}
+                    // Une action peut porter plusieurs assignations — une au
+                    // clavier et une au manche, par exemple. `keyOf` ne les
+                    // distingue pas : deux frères de même clé font rendre à
+                    // React deux lignes identiques, ce qui passait pour un
+                    // doublon. Le jeton complète l'identité de la ligne.
+                    key={`${key}/${b.input_raw}`}
                     binding={b}
+                    disambiguate={ambiguous.has(bindingLabel(b))}
                     pending={pending.has(key) ? pending.get(key)! : undefined}
                     hasPending={pending.has(key)}
                     // Une assignation dont le contrôle est actionné en ce
@@ -487,7 +516,9 @@ function LiveProbe({
           {capture.error
             ? t("probe.stopped")
             : capture.listening
-              ? `${devices.length} · ${t("probe.listening")}`
+              ? `${devices.length} ${t(
+                  devices.length > 1 ? "probe.deviceMany" : "probe.deviceOne",
+                )} · ${t("probe.listening")}`
               : t("probe.opening")}
         </span>
       </div>
@@ -505,7 +536,13 @@ function LiveProbe({
             <span className="technical ml-2 text-ink-500">{token}</span>
           </p>
           <p className="mt-1 text-sm text-ink-600">
-            {matches === 0 ? t("probe.noMatch") : `${matches}`}
+            {/* Un nombre nu ne dit rien : c'est le compte des commandes déjà
+                assignées à ce contrôle, autrement dit ses conflits. */}
+            {matches === 0
+              ? t("probe.noMatch")
+              : `${matches} ${t(
+                  matches > 1 ? "probe.matchMany" : "probe.matchOne",
+                )}`}
           </p>
           <button
             onClick={capture.reset}
@@ -523,6 +560,7 @@ function LiveProbe({
 
 function BindingRow({
   binding,
+  disambiguate,
   pending,
   hasPending,
   live,
@@ -532,6 +570,8 @@ function BindingRow({
   onLockedClick,
 }: {
   binding: EditableBinding;
+  /** Une autre commande porte le même nom : préciser laquelle est laquelle. */
+  disambiguate: boolean;
   pending: string | null | undefined;
   hasPending: boolean;
   live: boolean;
@@ -567,6 +607,14 @@ function BindingRow({
         </p>
         <p className="technical mt-0.5 truncate text-ink-400">
           {binding.action}
+          {/* Le nom interne ne suffit pas toujours : `mobiglas` existe à
+              l'identique dans deux catégories. La catégorie est le seul
+              élément qui les sépare. */}
+          {disambiguate && (
+            <span className="ml-1.5 text-ink-500">
+              · {categoryLabel(binding.actionmap)}
+            </span>
+          )}
         </p>
       </div>
 
@@ -586,21 +634,25 @@ function BindingRow({
                 une surcharge laisserait croire qu'elle est écrite quelque
                 part, alors qu'elle n'existe que dans l'archive du jeu. */}
             {binding.origin === "game_default" ? (
-              <>
-                <span
-                  title={t("binding.defaultTitle")}
-                  className="rounded border border-ink-200 px-1.5 py-0.5 text-[0.6875rem] font-medium text-ink-500"
-                >
-                  {t("binding.default")}
-                </span>
-                <Key>{binding.control}</Key>
-              </>
+              <span
+                title={t("binding.defaultTitle")}
+                className="rounded border border-ink-200 px-1.5 py-0.5 text-[0.6875rem] font-medium text-ink-500"
+              >
+                {t("binding.default")}
+              </span>
             ) : (
+              <Key>{binding.device}</Key>
+            )}
+            {/* Le modificateur faisait partie du jeton mais n'était pas
+                affiché : `kb1_lshift+f` se lisait « kb1 f », soit une autre
+                touche que celle réellement exigée. */}
+            {binding.modifier && (
               <>
-                <Key>{binding.device}</Key>
-                <Key>{binding.control}</Key>
+                <Key>{binding.modifier}</Key>
+                <span className="text-ink-400">+</span>
               </>
             )}
+            <Key>{binding.control}</Key>
           </span>
         ) : (
           <span className="text-xs italic text-ink-400">
@@ -823,6 +875,7 @@ function KeyboardCapture({
       }
     }
 
+
     function onKeyUp(event: KeyboardEvent) {
       const modifier = modifierOf(event.code);
       if (!modifier) return;
@@ -848,11 +901,34 @@ function KeyboardCapture({
     };
   }, []);
 
+  function apply(
+    result:
+      | { ok: true; value: CaptureResult }
+      | { ok: false; error: CaptureError },
+  ) {
+    if (result.ok) {
+      setCaptured(result.value);
+      setHint(null);
+    } else {
+      setCaptured(null);
+      setHint(captureErrorMessage(result.error));
+    }
+  }
+
   return (
     <div className="space-y-4">
+      {/* La souris n'est écoutée que dans cette zone, jamais sur la fenêtre :
+          un écouteur global capterait les clics sur « Annuler » et
+          « Confirmer », rendant le dialogue impossible à quitter. */}
       <div
+        onMouseDown={(e) => {
+          e.preventDefault();
+          apply(fromMouse(e.button, held.current));
+        }}
+        onWheel={(e) => apply(fromWheel(e.deltaY, held.current))}
+        onContextMenu={(e) => e.preventDefault()}
         className={
-          "rounded-lg border-2 border-dashed px-4 py-8 text-center " +
+          "cursor-pointer select-none rounded-lg border-2 border-dashed px-4 py-8 text-center " +
           (captured
             ? "border-accent-500 bg-accent-50"
             : "border-ink-300 bg-ink-50")
@@ -1047,7 +1123,9 @@ function DevicePicker({
               </p>
               <p className="mt-1 text-xs text-ink-400">
                 {capture.listening
-                  ? `${family.length} · ${t("probe.listening")}`
+                  ? `${family.length} ${t(
+                      family.length > 1 ? "probe.deviceMany" : "probe.deviceOne",
+                    )} · ${t("probe.listening")}`
                   : t("probe.opening")}
               </p>
             </>

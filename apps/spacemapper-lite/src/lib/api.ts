@@ -80,6 +80,8 @@ export interface EditableBinding {
   description: string | null;
   input_raw: string;
   device: string | null;
+  /** Touche modificatrice, ex. `lshift` dans `kb1_lshift+f`. */
+  modifier: string | null;
   control: string | null;
   /** Motif du verrouillage, ou `null` si l'assignation est modifiable. */
   lock: LockReason | null;

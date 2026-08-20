@@ -1,4 +1,4 @@
-import type { DeviceFamily, Filters } from "./lib/filter";
+import type { Filters, SetupMode } from "./lib/filter";
 import { isFiltering, NO_FILTERS } from "./lib/filter";
 import type { Origin } from "./lib/api";
 import type { Key } from "./lib/i18n";
@@ -29,12 +29,12 @@ export default function FilterBar({
     { id: "game_default", label: "filter.origin.default" },
   ];
 
-  const devices: { id: DeviceFamily | "all"; label: Key }[] = [
-    { id: "all", label: "filter.device.all" },
-    { id: "js", label: "filter.device.joystick" },
-    { id: "kb", label: "filter.device.keyboard" },
-    { id: "gp", label: "filter.device.gamepad" },
-    { id: "mo", label: "filter.device.mouse" },
+  // Trois façons de piloter, dans l'ordre où les joueurs les adoptent.
+  const modes: { id: SetupMode | "all"; label: Key }[] = [
+    { id: "all", label: "filter.mode.all" },
+    { id: "desk", label: "filter.mode.desk" },
+    { id: "gamepad", label: "filter.mode.gamepad" },
+    { id: "joystick", label: "filter.mode.joystick" },
   ];
 
   return (
@@ -60,14 +60,14 @@ export default function FilterBar({
           ))}
         </Group>
 
-        <Group label={t("filter.device")}>
-          {devices.map((d) => (
+        <Group label={t("filter.mode")}>
+          {modes.map((m) => (
             <Chip
-              key={d.id}
-              active={filters.device === d.id}
-              onClick={() => onChange({ ...filters, device: d.id })}
+              key={m.id}
+              active={filters.mode === m.id}
+              onClick={() => onChange({ ...filters, mode: m.id })}
             >
-              {t(d.label)}
+              {t(m.label)}
             </Chip>
           ))}
         </Group>

@@ -49,6 +49,11 @@ const FR = {
   "probe.idle":
     "Actionnez un bouton, un axe ou une touche : les commandes qui l'utilisent s'éclairent dans la liste.",
   "probe.noMatch": "Aucune commande de déplacement n'utilise ce contrôle.",
+  // Complètent un nombre affiché juste avant : « 3 commandes utilisent… ».
+  "probe.matchOne": "commande utilise ce contrôle.",
+  "probe.matchMany": "commandes utilisent ce contrôle.",
+  "probe.deviceOne": "périphérique",
+  "probe.deviceMany": "périphériques",
   "probe.listening": "à l'écoute",
   "probe.opening": "ouverture…",
   "probe.stopped": "à l'arrêt",
@@ -59,12 +64,11 @@ const FR = {
   "filter.origin.all": "Tout",
   "filter.origin.override": "Mes réglages",
   "filter.origin.default": "Réglages d'origine",
-  "filter.device": "Appareil",
-  "filter.device.all": "Tous",
-  "filter.device.joystick": "Manche",
-  "filter.device.keyboard": "Clavier",
-  "filter.device.gamepad": "Manette",
-  "filter.device.mouse": "Souris",
+  "filter.mode": "Pilotage",
+  "filter.mode.all": "Tous",
+  "filter.mode.desk": "Clavier + souris",
+  "filter.mode.gamepad": "Manette",
+  "filter.mode.joystick": "Joystick",
   "filter.editableOnly": "Modifiables seulement",
   "filter.showAll": "Tout afficher",
   "filter.noMatch":
@@ -121,12 +125,13 @@ const FR = {
   "backup.confirmKept":
     "L'état actuel sera conservé comme nouveau point de restauration : vous pourrez revenir en arrière.",
 
-  "picker.keyboard": "Clavier",
-  "picker.joystick": "Manche",
+  "picker.keyboard": "Clavier + souris",
+  "picker.joystick": "Joystick",
   "picker.gamepad": "Manette",
-  "picker.pressKey": "Appuyez sur la touche ou la combinaison souhaitée.",
+  "picker.pressKey":
+    "Appuyez sur la touche ou la combinaison souhaitée, ou cliquez ici avec le bouton de souris à assigner.",
   "picker.keyHint":
-    "Une touche modificatrice seule — Maj, Ctrl, Alt — est retenue quand vous la relâchez. La position physique de la touche est enregistrée, pas le caractère imprimé : c'est ainsi que Star Citizen raisonne.",
+    "Une touche modificatrice seule — Maj, Ctrl, Alt — est retenue quand vous la relâchez. La position physique de la touche est enregistrée, pas le caractère imprimé : c'est ainsi que Star Citizen raisonne. La molette et les clics se capturent dans le cadre ci-dessus uniquement, pour que les boutons du dialogue restent utilisables.",
   "picker.pressControl": "Actionnez le bouton, l'axe ou le chapeau souhaité.",
   "picker.noDevice":
     "Aucun périphérique de ce type détecté. Branchez-le : il apparaîtra en quelques secondes, sans redémarrer l'application.",
@@ -239,6 +244,10 @@ const EN: Record<Key, string> = {
   "probe.idle":
     "Press a button, move an axis or hit a key: the commands using it light up in the list.",
   "probe.noMatch": "No movement command uses this control.",
+  "probe.matchOne": "command uses this control.",
+  "probe.matchMany": "commands use this control.",
+  "probe.deviceOne": "device",
+  "probe.deviceMany": "devices",
   "probe.listening": "listening",
   "probe.opening": "opening…",
   "probe.stopped": "stopped",
@@ -249,12 +258,11 @@ const EN: Record<Key, string> = {
   "filter.origin.all": "All",
   "filter.origin.override": "My settings",
   "filter.origin.default": "Game defaults",
-  "filter.device": "Device",
-  "filter.device.all": "All",
-  "filter.device.joystick": "Stick",
-  "filter.device.keyboard": "Keyboard",
-  "filter.device.gamepad": "Gamepad",
-  "filter.device.mouse": "Mouse",
+  "filter.mode": "Control",
+  "filter.mode.all": "All",
+  "filter.mode.desk": "Keyboard + mouse",
+  "filter.mode.gamepad": "Gamepad",
+  "filter.mode.joystick": "Joystick",
   "filter.editableOnly": "Editable only",
   "filter.showAll": "Show all",
   "filter.noMatch": "No command matches. Widen the search or the filters.",
@@ -309,12 +317,13 @@ const EN: Record<Key, string> = {
   "backup.confirmKept":
     "The current state will be kept as a new restore point: you can go back.",
 
-  "picker.keyboard": "Keyboard",
-  "picker.joystick": "Stick",
+  "picker.keyboard": "Keyboard + mouse",
+  "picker.joystick": "Joystick",
   "picker.gamepad": "Gamepad",
-  "picker.pressKey": "Press the key or combination you want.",
+  "picker.pressKey":
+    "Press the key or combination you want, or click here with the mouse button to assign.",
   "picker.keyHint":
-    "A lone modifier — Shift, Ctrl, Alt — is captured when you release it. The physical key position is recorded, not the printed character: that is how Star Citizen works.",
+    "A lone modifier — Shift, Ctrl, Alt — is captured when you release it. The physical key position is recorded, not the printed character: that is how Star Citizen works. Clicks and the wheel are captured inside the frame above only, so the dialog buttons stay usable.",
   "picker.pressControl": "Press the button, axis or hat you want.",
   "picker.noDevice":
     "No device of this kind detected. Plug it in: it will appear within seconds, without restarting the application.",

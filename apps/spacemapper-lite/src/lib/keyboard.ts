@@ -80,6 +80,25 @@ const NAMED: Record<string, string> = {
   Pause: "pause",
 };
 
+/**
+ * Boutons de souris, nommés comme Star Citizen les nomme.
+ *
+ * `mouse1`, `mouse2`, `mouse3`, `mwheel_up` et `mwheel_down` sont relevés dans
+ * `defaultProfile.xml` — le jeu s'en sert pour ses propres défauts. Les clés
+ * sont les valeurs de `MouseEvent.button` : 0 gauche, 1 molette, 2 droit.
+ * Attention à l'inversion, le milieu vaut `mouse3` et le droit `mouse2`.
+ *
+ * `mouse4` et `mouse5` suivent la convention sans être attestés : le jeu
+ * n'assigne rien aux boutons latéraux par défaut.
+ */
+const MOUSE_BUTTONS: Record<number, string> = {
+  0: "mouse1",
+  1: "mouse3",
+  2: "mouse2",
+  3: "mouse4",
+  4: "mouse5",
+};
+
 export interface CaptureResult {
   /** Jeton complet à écrire, ex. `kb1_lshift+f`. */
   token: string;
@@ -138,6 +157,69 @@ export function fromKeyPress(
   }
 
   return { ok: true, value: build(heldModifiers[0] ?? null, key) };
+}
+
+/**
+ * Traduit un clic ou un cran de molette.
+ *
+ * Le préfixe est `mo1_` et non `kb1_` : le jeu traite la souris comme un
+ * périphérique distinct, même si le joueur, lui, la considère comme faisant
+ * corps avec son clavier.
+ */
+export function fromMouse(
+  button: number,
+  heldModifiers: string[],
+): { ok: true; value: CaptureResult } | { ok: false; error: CaptureError } {
+  if (heldModifiers.length > 1) {
+    return { ok: false, error: { kind: "too_many_modifiers" } };
+  }
+
+  const control = MOUSE_BUTTONS[button];
+  if (!control) {
+    return { ok: false, error: { kind: "unsupported", code: `mouse${button}` } };
+  }
+
+  return { ok: true, value: buildMouse(heldModifiers[0] ?? null, control) };
+}
+
+/** Cran de molette. `deltaY` négatif signifie vers le haut. */
+export function fromWheel(
+  deltaY: number,
+  heldModifiers: string[],
+): { ok: true; value: CaptureResult } | { ok: false; error: CaptureError } {
+  if (heldModifiers.length > 1) {
+    return { ok: false, error: { kind: "too_many_modifiers" } };
+  }
+  if (deltaY === 0) {
+    return { ok: false, error: { kind: "unsupported", code: "mwheel" } };
+  }
+
+  const control = deltaY < 0 ? "mwheel_up" : "mwheel_down";
+  return { ok: true, value: buildMouse(heldModifiers[0] ?? null, control) };
+}
+
+function buildMouse(modifier: string | null, control: string): CaptureResult {
+  const full = modifier ? `${modifier}+${control}` : control;
+  return {
+    token: `mo1_${full}`,
+    label: modifier
+      ? `${modifierLabel(modifier)} + ${mouseLabel(control)}`
+      : mouseLabel(control),
+  };
+}
+
+const MOUSE_LABELS: Record<string, string> = {
+  mouse1: "Clic gauche",
+  mouse2: "Clic droit",
+  mouse3: "Clic molette",
+  mouse4: "Bouton latéral 1",
+  mouse5: "Bouton latéral 2",
+  mwheel_up: "Molette haut",
+  mwheel_down: "Molette bas",
+};
+
+function mouseLabel(control: string): string {
+  return MOUSE_LABELS[control] ?? control;
 }
 
 function keyName(code: string): string | null {
