@@ -77,6 +77,9 @@ pub struct LiveDevice {
     pub product_guid: String,
     pub instance_guid: String,
     pub category: DeviceCategory,
+    pub axes: u32,
+    pub buttons: u32,
+    pub povs: u32,
     /// Rang parmi les périphériques de la même famille, à partir de 1.
     ///
     /// C'est le numéro que le jeu utilise vraisemblablement pour `jsN_` — il
@@ -177,6 +180,9 @@ fn live_devices(maps: &ActionMaps, devices: &[InputDevice]) -> Vec<LiveDevice> {
                 product_guid: d.product_guid.to_string(),
                 instance_guid: d.instance_guid.to_string(),
                 category: d.category,
+                axes: d.capabilities.axes,
+                buttons: d.capabilities.buttons,
+                povs: d.capabilities.povs,
                 rank: *rank,
                 // On compare au GUID **produit** : c'est celui que le jeu écrit.
                 declared_in_file: file_guids.iter().any(|g| **g == d.product_guid),

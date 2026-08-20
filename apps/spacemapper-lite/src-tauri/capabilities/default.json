@@ -1,0 +1,11 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Permissions de l'édition Lite. Tauri v2 refuse toute commande de plugin qui n'est pas listée ici : sans ce fichier, le sélecteur de fichier et le lien vers la page de vente échouent sans le moindre message. La liste est volontairement minimale — on n'accorde que les trois commandes réellement appelées.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "dialog:allow-open",
+    "opener:allow-open-url"
+  ]
+}

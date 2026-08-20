@@ -20,7 +20,10 @@ export type Lang = "fr" | "en";
  * manquante à l'écran.
  */
 const FR = {
-  "app.readOnlyNotice": "Sauvegarde automatique avant chaque modification",
+  // Vraie, et vérifiable : l'arbre de dépendances ne contient aucun client
+  // HTTP. L'ancienne mention promettait une sauvegarde automatique, qui
+  // n'existe plus depuis que les points de restauration sont manuels.
+  "app.readOnlyNotice": "Fonctionne hors ligne — aucune donnée ne sort de votre machine",
 
   "tab.overview": "Aperçu complet",
   "tab.edit": "Modifier les commandes",
@@ -151,6 +154,7 @@ const FR = {
 
   "staging.banner": "Pré-release",
   "loading": "Détection en cours…",
+  "upgrade.cta": "Découvrir SpaceMapper Premium — 15 €",
 
   "tab.diagnosis": "Périphériques",
   "diag.title": "Correspondance matériel",
@@ -190,6 +194,11 @@ const FR = {
   "diag.moreSlotsThanDevices":
     "Votre profil vise plus d'emplacements que de manches branchés",
 
+  "diag.wiggleHint":
+    "Bougez un manche : sa ligne s'allume. C'est le seul moyen sûr de savoir lequel est js1 et lequel est js2.",
+  "diag.notListening": "Écoute des périphériques inactive.",
+  "diag.captureFailed": "Écoute impossible :",
+
   "diag.premiumTitle": "La réparation est une fonction Premium",
   "diag.premiumBody":
     "Lite constate. Premium renumérote les emplacements, réécrit les préfixes correspondants et crée un point de restauration avant d'y toucher.",
@@ -198,7 +207,7 @@ const FR = {
 export type Key = keyof typeof FR;
 
 const EN: Record<Key, string> = {
-  "app.readOnlyNotice": "Automatic backup before every change",
+  "app.readOnlyNotice": "Works offline — no data leaves your machine",
 
   "tab.overview": "Full overview",
   "tab.edit": "Edit controls",
@@ -327,6 +336,7 @@ const EN: Record<Key, string> = {
 
   "staging.banner": "Pre-release",
   "loading": "Detecting…",
+  "upgrade.cta": "Discover SpaceMapper Premium — €15",
 
   "tab.diagnosis": "Devices",
   "diag.title": "Hardware match",
@@ -363,6 +373,11 @@ const EN: Record<Key, string> = {
   "diag.pluggedButUnused": "Plugged in, but no binding targets it",
   "diag.moreSlotsThanDevices":
     "Your profile targets more slots than you have sticks plugged in",
+
+  "diag.wiggleHint":
+    "Move a stick: its row lights up. This is the only reliable way to tell which one is js1 and which is js2.",
+  "diag.notListening": "Device listening is off.",
+  "diag.captureFailed": "Cannot listen:",
 
   "diag.premiumTitle": "Repair is a Premium feature",
   "diag.premiumBody":

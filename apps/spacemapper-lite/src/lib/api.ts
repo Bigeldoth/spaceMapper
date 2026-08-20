@@ -132,6 +132,9 @@ export interface LiveDevice {
   product_guid: string;
   instance_guid: string;
   category: DeviceCategory;
+  axes: number;
+  buttons: number;
+  povs: number;
   /** Rang dans l'énumération, par famille, à partir de 1. */
   rank: number;
   declared_in_file: boolean;

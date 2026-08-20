@@ -10,7 +10,6 @@ import {
   type ProfileLocation,
 } from "./lib/api";
 import { actionLabel, categoryLabel, isKnownAction } from "./lib/actionLabels";
-import { devicePrefix } from "./lib/controls";
 import BindingEditor from "./BindingEditor";
 import DiagnosisPanel from "./DiagnosisPanel";
 import SettingsPanel from "./SettingsPanel";
@@ -138,12 +137,20 @@ function Workspace({
   }, [selected]);
 
   async function browseForProfile() {
-    const picked = await open({
-      title: "Choisir un actionmaps.xml",
-      multiple: false,
-      filters: [{ name: "Profil Star Citizen", extensions: ["xml"] }],
-    });
-    if (typeof picked === "string") setSelected(picked);
+    // Le `catch` n'est pas décoratif : un refus d'autorisation Tauri rejette
+    // la promesse sans rien afficher, et le bouton paraît alors simplement
+    // mort. C'est exactement le symptôme qu'a produit l'absence de fichier de
+    // capacités.
+    try {
+      const picked = await open({
+        title: t("profile.browse"),
+        multiple: false,
+        filters: [{ name: "Star Citizen", extensions: ["xml"] }],
+      });
+      if (typeof picked === "string") setSelected(picked);
+    } catch (e) {
+      setError(String(e));
+    }
   }
 
   return (
@@ -155,7 +162,6 @@ function Workspace({
           <p className="text-sm text-ink-500">{t("loading")}</p>
         ) : (
           <div className="space-y-8">
-            <DeviceSection devices={devices} />
             <ProfileSection
               profiles={profiles}
               selected={selected}
@@ -170,7 +176,7 @@ function Workspace({
                 {tab === "overview" &&
                   bindings && <BindingsSection bindings={bindings} />}
                 {tab === "diagnosis" && (
-                  <DiagnosisPanel profilePath={selected} />
+                  <DiagnosisPanel profilePath={selected} devices={devices} />
                 )}
                 {tab === "edit" && (
                   <BindingEditor
@@ -300,49 +306,6 @@ function Card({ children }: { children: React.ReactNode }) {
     <div className="overflow-hidden rounded-lg border border-ink-200 bg-white">
       {children}
     </div>
-  );
-}
-
-function DeviceSection({ devices }: { devices: DeviceView[] }) {
-  const t = useT();
-  return (
-    <Section
-      title={`${t("devices.title")} (${devices.length})`}
-      hint={t("devices.hint")}
-    >
-      <Card>
-        {devices.length === 0 ? (
-          <EmptyState text={t("devices.empty")} />
-        ) : (
-          <ul className="divide-y divide-ink-100">
-            {devices.map((d) => (
-              <li
-                key={d.instance_guid}
-                className="flex items-center justify-between gap-6 px-4 py-3"
-              >
-                <div className="min-w-0">
-                  <p className="flex items-center gap-2 truncate text-sm font-medium text-ink-900">
-                    {/* Le préfixe est ce que le jeu écrira : l'afficher permet
-                        de vérifier soi-même la correspondance. */}
-                    <span className="technical rounded bg-ink-100 px-1.5 py-0.5 text-ink-600">
-                      {devicePrefix(devices, d)}
-                    </span>
-                    {d.product_name || d.instance_name || "Périphérique inconnu"}
-                  </p>
-                  <p className="technical mt-0.5 truncate text-ink-400">
-                    {d.instance_guid}
-                  </p>
-                </div>
-                <p className="shrink-0 text-xs text-ink-500">
-                  {d.axes} {t("devices.axes")} · {d.buttons}{" "}
-                  {t("devices.buttons")} · {d.povs} {t("devices.hats")}
-                </p>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
-    </Section>
   );
 }
 
@@ -528,12 +491,13 @@ function CorruptNotice({ count }: { count: number }) {
 }
 
 function UpgradeLink() {
+  const t = useT();
   return (
     <button
-      onClick={() => void openUrl(TIPEEE_URL)}
+      onClick={() => void openUrl(TIPEEE_URL).catch(() => {})}
       className="mt-3 rounded-md bg-accent-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-700"
     >
-      Découvrir SpaceMapper Premium — 15 €
+      {t("upgrade.cta")}
     </button>
   );
 }

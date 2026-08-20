@@ -69,6 +69,7 @@ pub fn start_capture(
     );
 
     if parsed.is_empty() {
+        eprintln!("[capture] refus : aucun identifiant exploitable");
         return Err(format!(
             "aucun périphérique exploitable parmi {} identifiant(s)",
             guids.len()
@@ -80,10 +81,22 @@ pub fn start_capture(
     // thread, et `HWND` n'est pas `Send`.
     let hwnd = window
         .hwnd()
-        .map_err(|e| format!("fenêtre inaccessible: {e}"))?
+        .map_err(|e| {
+            eprintln!("[capture] refus : fenêtre inaccessible — {e}");
+            format!("fenêtre inaccessible: {e}")
+        })?
         .0 as isize;
 
-    let mut guard = state.inner.lock().map_err(|_| "état de capture corrompu")?;
+    let mut guard = state.inner.lock().map_err(|_| {
+        eprintln!("[capture] refus : état de capture corrompu");
+        "état de capture corrompu"
+    })?;
+    if let Some(previous) = guard.as_ref() {
+        eprintln!(
+            "[capture] la session {} est remplacée par une nouvelle",
+            previous.id
+        );
+    }
     stop_session(&mut guard);
 
     let id = state.next_id.fetch_add(1, Ordering::Relaxed) + 1;
@@ -105,6 +118,9 @@ pub fn start_capture(
                 running: Arc::clone(&running),
             };
 
+            // Repère d'entrée : sans lui, un thread bloqué *dans* l'ouverture
+            // est indiscernable d'un thread qui n'a jamais démarré.
+            eprintln!("[capture] session {id} : ouverture de {} périphérique(s)…", parsed.len());
             let (session, failures) = MultiCaptureSession::open(&parsed, hwnd);
             eprintln!(
                 "[capture] session {id} : {} ouvert(s), {} échec(s){}",
@@ -229,8 +245,14 @@ pub fn clear_capture(state: tauri::State<'_, CaptureState>) -> CmdResult<()> {
 #[tauri::command]
 pub fn stop_capture(state: tauri::State<'_, CaptureState>, id: u64) -> CmdResult<()> {
     let mut guard = state.inner.lock().map_err(|_| "état de capture corrompu")?;
-    if guard.as_ref().is_some_and(|s| s.id == id) {
+    let current = guard.as_ref().map(|s| s.id);
+    if current == Some(id) {
+        eprintln!("[capture] arrêt demandé de la session courante {id}");
         stop_session(&mut guard);
+    } else {
+        // Trace décisive : distingue « l'interface a fermé la session » d'un
+        // arrêt tardif venu d'un montage précédent, qui lui est sans effet.
+        eprintln!("[capture] arrêt ignoré de la session {id} (courante : {current:?})");
     }
     Ok(())
 }
