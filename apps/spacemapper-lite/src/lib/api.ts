@@ -78,6 +78,8 @@ export interface EditableBinding {
   label: string | null;
   /** Description fournie par le jeu. Souvent vide hors anglais. */
   description: string | null;
+  /** Situation de jeu où cette commande répond. Décide des conflits. */
+  context: Context;
   input_raw: string;
   device: string | null;
   /** Touche modificatrice, ex. `lshift` dans `kb1_lshift+f`. */
@@ -99,10 +101,35 @@ export type LockReason =
   | "has_modifier"
   | "has_activation_mode";
 
+/**
+ * Situation de jeu où une commande répond.
+ *
+ * Deux commandes ne se disputent un bouton que si elles peuvent être actives
+ * en même temps : on ne marche pas en pilotant.
+ */
+export type Context =
+  | "on_foot"
+  | "ship_seat"
+  | "ship_scanning"
+  | "ship_mining"
+  | "ship_salvage"
+  | "turret"
+  | "eva"
+  | "ground_vehicle"
+  | "always"
+  | "out_of_game";
+
 export interface MergedBindings {
   bindings: EditableBinding[];
   /** Motif d'indisponibilité des valeurs par défaut, le cas échéant. */
   defaults_error: string | null;
+  /**
+   * Couples de situations qui peuvent coexister, calculés par le backend.
+   *
+   * La règle vit en Rust, où elle est testée. La réimplémenter ici
+   * garantirait de la voir diverger au premier patch du jeu.
+   */
+  colliding_contexts: [Context, Context][];
 }
 
 /** Une modification en attente d'enregistrement. `input: null` efface. */
@@ -194,6 +221,46 @@ export interface Settings {
   version: number;
 }
 
+/** Un profil exporté trouvé dans `Controls\mappings`. */
+export interface LayoutFile {
+  path: string;
+  file_name: string;
+  label: string | null;
+  description: string | null;
+  bindings: number;
+}
+
+/** Périphérique attendu par un profil, confronté au matériel branché. */
+export interface ExpectedDevice {
+  slot: string;
+  kind: string;
+  product_name: string | null;
+  guid: string | null;
+  /** 0 : appareil absent. 2+ : le GUID ne désigne pas lequel. */
+  matching_devices: number;
+  bindings: number;
+}
+
+export interface CategorySummary {
+  actionmap: string;
+  bindings: number;
+}
+
+export interface LayoutInspection {
+  path: string;
+  file_name: string;
+  label: string | null;
+  description: string | null;
+  profile_name: string | null;
+  expected_devices: ExpectedDevice[];
+  categories: CategorySummary[];
+  bindings: number;
+  corrupt: number;
+  with_modifier: number;
+  with_activation_mode: number;
+  with_multi_tap: number;
+}
+
 export const api = {
   listDevices: () => invoke<DeviceView[]>("list_devices"),
   locateActionmaps: () => invoke<ProfileLocation[]>("locate_actionmaps"),
@@ -204,6 +271,13 @@ export const api = {
   /** Confronte le profil au matériel branché. */
   diagnoseDevices: (path: string) =>
     invoke<Diagnosis>("diagnose_devices", { path }),
+
+  /** Profils exportés présents dans `Controls\mappings`. */
+  listLayouts: (path: string) => invoke<LayoutFile[]>("list_layouts", { path }),
+
+  /** Détaille un profil exporté, sans rien y écrire. */
+  inspectLayout: (path: string) =>
+    invoke<LayoutInspection>("inspect_layout", { path }),
 
   /** Surcharges du joueur fusionnées avec les valeurs par défaut du jeu. */
   listEditableBindings: (path: string) =>

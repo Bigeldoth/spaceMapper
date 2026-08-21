@@ -9,41 +9,75 @@
  */
 
 import type { DeviceView } from "./api";
+import type { Key } from "./i18n";
 
 /** Axes DirectInput, dans l'ordre où le jeu les nomme. */
 const AXES = ["x", "y", "z", "rotx", "roty", "rotz", "slider1", "slider2"];
 
 const HAT_DIRECTIONS = ["up", "right", "down", "left"];
 
+/** Voir la note du même nom dans `keyboard.ts`. */
+type Translate = (key: Key) => string;
+
+/** Famille de contrôle, pour regrouper la liste déroulante. */
+export type ControlGroup = "buttons" | "axes" | "hats";
+
 export interface ControlOption {
   /** Valeur écrite dans le XML, ex. `button12`. */
   value: string;
   /** Libellé affiché, ex. « Bouton 12 ». */
   label: string;
-  group: "Boutons" | "Axes" | "Chapeaux";
+  /**
+   * Code de famille, et non son nom traduit : le regroupement doit survivre
+   * à un changement de langue.
+   */
+  group: ControlGroup;
+}
+
+/** Titre traduit d'une famille de contrôles. */
+export function groupLabel(group: ControlGroup, t: Translate): string {
+  switch (group) {
+    case "buttons":
+      return t("control.buttons");
+    case "axes":
+      return t("control.axes");
+    case "hats":
+      return t("control.hats");
+  }
 }
 
 /** Contrôles disponibles sur un périphérique donné. */
-export function controlsFor(device: DeviceView): ControlOption[] {
+export function controlsFor(
+  device: DeviceView,
+  t: Translate,
+): ControlOption[] {
   const options: ControlOption[] = [];
 
   for (let i = 1; i <= device.buttons; i++) {
-    options.push({ value: `button${i}`, label: `Bouton ${i}`, group: "Boutons" });
+    options.push({
+      value: `button${i}`,
+      label: `${t("control.button")} ${i}`,
+      group: "buttons",
+    });
   }
 
   // DirectInput ne dit pas *lesquels* des axes sont présents, seulement
   // combien. On expose donc les premiers de la convention, ce qui couvre les
   // manches courants sans inventer d'axes exotiques.
   for (const axis of AXES.slice(0, device.axes)) {
-    options.push({ value: axis, label: `Axe ${axis}`, group: "Axes" });
+    options.push({
+      value: axis,
+      label: `${t("control.axis")} ${axis}`,
+      group: "axes",
+    });
   }
 
   for (let hat = 1; hat <= device.povs; hat++) {
     for (const direction of HAT_DIRECTIONS) {
       options.push({
         value: `hat${hat}_${direction}`,
-        label: `Chapeau ${hat} — ${directionLabel(direction)}`,
-        group: "Chapeaux",
+        label: `${t("control.hat")} ${hat} — ${directionLabel(direction, t)}`,
+        group: "hats",
       });
     }
   }
@@ -57,29 +91,31 @@ export function controlsFor(device: DeviceView): ControlOption[] {
  * La capture renvoie le nom technique (`hat1_up`) ; l'utilisateur doit
  * reconnaître ce qu'il vient d'actionner sans avoir à décoder.
  */
-export function controlLabel(control: string): string {
+export function controlLabel(control: string, t: Translate): string {
   const button = /^button(\d+)$/.exec(control);
-  if (button) return `Bouton ${button[1]}`;
+  if (button) return `${t("control.button")} ${button[1]}`;
 
   const hat = /^hat(\d+)_(\w+)$/.exec(control);
-  if (hat) return `Chapeau ${hat[1]} — ${directionLabel(hat[2]!)}`;
+  if (hat) {
+    return `${t("control.hat")} ${hat[1]} — ${directionLabel(hat[2]!, t)}`;
+  }
 
   const slider = /^slider(\d+)$/.exec(control);
-  if (slider) return `Curseur ${slider[1]}`;
+  if (slider) return `${t("control.slider")} ${slider[1]}`;
 
-  return `Axe ${control}`;
+  return `${t("control.axis")} ${control}`;
 }
 
-function directionLabel(direction: string): string {
+function directionLabel(direction: string, t: Translate): string {
   switch (direction) {
     case "up":
-      return "haut";
+      return t("control.up");
     case "down":
-      return "bas";
+      return t("control.down");
     case "left":
-      return "gauche";
+      return t("control.left");
     case "right":
-      return "droite";
+      return t("control.right");
     default:
       return direction;
   }

@@ -20,12 +20,8 @@ export type Lang = "fr" | "en";
  * manquante à l'écran.
  */
 const FR = {
-  // Vraie, et vérifiable : l'arbre de dépendances ne contient aucun client
-  // HTTP. L'ancienne mention promettait une sauvegarde automatique, qui
-  // n'existe plus depuis que les points de restauration sont manuels.
-  "app.readOnlyNotice": "Fonctionne hors ligne — aucune donnée ne sort de votre machine",
-
-  "tab.edit": "Modifier les commandes",
+  "tab.edit": "Commandes",
+  "tab.layouts": "Profils partagés",
   "tab.settings": "Réglages",
 
   "devices.empty":
@@ -35,17 +31,46 @@ const FR = {
   "devices.hats": "chapeaux",
 
   "profile.title": "Profil analysé",
+  "profile.hint":
+    "Le fichier de Star Citizen que SpaceMapper lit et modifie. Détecté automatiquement dans la plupart des cas.",
   "profile.browse": "Choisir un fichier…",
   "profile.none": "Aucune installation détectée automatiquement.",
+  "profile.goToSettings": "Choisir un profil",
 
-  "scope.title":
+  "layout.title": "Profils partagés",
+  "layout.hint":
+    "Les dispositions exportées, celles que s'échange la communauté. Star Citizen sait les charger mais n'en montre rien avant : voici ce qu'elles contiennent et si elles correspondent à votre matériel.",
+  "layout.empty":
+    "Aucun profil exporté trouvé. Ils se rangent dans le dossier Controls\\mappings de votre installation.",
+  "layout.noProfile": "Choisissez d'abord un profil dans les Réglages.",
+  "layout.pick": "Sélectionnez un profil pour l'examiner.",
+  "layout.bindings": "assignations",
+  "layout.categories": "Catégories",
+  "layout.advanced": "avancées",
+  "layout.corrupt": "illisibles",
+  "layout.expects": "Matériel attendu",
+  "layout.expectsHint":
+    "Le profil désigne ses périphériques par modèle. Deux manches identiques partagent le même identifiant : rien n'y dit lequel l'auteur tenait de la main droite.",
+  "layout.unnamedDevice": "périphérique sans nom",
+  "layout.devicePresent": "branché",
+  "layout.deviceMissing": "absent",
+  "layout.deviceAmbiguous": "indiscernables",
+  "layout.premiumTitle": "Ce profil dépasse le périmètre de l'édition Lite",
+  "layout.premiumBody":
+    "Une partie de ses assignations emploie des mécanismes que Lite affiche mais ne modifie pas.",
+  "layout.withModifier": "avec une touche modificatrice",
+  "layout.withActivation": "avec un mode d'activation",
+  "layout.withMultiTap": "avec un multi-appui",
+
+  // Titre court : l'info-bulle a besoin d'un en-tête, pas d'un paragraphe.
+  "scope.title": "Ce que l'édition Lite peut modifier",
+  "scope.lite":
     "L'édition Lite couvre tout ce qu'il faut pour décoller, se déplacer et se poser. Les autres catégories sont affichées mais verrouillées.",
   "scope.defaults":
     "Les commandes marquées « défaut » viennent des réglages d'origine du jeu : elles fonctionnent sans figurer dans votre fichier, et les modifier y crée une surcharge.",
   "scope.closeGame":
     "Rien n'est écrit tant que vous n'avez pas enregistré. Fermez Star Citizen avant d'éditer : le jeu réécrit ce fichier en quittant et écraserait vos changements.",
 
-  "probe.title": "Identifier une commande",
   "probe.idle":
     "Actionnez un bouton, un axe ou une touche : les commandes qui l'utilisent s'éclairent dans la liste.",
   "probe.noMatch": "Aucune commande de déplacement n'utilise ce contrôle.",
@@ -60,10 +85,8 @@ const FR = {
   "probe.clear": "Effacer",
 
   "filter.placeholder": "Rechercher une commande, une touche, un bouton…",
-  "filter.origin": "Origine",
-  "filter.origin.all": "Tout",
-  "filter.origin.override": "Mes réglages",
-  "filter.origin.default": "Réglages d'origine",
+  "filter.unassigned": "Non assignées",
+  "filter.conflicts": "Conflits",
   "filter.mode": "Pilotage",
   "filter.mode.all": "Tous",
   "filter.mode.desk": "Clavier + souris",
@@ -117,7 +140,7 @@ const FR = {
   "backup.empty": "Aucun point de restauration.",
   "backup.restore": "Restaurer",
   "backup.delete": "Supprimer",
-  "backup.deleted": "Point de restauration supprimé.",
+  "backup.created": "Point de restauration créé.",
   "backup.confirmDeleteTitle": "Supprimer ce point de restauration ?",
   "backup.confirmDeleteBody":
     "La suppression est définitive : ce point ne pourra plus être restauré. Votre profil de jeu, lui, n'est pas touché.",
@@ -158,10 +181,84 @@ const FR = {
   "defaults.unavailableHint":
     "Seules vos modifications enregistrées sont affichées. Une configuration qui fonctionne repose en grande partie sur les réglages d'origine, absents de votre fichier.",
 
+  // Noms de touches et de contrôles. Ils vivaient en dur dans `keyboard.ts` et
+  // `controls.ts`, qui ne connaissent pas la langue de l'interface : le
+  // sélecteur restait en français même en anglais.
+  "key.lshift": "Maj gauche",
+  "key.rshift": "Maj droite",
+  "key.lctrl": "Ctrl gauche",
+  "key.rctrl": "Ctrl droit",
+  "key.lalt": "Alt gauche",
+  "key.ralt": "Alt Gr",
+  "key.space": "Espace",
+  "key.enter": "Entrée",
+  "key.escape": "Échap",
+  "key.tab": "Tab",
+  "key.backspace": "Retour arrière",
+  "key.capslock": "Verr. Maj",
+  "key.up": "Flèche haut",
+  "key.down": "Flèche bas",
+  "key.left": "Flèche gauche",
+  "key.right": "Flèche droite",
+  "key.insert": "Inser",
+  "key.delete": "Suppr",
+  "key.home": "Origine",
+  "key.end": "Fin",
+  "key.pgup": "Page préc.",
+  "key.pgdn": "Page suiv.",
+  "key.numpad": "Pavé num.",
+  "key.mouse1": "Clic gauche",
+  "key.mouse2": "Clic droit",
+  "key.mouse3": "Clic molette",
+  "key.mouse4": "Bouton latéral 1",
+  "key.mouse5": "Bouton latéral 2",
+  "key.mwheelUp": "Molette haut",
+  "key.mwheelDown": "Molette bas",
+
+  "control.buttons": "Boutons",
+  "control.axes": "Axes",
+  "control.hats": "Chapeaux",
+  "control.button": "Bouton",
+  "control.axis": "Axe",
+  "control.hat": "Chapeau",
+  "control.slider": "Curseur",
+  "control.up": "haut",
+  "control.down": "bas",
+  "control.left": "gauche",
+  "control.right": "droite",
+
+  "capture.tooManyModifiers":
+    "Star Citizen n'accepte qu'un seul modificateur par raccourci.",
+  "capture.unsupported": "Touche non reconnue. Choisissez-en une autre.",
+
   "staging.banner": "Pré-release",
+  "staging.isolated":
+    "données isolées dans %APPDATA%\\SpaceMapper-Staging",
   "loading": "Détection en cours…",
-  "upgrade.cta": "Découvrir SpaceMapper Premium — 15 €",
+  // Sans prix : il n'est pas arrêté, et une tarification affichée dans une
+  // version déjà distribuée est difficile à reprendre.
+  "upgrade.cta": "Découvrir SpaceMapper Premium",
   "error.title": "Lecture impossible",
+
+  "detail.empty": "Sélectionnez une commande pour voir son détail.",
+  "detail.assignment": "Assignation",
+  "detail.activeIn": "Active :",
+  "conflict.badge": "Ce contrôle est partagé avec une autre commande active en même temps",
+  "conflict.oneBody": "autre commande répond au même contrôle en même temps",
+  "conflict.manyBody": "autres commandes répondent au même contrôle en même temps",
+
+  // Situations de jeu. Deux commandes ne se disputent un bouton que si elles
+  // peuvent répondre ensemble : on ne marche pas en pilotant.
+  "context.on_foot": "à pied",
+  "context.ship_seat": "aux commandes",
+  "context.ship_scanning": "en mode scan",
+  "context.ship_mining": "en mode minage",
+  "context.ship_salvage": "en mode récupération",
+  "context.turret": "en tourelle",
+  "context.eva": "en apesanteur",
+  "context.ground_vehicle": "au volant",
+  "context.always": "en toute situation",
+  "context.out_of_game": "hors jeu",
 
   "diag.corruptBindings": "Assignations que le jeu ne saura pas relire",
   "diag.corruptBindingsDetail":
@@ -176,7 +273,6 @@ const FR = {
   "diag.slotsTitle": "Emplacements utilisés",
   "diag.noProfile": "Choisissez un profil pour lancer le diagnostic.",
   "diag.refresh": "Actualiser",
-  "diag.rank": "Rang d'énumération",
   "diag.rankHint":
     "Le jeu numérote js1, js2… dans cet ordre. Cet ordre change quand vous rebranchez un manche ailleurs, et c'est ce qui inverse vos commandes.",
   "diag.matched": "Reconnu dans le profil",
@@ -185,7 +281,6 @@ const FR = {
   "diag.slotNamed": "périphérique nommé",
   "diag.slotAnonymous": "aucun périphérique nommé",
   "diag.guidProduct": "GUID de modèle",
-  "diag.guidInstance": "GUID d'exemplaire",
   "diag.noFindings":
     "Rien à signaler : votre profil et votre matériel concordent.",
   "diag.findingsTitle": "Constats",
@@ -218,9 +313,8 @@ const FR = {
 export type Key = keyof typeof FR;
 
 const EN: Record<Key, string> = {
-  "app.readOnlyNotice": "Works offline — no data leaves your machine",
-
-  "tab.edit": "Edit controls",
+  "tab.edit": "Controls",
+  "tab.layouts": "Shared profiles",
   "tab.settings": "Settings",
 
   "devices.empty":
@@ -230,17 +324,45 @@ const EN: Record<Key, string> = {
   "devices.hats": "hats",
 
   "profile.title": "Profile in use",
+  "profile.hint":
+    "The Star Citizen file SpaceMapper reads and edits. Detected automatically in most cases.",
   "profile.browse": "Choose a file…",
   "profile.none": "No installation detected automatically.",
+  "profile.goToSettings": "Choose a profile",
 
-  "scope.title":
+  "layout.title": "Shared profiles",
+  "layout.hint":
+    "Exported layouts, the ones the community trades. Star Citizen can load them but shows nothing beforehand: here is what they contain and whether they match your hardware.",
+  "layout.empty":
+    "No exported profile found. They live in the Controls\\mappings folder of your installation.",
+  "layout.noProfile": "Pick a profile in Settings first.",
+  "layout.pick": "Select a profile to inspect it.",
+  "layout.bindings": "bindings",
+  "layout.categories": "Categories",
+  "layout.advanced": "advanced",
+  "layout.corrupt": "unreadable",
+  "layout.expects": "Expected hardware",
+  "layout.expectsHint":
+    "The profile names its devices by model. Two identical sticks share the same id: nothing in it says which one the author held in their right hand.",
+  "layout.unnamedDevice": "unnamed device",
+  "layout.devicePresent": "plugged in",
+  "layout.deviceMissing": "missing",
+  "layout.deviceAmbiguous": "indistinguishable",
+  "layout.premiumTitle": "This profile goes beyond the Lite edition",
+  "layout.premiumBody":
+    "Some of its bindings use mechanisms Lite displays but does not edit.",
+  "layout.withModifier": "with a modifier key",
+  "layout.withActivation": "with an activation mode",
+  "layout.withMultiTap": "with a multi-tap",
+
+  "scope.title": "What the Lite edition can change",
+  "scope.lite":
     "The Lite edition covers everything needed to take off, fly and land. Other categories are shown but locked.",
   "scope.defaults":
     "Controls marked “default” come from the game's own settings: they work without appearing in your file, and changing one writes an override.",
   "scope.closeGame":
     "Nothing is written until you save. Close Star Citizen before editing: the game rewrites this file on exit and would discard your changes.",
 
-  "probe.title": "Identify a control",
   "probe.idle":
     "Press a button, move an axis or hit a key: the commands using it light up in the list.",
   "probe.noMatch": "No movement command uses this control.",
@@ -254,10 +376,8 @@ const EN: Record<Key, string> = {
   "probe.clear": "Clear",
 
   "filter.placeholder": "Search a command, a key, a button…",
-  "filter.origin": "Origin",
-  "filter.origin.all": "All",
-  "filter.origin.override": "My settings",
-  "filter.origin.default": "Game defaults",
+  "filter.unassigned": "Unassigned",
+  "filter.conflicts": "Conflicts",
   "filter.mode": "Control",
   "filter.mode.all": "All",
   "filter.mode.desk": "Keyboard + mouse",
@@ -309,7 +429,7 @@ const EN: Record<Key, string> = {
   "backup.empty": "No restore point.",
   "backup.restore": "Restore",
   "backup.delete": "Delete",
-  "backup.deleted": "Restore point deleted.",
+  "backup.created": "Restore point created.",
   "backup.confirmDeleteTitle": "Delete this restore point?",
   "backup.confirmDeleteBody":
     "Deletion is permanent: this point can no longer be restored. Your game profile itself is untouched.",
@@ -350,10 +470,78 @@ const EN: Record<Key, string> = {
   "defaults.unavailableHint":
     "Only your saved changes are shown. A working configuration relies largely on the game's own settings, which are absent from your file.",
 
+  "key.lshift": "Left Shift",
+  "key.rshift": "Right Shift",
+  "key.lctrl": "Left Ctrl",
+  "key.rctrl": "Right Ctrl",
+  "key.lalt": "Left Alt",
+  "key.ralt": "Right Alt",
+  "key.space": "Space",
+  "key.enter": "Enter",
+  "key.escape": "Esc",
+  "key.tab": "Tab",
+  "key.backspace": "Backspace",
+  "key.capslock": "Caps Lock",
+  "key.up": "Arrow up",
+  "key.down": "Arrow down",
+  "key.left": "Arrow left",
+  "key.right": "Arrow right",
+  "key.insert": "Insert",
+  "key.delete": "Delete",
+  "key.home": "Home",
+  "key.end": "End",
+  "key.pgup": "Page Up",
+  "key.pgdn": "Page Down",
+  "key.numpad": "Numpad",
+  "key.mouse1": "Left click",
+  "key.mouse2": "Right click",
+  "key.mouse3": "Middle click",
+  "key.mouse4": "Side button 1",
+  "key.mouse5": "Side button 2",
+  "key.mwheelUp": "Wheel up",
+  "key.mwheelDown": "Wheel down",
+
+  "control.buttons": "Buttons",
+  "control.axes": "Axes",
+  "control.hats": "Hats",
+  "control.button": "Button",
+  "control.axis": "Axis",
+  "control.hat": "Hat",
+  "control.slider": "Slider",
+  "control.up": "up",
+  "control.down": "down",
+  "control.left": "left",
+  "control.right": "right",
+
+  "capture.tooManyModifiers":
+    "Star Citizen accepts only one modifier per binding.",
+  "capture.unsupported": "Key not recognised. Please choose another one.",
+
   "staging.banner": "Pre-release",
+  "staging.isolated": "data isolated in %APPDATA%\\SpaceMapper-Staging",
   "loading": "Detecting…",
-  "upgrade.cta": "Discover SpaceMapper Premium — €15",
+  "upgrade.cta": "Discover SpaceMapper Premium",
   "error.title": "Cannot read this file",
+
+  "detail.empty": "Select a command to see its details.",
+  "detail.assignment": "Assignment",
+  "detail.activeIn": "Active:",
+  "conflict.badge":
+    "This control is shared with another command active at the same time",
+  "conflict.oneBody": "other command answers the same control at the same time",
+  "conflict.manyBody":
+    "other commands answer the same control at the same time",
+
+  "context.on_foot": "on foot",
+  "context.ship_seat": "at the controls",
+  "context.ship_scanning": "in scan mode",
+  "context.ship_mining": "in mining mode",
+  "context.ship_salvage": "in salvage mode",
+  "context.turret": "in a turret",
+  "context.eva": "in zero-g",
+  "context.ground_vehicle": "driving",
+  "context.always": "in every situation",
+  "context.out_of_game": "outside gameplay",
 
   "diag.corruptBindings": "Bindings the game will not be able to read",
   "diag.corruptBindingsDetail":
@@ -368,7 +556,6 @@ const EN: Record<Key, string> = {
   "diag.slotsTitle": "Slots in use",
   "diag.noProfile": "Pick a profile to run the diagnosis.",
   "diag.refresh": "Refresh",
-  "diag.rank": "Enumeration rank",
   "diag.rankHint":
     "The game numbers js1, js2… in this order. The order changes when you move a stick to another port, and that is what swaps your controls.",
   "diag.matched": "Found in profile",
@@ -377,7 +564,6 @@ const EN: Record<Key, string> = {
   "diag.slotNamed": "device named",
   "diag.slotAnonymous": "no device named",
   "diag.guidProduct": "Model GUID",
-  "diag.guidInstance": "Unit GUID",
   "diag.noFindings": "Nothing to report: your profile and hardware agree.",
   "diag.findingsTitle": "Findings",
 

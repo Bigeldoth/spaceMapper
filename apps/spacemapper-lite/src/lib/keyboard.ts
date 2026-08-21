@@ -25,6 +25,8 @@
  * attestée majoritairement.
  */
 
+import type { Key } from "./i18n";
+
 /** Modificateurs, reconnus séparément de la touche principale. */
 const MODIFIERS: Record<string, string> = {
   ShiftLeft: "lshift",
@@ -102,9 +104,20 @@ const MOUSE_BUTTONS: Record<number, string> = {
 export interface CaptureResult {
   /** Jeton complet à écrire, ex. `kb1_lshift+f`. */
   token: string;
-  /** Libellé lisible, ex. « Maj gauche + F ». */
-  label: string;
+  /** Nom Star Citizen du modificateur maintenu, ou `null`. */
+  modifier: string | null;
+  /** Nom Star Citizen du contrôle, ex. `f`, `mouse1`, `np_5`. */
+  control: string;
 }
+
+/**
+ * Fonction de traduction, telle que la fournit `useT`.
+ *
+ * Le libellé lisible n'est plus calculé ici : ce module ne connaît pas la
+ * langue de l'interface, et les noms qu'il produisait — « Maj gauche »,
+ * « Clic droit » — restaient en français quel que soit le réglage.
+ */
+type Translate = (key: Key) => string;
 
 export type CaptureError =
   | { kind: "too_many_modifiers" }
@@ -124,13 +137,8 @@ export function modifierOf(code: string): string | null {
  * touche droite serait écrite comme si elle venait de la gauche.
  */
 export function build(modifier: string | null, key: string): CaptureResult {
-  const control = modifier ? `${modifier}+${key}` : key;
-  return {
-    token: `kb1_${control}`,
-    label: modifier
-      ? `${modifierLabel(modifier)} + ${keyLabel(key)}`
-      : keyLabel(key),
-  };
+  const full = modifier ? `${modifier}+${key}` : key;
+  return { token: `kb1_${full}`, modifier, control: key };
 }
 
 /**
@@ -200,26 +208,7 @@ export function fromWheel(
 
 function buildMouse(modifier: string | null, control: string): CaptureResult {
   const full = modifier ? `${modifier}+${control}` : control;
-  return {
-    token: `mo1_${full}`,
-    label: modifier
-      ? `${modifierLabel(modifier)} + ${mouseLabel(control)}`
-      : mouseLabel(control),
-  };
-}
-
-const MOUSE_LABELS: Record<string, string> = {
-  mouse1: "Clic gauche",
-  mouse2: "Clic droit",
-  mouse3: "Clic molette",
-  mouse4: "Bouton latéral 1",
-  mouse5: "Bouton latéral 2",
-  mwheel_up: "Molette haut",
-  mwheel_down: "Molette bas",
-};
-
-function mouseLabel(control: string): string {
-  return MOUSE_LABELS[control] ?? control;
+  return { token: `mo1_${full}`, modifier, control };
 }
 
 function keyName(code: string): string | null {
@@ -230,51 +219,71 @@ function keyName(code: string): string | null {
   return NAMED[code] ?? null;
 }
 
-const MODIFIER_LABELS: Record<string, string> = {
-  lshift: "Maj gauche",
-  rshift: "Maj droite",
-  lctrl: "Ctrl gauche",
-  rctrl: "Ctrl droit",
-  lalt: "Alt gauche",
-  ralt: "Alt Gr",
+/**
+ * Noms de contrôle qui méritent un libellé lisible, et leur clé de traduction.
+ *
+ * Tout ce qui n'y figure pas se lit déjà bien de lui-même : une lettre, un
+ * chiffre ou `F5` n'ont pas besoin d'être traduits.
+ */
+const LABELS: Record<string, Key> = {
+  lshift: "key.lshift",
+  rshift: "key.rshift",
+  lctrl: "key.lctrl",
+  rctrl: "key.rctrl",
+  lalt: "key.lalt",
+  ralt: "key.ralt",
+
+  space: "key.space",
+  enter: "key.enter",
+  escape: "key.escape",
+  tab: "key.tab",
+  backspace: "key.backspace",
+  capslock: "key.capslock",
+  up: "key.up",
+  down: "key.down",
+  left: "key.left",
+  right: "key.right",
+  insert: "key.insert",
+  delete: "key.delete",
+  home: "key.home",
+  end: "key.end",
+  pgup: "key.pgup",
+  pgdn: "key.pgdn",
+
+  mouse1: "key.mouse1",
+  mouse2: "key.mouse2",
+  mouse3: "key.mouse3",
+  mouse4: "key.mouse4",
+  mouse5: "key.mouse5",
+  mwheel_up: "key.mwheelUp",
+  mwheel_down: "key.mwheelDown",
 };
 
-function modifierLabel(modifier: string): string {
-  return MODIFIER_LABELS[modifier] ?? modifier;
+/** Libellé lisible d'un nom de contrôle, dans la langue de l'interface. */
+export function controlLabel(control: string, t: Translate): string {
+  const key = LABELS[control];
+  if (key) return t(key);
+  if (control.startsWith("np_")) return `${t("key.numpad")} ${control.slice(3)}`;
+  return control.toUpperCase();
 }
 
-const KEY_LABELS: Record<string, string> = {
-  space: "Espace",
-  enter: "Entrée",
-  escape: "Échap",
-  tab: "Tab",
-  backspace: "Retour arrière",
-  capslock: "Verr. Maj",
-  up: "Flèche haut",
-  down: "Flèche bas",
-  left: "Flèche gauche",
-  right: "Flèche droite",
-  insert: "Inser",
-  delete: "Suppr",
-  home: "Origine",
-  end: "Fin",
-  pgup: "Page préc.",
-  pgdn: "Page suiv.",
-};
-
-function keyLabel(key: string): string {
-  if (KEY_LABELS[key]) return KEY_LABELS[key];
-  if (MODIFIER_LABELS[key]) return MODIFIER_LABELS[key];
-  if (key.startsWith("np_")) return `Pavé num. ${key.slice(3)}`;
-  return key.toUpperCase();
+/** Libellé complet d'une capture, modificateur compris. */
+export function describe(result: CaptureResult, t: Translate): string {
+  const control = controlLabel(result.control, t);
+  return result.modifier
+    ? `${controlLabel(result.modifier, t)} + ${control}`
+    : control;
 }
 
 /** Message d'erreur destiné à l'utilisateur. */
-export function captureErrorMessage(error: CaptureError): string {
+export function captureErrorMessage(
+  error: CaptureError,
+  t: Translate,
+): string {
   switch (error.kind) {
     case "too_many_modifiers":
-      return "Star Citizen n'accepte qu'un seul modificateur par raccourci.";
+      return t("capture.tooManyModifiers");
     case "unsupported":
-      return `Touche non reconnue (${error.code}). Choisissez-en une autre.`;
+      return `${t("capture.unsupported")} (${error.code})`;
   }
 }
