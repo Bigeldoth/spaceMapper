@@ -23,6 +23,7 @@
     "react-dom": "^19"
   },
   "devDependencies": {
+    "@phosphor-icons/core": "^2.1.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitejs/plugin-react": "^5",
