@@ -1,0 +1,13 @@
+/* Point d'entrée des tokens Padek-Interactive. À importer après
+ * `@import "tailwindcss";` dans l'application consommatrice — voir le README
+ * de ce package pour le câblage complet (polices, @source Tailwind v4). */
+@import "./fonts.css";
+@import "./tokens/colors.css";
+@import "./tokens/typography.css";
+@import "./tokens/spacing.css";
+@import "./tokens/radius.css";
+@import "./tokens/elevation.css";
+@import "./tokens/motion.css";
+@import "./tokens/layout.css";
+@import "./theme.css";
+@import "./base.css";

@@ -1,0 +1,35 @@
+/* Gabarits & z-index. Grille 12 colonnes, gouttière 24px, contenu max 1200px.
+ * Transcrit depuis le design system Padek-Interactive (tokens/layout.css). */
+:root {
+  --maxw-content: 1200px;
+  --maxw-prose: 68ch;
+  --maxw-wide: 1440px;
+
+  --grid-cols: 12;
+  --grid-gutter: var(--sp-8);
+  --page-x: var(--sp-11);
+  --page-x-sm: var(--sp-7);
+
+  --h-header: 64px;
+  --h-control: 36px;
+  --h-control-sm: 28px;
+  --h-control-lg: 44px;
+  --w-sidebar: 248px;
+  --w-sidebar-collapsed: 64px;
+  --w-panel: 340px;
+
+  --z-base: 0;
+  --z-raised: 10;
+  --z-sticky: 100;
+  --z-header: 200;
+  --z-overlay: 300;
+  --z-modal: 400;
+  --z-toast: 500;
+  --z-tooltip: 600;
+
+  --tap-min: 44px;
+
+  --ratio-video: 16 / 9;
+  --ratio-social: 4 / 5;
+  --ratio-thumb: 16 / 9;
+}

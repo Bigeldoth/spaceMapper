@@ -1,0 +1,102 @@
+/* Polices auto-hébergées — aucun appel réseau au chargement.
+ *
+ * Substitutions du design system Padek-Interactive (aucun fichier de marque
+ * fourni) : Saira Condensed pour le display, IBM Plex Sans pour le texte
+ * courant, IBM Plex Mono pour les labels HUD et les données tabulaires.
+ * Licence SIL Open Font License — redistribution locale légitime.
+ *
+ * Ne jamais remplacer ceci par un `@import url("https://fonts.googleapis...")` :
+ * la CSP des applications SpaceMapper (`default-src 'self'`) le bloquerait à
+ * l'exécution, et Lite promet explicitement zéro requête réseau.
+ *
+ * IBM Plex Sans est distribuée par Google Fonts comme police à graisse
+ * variable : un seul fichier couvre les poids 400 à 700, sélectionné par
+ * `font-weight` sur chaque règle plutôt que par un fichier statique dédié.
+ */
+
+@font-face {
+  font-family: "Saira Condensed";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../assets/fonts/saira-condensed-400.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Saira Condensed";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("../assets/fonts/saira-condensed-500.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Saira Condensed";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("../assets/fonts/saira-condensed-600.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Saira Condensed";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("../assets/fonts/saira-condensed-700.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Saira Condensed";
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url("../assets/fonts/saira-condensed-800.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../assets/fonts/ibm-plex-sans-variable.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("../assets/fonts/ibm-plex-sans-variable.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("../assets/fonts/ibm-plex-sans-variable.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Sans";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("../assets/fonts/ibm-plex-sans-variable.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("../assets/fonts/ibm-plex-mono-400.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("../assets/fonts/ibm-plex-mono-500.woff2") format("woff2");
+}
+@font-face {
+  font-family: "IBM Plex Mono";
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("../assets/fonts/ibm-plex-mono-600.woff2") format("woff2");
+}

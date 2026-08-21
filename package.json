@@ -1,0 +1,8 @@
+{
+  "name": "spacemapper",
+  "private": true,
+  "workspaces": [
+    "apps/spacemapper-lite",
+    "packages/ui"
+  ]
+}

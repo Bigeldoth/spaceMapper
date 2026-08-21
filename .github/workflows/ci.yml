@@ -44,9 +44,6 @@ jobs:
   frontend:
     name: Frontend
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/spacemapper-lite
     steps:
       - uses: actions/checkout@v5
 
@@ -54,12 +51,21 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: apps/spacemapper-lite/package-lock.json
+          cache-dependency-path: package-lock.json
 
+      # Un seul lockfile pour tout le workspace npm (packages/ui + Lite) :
+      # npm ci s'exécute à la racine, pas dans apps/spacemapper-lite.
       - run: npm ci
 
+      # packages/ui expose du JS pré-compilé ; npm ci l'installe/lie mais ne
+      # le construit pas — sans cette étape, Lite ne trouverait pas dist/.
+      - name: Build @spacemapper/ui
+        run: npm run build -w packages/ui
+
       - name: Typecheck
+        working-directory: apps/spacemapper-lite
         run: npx tsc --noEmit
 
       - name: Build
+        working-directory: apps/spacemapper-lite
         run: npx vite build

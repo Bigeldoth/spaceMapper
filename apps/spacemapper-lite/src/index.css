@@ -1,4 +1,6 @@
 @import "tailwindcss";
+@import "@spacemapper/ui/tokens.css";
+@source "../../../packages/ui/src";
 
 /* Thème clair premium SaaS.
    Palette sobre : ardoise pour la structure, un bleu profond comme unique

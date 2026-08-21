@@ -1,0 +1,142 @@
+/* PADEK-INTERACTIVE — couleurs. Base anthracite neutre + bleu #2563EB + blancs.
+ * Transcrit depuis le design system Padek-Interactive (tokens/colors.css) —
+ * valeurs à ne pas modifier sans resynchroniser depuis la source. */
+:root {
+  /* Neutres anthracite (hue neutre, très légèrement froid) */
+  --n-000: #ffffff;
+  --n-050: #f5f6f8;
+  --n-100: #e9ebef;
+  --n-200: #d3d7dd;
+  --n-300: #aeb4be;
+  --n-400: #868d98;
+  --n-500: #5d646f;
+  --n-600: #3e444e;
+  --n-700: #2b3037;
+  --n-800: #1e2227;
+  --n-850: #191c21;
+  --n-900: #14161a;
+  --n-950: #0e1013;
+  --n-1000: #08090b;
+
+  /* Bleu de marque */
+  --blue-050: #eef4ff;
+  --blue-100: #d8e4ff;
+  --blue-200: #b4ccff;
+  --blue-300: #83abff;
+  --blue-400: #4e86f7;
+  --blue-500: #2563eb;
+  --blue-600: #1b4fd1;
+  --blue-700: #1740a6;
+  --blue-800: #132f78;
+  --blue-900: #0f2150;
+
+  /* Sémantique brute */
+  --green-400: #3ed8a4;
+  --green-500: #1fbe86;
+  --amber-400: #f0b23f;
+  --amber-500: #d9930f;
+  --red-400: #ff6b6e;
+  --red-500: #e5484d;
+  --cyan-400: #5cc9e8;
+  --cyan-500: #2aa7cc;
+
+  /* Data viz (diagrammes, stats) — ordre d'usage */
+  --data-1: var(--blue-500);
+  --data-2: var(--cyan-400);
+  --data-3: var(--n-400);
+  --data-4: var(--green-400);
+  --data-5: var(--amber-400);
+  --data-6: var(--blue-300);
+  --data-7: var(--red-400);
+
+  /* ——— Alias sémantiques : thème sombre = défaut ——— */
+  --bg-base: var(--n-950);
+  --bg-sunken: var(--n-1000);
+  --bg-canvas: #0b0d10;
+
+  --surface-1: var(--n-900);
+  --surface-2: var(--n-850);
+  --surface-3: var(--n-800);
+  --surface-inset: rgba(255, 255, 255, 0.03);
+  --surface-hover: rgba(255, 255, 255, 0.05);
+  --surface-press: rgba(255, 255, 255, 0.08);
+  --surface-glass: rgba(20, 22, 26, 0.72);
+
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-default: rgba(255, 255, 255, 0.11);
+  --border-strong: rgba(255, 255, 255, 0.2);
+  --border-accent: rgba(37, 99, 235, 0.55);
+  --border-hud: rgba(131, 171, 255, 0.35);
+
+  --text-primary: #f2f4f7;
+  --text-secondary: var(--n-300);
+  --text-tertiary: var(--n-400);
+  --text-disabled: var(--n-500);
+  --text-inverse: var(--n-950);
+  --text-accent: var(--blue-300);
+  --text-on-accent: #ffffff;
+
+  --accent: var(--blue-500);
+  --accent-hover: var(--blue-400);
+  --accent-press: var(--blue-600);
+  --accent-soft: rgba(37, 99, 235, 0.14);
+  --accent-soft-hover: rgba(37, 99, 235, 0.22);
+  --accent-line: var(--blue-400);
+
+  --success: var(--green-500);
+  --success-soft: rgba(31, 190, 134, 0.14);
+  --success-text: var(--green-400);
+
+  --warning: var(--amber-500);
+  --warning-soft: rgba(217, 147, 15, 0.14);
+  --warning-text: var(--amber-400);
+
+  --danger: var(--red-500);
+  --danger-soft: rgba(229, 72, 77, 0.14);
+  --danger-text: var(--red-400);
+
+  --info: var(--cyan-500);
+  --info-soft: rgba(42, 167, 204, 0.14);
+  --info-text: var(--cyan-400);
+
+  --focus-ring: rgba(78, 134, 247, 0.65);
+
+  --grid-line: rgba(255, 255, 255, 0.04);
+  --scrim: rgba(8, 9, 11, 0.72);
+}
+
+/* Thème clair : posts sociaux, documents, exports print. Peu utilisé par les
+ * applications de bureau SpaceMapper (sombre = défaut), défini pour rester
+ * fidèle à la source. */
+[data-theme="light"] {
+  --bg-base: var(--n-000);
+  --bg-sunken: var(--n-050);
+  --bg-canvas: var(--n-050);
+
+  --surface-1: var(--n-000);
+  --surface-2: var(--n-050);
+  --surface-3: var(--n-100);
+  --surface-inset: rgba(14, 16, 19, 0.03);
+  --surface-hover: rgba(14, 16, 19, 0.04);
+  --surface-press: rgba(14, 16, 19, 0.07);
+  --surface-glass: rgba(255, 255, 255, 0.78);
+
+  --border-subtle: rgba(14, 16, 19, 0.07);
+  --border-default: rgba(14, 16, 19, 0.13);
+  --border-strong: rgba(14, 16, 19, 0.24);
+  --border-accent: rgba(37, 99, 235, 0.45);
+  --border-hud: rgba(23, 64, 166, 0.28);
+
+  --text-primary: var(--n-950);
+  --text-secondary: var(--n-600);
+  --text-tertiary: var(--n-500);
+  --text-disabled: var(--n-400);
+  --text-inverse: var(--n-000);
+  --text-accent: var(--blue-600);
+
+  --accent-soft: rgba(37, 99, 235, 0.09);
+  --accent-soft-hover: rgba(37, 99, 235, 0.14);
+
+  --grid-line: rgba(14, 16, 19, 0.05);
+  --scrim: rgba(8, 9, 11, 0.5);
+}

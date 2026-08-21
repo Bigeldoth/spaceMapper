@@ -1,0 +1,32 @@
+{
+  "name": "@spacemapper/ui",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./tokens.css": "./src/tokens.css",
+    "./src/*": "./src/*"
+  },
+  "files": [
+    "dist",
+    "src",
+    "assets"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && vite build --config vite.lib.config.ts"
+  },
+  "peerDependencies": {
+    "react": "^19",
+    "react-dom": "^19"
+  },
+  "devDependencies": {
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^5",
+    "typescript": "^5.7",
+    "vite": "^7"
+  }
+}

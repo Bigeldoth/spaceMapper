@@ -1,0 +1,39 @@
+/* Élévation : sur fond sombre la profondeur vient du liseré + d'ombres larges
+ * et basses. Jamais d'ombre colorée sauf état actif.
+ * Transcrit depuis le design system Padek-Interactive (tokens/elevation.css). */
+:root {
+  --border-w: 1px;
+  --border-w-strong: 1.5px;
+
+  --shadow-0: none;
+  --shadow-1: 0 1px 2px rgba(0, 0, 0, 0.45);
+  --shadow-2: 0 10px 28px -10px rgba(0, 0, 0, 0.6), 0 1px 0 rgba(255, 255, 255, 0.03) inset;
+  --shadow-3: 0 28px 70px -18px rgba(0, 0, 0, 0.7), 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+  --shadow-4: 0 48px 120px -24px rgba(0, 0, 0, 0.78);
+
+  --ring-focus: 0 0 0 2px var(--bg-base), 0 0 0 4px var(--focus-ring);
+  --glow-accent: 0 0 0 1px rgba(37, 99, 235, 0.5), 0 0 28px -6px rgba(37, 99, 235, 0.45);
+  --glow-soft: 0 0 32px -8px rgba(78, 134, 247, 0.28);
+  --inset-hairline: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  --blur-glass: blur(18px) saturate(1.1);
+
+  /* Dégradés de protection (texte sur image) */
+  --scrim-bottom: linear-gradient(
+    to top,
+    rgba(8, 9, 11, 0.92) 0%,
+    rgba(8, 9, 11, 0.7) 32%,
+    rgba(8, 9, 11, 0) 100%
+  );
+  --scrim-left: linear-gradient(
+    to right,
+    rgba(8, 9, 11, 0.92) 0%,
+    rgba(8, 9, 11, 0.55) 45%,
+    rgba(8, 9, 11, 0) 100%
+  );
+
+  /* Trame technique de fond */
+  --grid-8: linear-gradient(var(--grid-line) 1px, transparent 1px) 0 0/100% 8px,
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px) 0 0/8px 100%;
+  --grid-32: linear-gradient(var(--grid-line) 1px, transparent 1px) 0 0/100% 32px,
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px) 0 0/32px 100%;
+}

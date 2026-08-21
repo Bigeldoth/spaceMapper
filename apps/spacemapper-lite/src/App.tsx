@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
+import { Badge } from "@spacemapper/ui";
 import {
   api,
   type BuildInfo,
@@ -8,11 +9,12 @@ import {
 } from "./lib/api";
 import BindingEditor from "./BindingEditor";
 import DiagnosisPanel from "./DiagnosisPanel";
+import LayoutPanel from "./LayoutPanel";
 import SettingsPanel from "./SettingsPanel";
 import type { Key, Lang } from "./lib/i18n";
 import { TranslationProvider, useT } from "./lib/i18nContext";
 
-type Tab = "diagnosis" | "edit" | "settings";
+type Tab = "edit" | "diagnosis" | "layouts" | "settings";
 
 /**
  * Racine de l'application.
@@ -136,25 +138,38 @@ function Workspace({
     <div className="flex h-full flex-col bg-ink-50">
       {build?.channel === "staging" && <StagingBanner version={build.version} />}
       <Header />
-      <main className="mx-auto w-full max-w-6xl flex-1 overflow-y-auto px-8 py-8">
+      {/* La navigation vit sous l'en-tête plutôt que dans le flux : elle ne
+          défile pas avec le contenu, et reste atteignable même sans profil —
+          c'est par les Réglages qu'on en choisit un. */}
+      {!loading && <Tabs active={tab} onChange={setTab} />}
+
+      <main className="mx-auto w-full max-w-6xl flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
         {loading ? (
           <p className="text-sm text-ink-500">{t("loading")}</p>
         ) : (
-          <div className="space-y-8">
-            <ProfileSection
-              profiles={profiles}
-              selected={selected}
-              onSelect={setSelected}
-              onBrowse={browseForProfile}
-            />
+          <div className="space-y-4">
             {error && <ErrorNotice message={error} />}
 
-            {selected && (
+            {tab === "settings" ? (
+              <SettingsPanel
+                profilePath={selected}
+                profiles={profiles}
+                onSelectProfile={setSelected}
+                onBrowse={browseForProfile}
+                onChanged={() => {
+                  setSettingsRevision((n) => n + 1);
+                  // La langue de l'interface vit à la racine : on la relit
+                  // pour que le changement se voie immédiatement.
+                  void api
+                    .getSettings()
+                    .then((s) =>
+                      onLanguageChange(s.ui_language === "en" ? "en" : "fr"),
+                    )
+                    .catch(() => {});
+                }}
+              />
+            ) : selected ? (
               <>
-                <Tabs active={tab} onChange={setTab} />
-                {tab === "diagnosis" && (
-                  <DiagnosisPanel profilePath={selected} devices={devices} />
-                )}
                 {tab === "edit" && (
                   <BindingEditor
                     // Changer de langue doit reconstruire l'éditeur : les
@@ -164,23 +179,13 @@ function Workspace({
                     devices={devices}
                   />
                 )}
-                {tab === "settings" && (
-                  <SettingsPanel
-                    profilePath={selected}
-                    onChanged={() => {
-                      setSettingsRevision((n) => n + 1);
-                      // La langue de l'interface vit à la racine : on la
-                      // relit pour que le changement se voie immédiatement.
-                      void api
-                        .getSettings()
-                        .then((s) =>
-                          onLanguageChange(s.ui_language === "en" ? "en" : "fr"),
-                        )
-                        .catch(() => {});
-                    }}
-                  />
+                {tab === "diagnosis" && (
+                  <DiagnosisPanel profilePath={selected} devices={devices} />
                 )}
+                {tab === "layouts" && <LayoutPanel profilePath={selected} />}
               </>
+            ) : (
+              <NoProfile onSettings={() => setTab("settings")} />
             )}
           </div>
         )}
@@ -195,34 +200,34 @@ function Workspace({
  *  testeur ne saurait pas laquelle des deux il a ouverte, et rapporterait des
  *  bugs sur la mauvaise version. */
 function StagingBanner({ version }: { version: string }) {
+  const t = useT();
   return (
     <div className="bg-warn-600 px-8 py-1.5 text-center text-xs font-medium text-white">
-      Pré-release {version} — données isolées dans %APPDATA%\SpaceMapper-Staging
+      {t("staging.banner")} {version} — {t("staging.isolated")}
     </div>
   );
 }
 
 function Header() {
-  const t = useT();
   return (
     <header className="border-b border-ink-200 bg-white">
-      <div className="mx-auto flex w-full max-w-6xl items-center justify-between px-8 py-4">
-        <div className="flex items-baseline gap-3">
-          <h1 className="text-lg font-semibold tracking-tight text-ink-900">
-            SpaceMapper
-          </h1>
-          <span className="rounded-full bg-ink-100 px-2 py-0.5 text-xs font-medium text-ink-600">
-            Lite
-          </span>
-        </div>
-        <p className="text-xs text-ink-500">
-          {t("app.readOnlyNotice")}
-        </p>
+      <div className="mx-auto flex w-full max-w-6xl items-baseline gap-2 px-4 py-3 sm:px-6 lg:px-8">
+        <h1 className="text-base font-semibold tracking-tight text-ink-900 sm:text-lg">
+          SpaceMapper
+        </h1>
+        <Badge tone="accent">Lite</Badge>
       </div>
     </header>
   );
 }
 
+/**
+ * Navigation principale.
+ *
+ * Défilante horizontalement plutôt que repliée dans un menu : quatre entrées
+ * courtes tiennent sur un écran étroit dès lors qu'on accepte de les faire
+ * glisser, et un menu déroulant cacherait où l'on se trouve.
+ */
 function Tabs({
   active,
   onChange,
@@ -232,108 +237,51 @@ function Tabs({
 }) {
   const t = useT();
   const tabs: { id: Tab; label: Key }[] = [
-    { id: "diagnosis", label: "tab.diagnosis" },
     { id: "edit", label: "tab.edit" },
+    { id: "diagnosis", label: "tab.diagnosis" },
+    { id: "layouts", label: "tab.layouts" },
     { id: "settings", label: "tab.settings" },
   ];
 
   return (
-    <div className="flex gap-1 border-b border-ink-200">
-      {tabs.map((tab) => (
-        <button
-          key={tab.id}
-          onClick={() => onChange(tab.id)}
-          className={
-            "-mb-px border-b-2 px-4 py-2 text-sm font-medium transition-colors " +
-            (active === tab.id
-              ? "border-accent-600 text-accent-700"
-              : "border-transparent text-ink-500 hover:text-ink-800")
-          }
-        >
-          {t(tab.label)}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function Section({
-  title,
-  hint,
-  children,
-}: {
-  title: string;
-  hint?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section>
-      <div className="mb-3">
-        <h2 className="text-sm font-semibold text-ink-900">{title}</h2>
-        {hint && <p className="mt-0.5 text-xs text-ink-500">{hint}</p>}
+    <nav className="border-b border-ink-200 bg-white">
+      <div className="mx-auto flex w-full max-w-6xl gap-1 overflow-x-auto px-4 sm:px-6 lg:px-8">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => onChange(tab.id)}
+            className={
+              "-mb-px shrink-0 whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition-colors sm:px-4 " +
+              (active === tab.id
+                ? "border-accent-600 text-accent-700"
+                : "border-transparent text-ink-500 hover:text-ink-800")
+            }
+          >
+            {t(tab.label)}
+          </button>
+        ))}
       </div>
-      {children}
-    </section>
+    </nav>
   );
 }
 
-function Card({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="overflow-hidden rounded-lg border border-ink-200 bg-white">
-      {children}
-    </div>
-  );
-}
-
-function ProfileSection({
-  profiles,
-  selected,
-  onSelect,
-  onBrowse,
-}: {
-  profiles: ProfileLocation[];
-  selected: string | null;
-  onSelect: (path: string) => void;
-  onBrowse: () => void;
-}) {
+/** Aucun profil retenu : on dit où le choisir plutôt que d'afficher du vide. */
+function NoProfile({ onSettings }: { onSettings: () => void }) {
   const t = useT();
   return (
-    <Section title={t("profile.title")}>
-      <Card>
-        <div className="flex flex-wrap items-center gap-3 px-4 py-3">
-          {profiles.length > 0 ? (
-            <select
-              className="rounded-md border border-ink-300 bg-white px-3 py-1.5 text-sm text-ink-800"
-              value={selected ?? ""}
-              onChange={(e) => onSelect(e.target.value)}
-            >
-              {profiles.map((p) => (
-                <option key={p.path} value={p.path}>
-                  {p.channel}
-                </option>
-              ))}
-            </select>
-          ) : (
-            <p className="text-sm text-ink-500">
-              {t("profile.none")}
-            </p>
-          )}
-          <button
-            onClick={onBrowse}
-            className="rounded-md border border-ink-300 bg-white px-3 py-1.5 text-sm font-medium text-ink-700 hover:bg-ink-50"
-          >
-            {t("profile.browse")}
-          </button>
-        </div>
-        {selected && (
-          <p className="technical border-t border-ink-100 bg-ink-50 px-4 py-2 text-ink-500">
-            {selected}
-          </p>
-        )}
-      </Card>
-    </Section>
+    <div className="rounded-lg border border-ink-200 bg-white px-4 py-10 text-center">
+      <p className="text-sm text-ink-600">{t("profile.none")}</p>
+      <button
+        onClick={onSettings}
+        className="mt-3 rounded-md bg-accent-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-700"
+      >
+        {t("profile.goToSettings")}
+      </button>
+    </div>
   );
 }
+
+
 
 function ErrorNotice({ message }: { message: string }) {
   const t = useT();

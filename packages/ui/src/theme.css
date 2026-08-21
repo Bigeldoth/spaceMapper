@@ -1,0 +1,49 @@
+/* Pont Tailwind v4 : la source de vérité reste les alias sémantiques de
+ * tokens/colors.css (--accent, --surface-1, --text-primary…), qui changent de
+ * valeur sous [data-theme="light"]. `@theme inline` fait pointer les
+ * utilitaires Tailwind (bg-accent, text-primary…) vers ces mêmes alias plutôt
+ * que de figer une valeur littérale — un composant peut donc écrire `bg-accent`
+ * sans perdre la bascule de thème. Pour tout token non repris ici, la syntaxe
+ * `bg-[var(--nom-du-token)]` reste toujours disponible.
+ */
+@theme inline {
+  --font-display: "Saira Condensed", "Saira", system-ui, sans-serif;
+  --font-sans: "IBM Plex Sans", system-ui, -apple-system, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+
+  --color-bg-base: var(--bg-base);
+  --color-bg-sunken: var(--bg-sunken);
+
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+
+  --color-border-subtle: var(--border-subtle);
+  --color-border-default: var(--border-default);
+  --color-border-strong: var(--border-strong);
+  --color-border-accent: var(--border-accent);
+  --color-border-hud: var(--border-hud);
+
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-tertiary: var(--text-tertiary);
+  --color-text-disabled: var(--text-disabled);
+  --color-text-accent: var(--text-accent);
+
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-press: var(--accent-press);
+  --color-accent-soft: var(--accent-soft);
+
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --color-info: var(--info);
+}
+
+/* Rayons, easings et durées ne sont volontairement pas pontés ici : leurs
+ * noms de tokens (--radius-md, --ease-hud…) coïncident avec les espaces de
+ * noms Tailwind attendus, et un alias `--theme-key: var(--meme-nom)` dans
+ * `@theme inline` créerait une référence circulaire (propriété invalide).
+ * Utiliser la syntaxe crochet directement : `rounded-[var(--radius-md)]`,
+ * `ease-[var(--ease-hud)]`. */

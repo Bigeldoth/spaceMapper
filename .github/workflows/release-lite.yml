@@ -29,11 +29,17 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: apps/spacemapper-lite/package-lock.json
+          cache-dependency-path: package-lock.json
 
+      # Un seul lockfile pour tout le workspace npm (packages/ui + Lite).
       - name: Installer les dépendances frontend
-        working-directory: apps/spacemapper-lite
         run: npm ci
+
+      # tauri-action relance `beforeBuildCommand` (npm run build) dans
+      # apps/spacemapper-lite, qui a besoin de @spacemapper/ui/dist déjà
+      # construit — npm ci installe/lie le workspace mais ne le construit pas.
+      - name: Build @spacemapper/ui
+        run: npm run build -w packages/ui
 
       - name: Build + publication de l'installateur
         uses: tauri-apps/tauri-action@v0

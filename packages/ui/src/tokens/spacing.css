@@ -1,0 +1,28 @@
+/* Espacement : base 4px, deux paliers fins (2/6) pour la densité HUD.
+ * Transcrit depuis le design system Padek-Interactive (tokens/spacing.css). */
+:root {
+  --sp-0: 0;
+  --sp-1: 2px;
+  --sp-2: 4px;
+  --sp-3: 6px;
+  --sp-4: 8px;
+  --sp-5: 12px;
+  --sp-6: 16px;
+  --sp-7: 20px;
+  --sp-8: 24px;
+  --sp-9: 32px;
+  --sp-10: 40px;
+  --sp-11: 48px;
+  --sp-12: 64px;
+  --sp-13: 80px;
+  --sp-14: 96px;
+  --sp-15: 128px;
+  --sp-16: 160px;
+
+  --gap-inline: var(--sp-4);
+  --gap-stack: var(--sp-6);
+  --gap-section: var(--sp-13);
+  --pad-card: var(--sp-7);
+  --pad-control-x: var(--sp-6);
+  --pad-control-y: var(--sp-4);
+}

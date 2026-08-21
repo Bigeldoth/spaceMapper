@@ -1,0 +1,31 @@
+/* Mouvement : court, décéléré, jamais de rebond. Les éléments glissent de
+ * 2-6px, jamais de scale > 1.02.
+ * Transcrit depuis le design system Padek-Interactive (tokens/motion.css). */
+:root {
+  --dur-instant: 90ms;
+  --dur-fast: 140ms;
+  --dur-base: 200ms;
+  --dur-slow: 320ms;
+  --dur-reveal: 520ms;
+
+  --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.5, 0, 0.3, 1);
+  --ease-hud: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-linear: linear;
+
+  --t-control: all var(--dur-fast) var(--ease-out);
+  --t-surface: all var(--dur-base) var(--ease-hud);
+
+  --press-scale: 0.985;
+  --hover-lift: -1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-instant: 0ms;
+    --dur-fast: 0ms;
+    --dur-base: 0ms;
+    --dur-slow: 0ms;
+    --dur-reveal: 0ms;
+  }
+}
