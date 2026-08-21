@@ -66,16 +66,16 @@ impl Settings {
     }
 }
 
-fn path() -> Option<PathBuf> {
-    channel::data_dir().map(|dir| dir.join(FILE))
+fn path(app_name: &str) -> Option<PathBuf> {
+    channel::data_dir(app_name).map(|dir| dir.join(FILE))
 }
 
 /// Lit les préférences, en retombant sur la langue du système.
 ///
 /// Un fichier illisible n'est pas une erreur bloquante : mieux vaut démarrer
 /// avec des réglages déduits du système que refuser de s'ouvrir.
-pub fn load() -> Settings {
-    let Some(path) = path() else {
+pub fn load(app_name: &str) -> Settings {
+    let Some(path) = path(app_name) else {
         return Settings::from_system();
     };
     std::fs::read_to_string(path)
@@ -84,8 +84,8 @@ pub fn load() -> Settings {
         .unwrap_or_else(Settings::from_system)
 }
 
-pub fn save(settings: &Settings) -> Result<(), String> {
-    let path = path().ok_or_else(|| "APPDATA introuvable".to_string())?;
+pub fn save(app_name: &str, settings: &Settings) -> Result<(), String> {
+    let path = path(app_name).ok_or_else(|| "APPDATA introuvable".to_string())?;
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
     }

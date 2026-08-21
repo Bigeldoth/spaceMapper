@@ -15,6 +15,7 @@ use crate::gamedata::GameData;
 use serde::{Deserialize, Serialize};
 use spacemapper_core::actionmaps::{self, ActionMaps, InputBinding};
 use spacemapper_core::channel;
+use spacemapper_core::context::{self, Context};
 use spacemapper_core::defaults::DefaultProfile;
 use spacemapper_edit::{backup, scope, BindingEdit, EditAccess, EditCategory};
 use std::path::{Path, PathBuf};
@@ -65,6 +66,11 @@ pub struct EditableBinding {
     /// Description fournie par le jeu — sa réponse à « à quoi sert cette
     /// touche ? ». Souvent vide hors anglais.
     pub description: Option<String>,
+    /// Situation de jeu où cette commande est active.
+    ///
+    /// C'est elle qui décide d'un conflit : deux commandes ne se disputent un
+    /// bouton que si elles peuvent répondre en même temps.
+    pub context: Context,
     pub input_raw: String,
     pub device: Option<String>,
     /// Touche modificatrice, ex. `lshift` dans `kb1_lshift+f`.
@@ -102,9 +108,13 @@ pub struct BackupView {
     pub timestamp: String,
 }
 
-/// Emplacement des sauvegardes, isolé par canal.
+/// Nom d'application utilisé pour isoler les données de Lite de toute autre
+/// édition (Premium) sur la même machine — voir `spacemapper_core::channel`.
+const APP_NAME: &str = "SpaceMapper";
+
+/// Emplacement des sauvegardes, isolé par canal et par édition.
 fn backup_dir() -> CmdResult<PathBuf> {
-    channel::data_dir()
+    channel::data_dir(APP_NAME)
         .map(|d| d.join("Backups"))
         .ok_or_else(|| "APPDATA introuvable".to_string())
 }
@@ -129,7 +139,7 @@ pub fn list_editable_bindings(
         Err(message) => (None, Some(message)),
     };
 
-    let language = crate::settings::load().game_language;
+    let language = crate::settings::load(APP_NAME).game_language;
     let catalog = state.catalog_for(Path::new(&path), &language);
 
     let mut bindings = collect_editable(&maps, defaults.as_ref());
@@ -138,6 +148,7 @@ pub fn list_editable_bindings(
     Ok(MergedBindings {
         bindings,
         defaults_error,
+        colliding_contexts: colliding_contexts(),
     })
 }
 
@@ -205,12 +216,12 @@ pub fn list_game_languages(
 
 #[tauri::command]
 pub fn get_settings() -> crate::settings::Settings {
-    crate::settings::load()
+    crate::settings::load(APP_NAME)
 }
 
 #[tauri::command]
 pub fn set_settings(settings: crate::settings::Settings) -> CmdResult<()> {
-    crate::settings::save(&settings)
+    crate::settings::save(APP_NAME, &settings)
 }
 
 #[derive(Debug, Serialize)]
@@ -218,6 +229,38 @@ pub struct MergedBindings {
     pub bindings: Vec<EditableBinding>,
     /// Motif d'indisponibilité des valeurs par défaut, le cas échéant.
     pub defaults_error: Option<String>,
+    /// Couples de situations qui peuvent coexister.
+    ///
+    /// Transmis une seule fois plutôt que réimplémenté côté interface : la
+    /// règle est testée en Rust, et la dupliquer en TypeScript garantirait de
+    /// les voir diverger au premier patch du jeu.
+    pub colliding_contexts: Vec<[Context; 2]>,
+}
+
+/// Toutes les paires de situations compatibles, y compris réflexives.
+fn colliding_contexts() -> Vec<[Context; 2]> {
+    const ALL: [Context; 10] = [
+        Context::OnFoot,
+        Context::ShipSeat,
+        Context::ShipScanning,
+        Context::ShipMining,
+        Context::ShipSalvage,
+        Context::Turret,
+        Context::Eva,
+        Context::GroundVehicle,
+        Context::Always,
+        Context::OutOfGame,
+    ];
+
+    let mut pairs = Vec::new();
+    for (i, a) in ALL.iter().enumerate() {
+        for b in &ALL[i..] {
+            if context::can_collide(*a, *b) {
+                pairs.push([*a, *b]);
+            }
+        }
+    }
+    pairs
 }
 
 /// Enregistre un lot de modifications en une seule écriture.
@@ -352,6 +395,7 @@ fn collect_editable(maps: &ActionMaps, defaults: Option<&DefaultProfile>) -> Vec
                 category,
                 access,
                 origin: Origin::GameDefault,
+                context: context::context_of(&map.name),
                 action: action.name.clone(),
                 // Renseignés ensuite, une fois le catalogue chargé.
                 label: None,
@@ -437,6 +481,7 @@ fn collect_overrides(maps: &ActionMaps) -> Vec<EditableBinding> {
                 category,
                 access,
                 origin: Origin::Override,
+                context: context::context_of(&map.name),
                 action: action.name.clone(),
                 label: None,
                 description: None,

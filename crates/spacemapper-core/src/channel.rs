@@ -25,23 +25,27 @@ pub fn is_staging() -> bool {
     CHANNEL == "staging"
 }
 
-/// Nom du dossier de données, distinct par canal.
-pub fn data_dir_name() -> &'static str {
+/// Nom du dossier de données, distinct par canal **et par application**.
+///
+/// `app_name` isole Lite de Premium : sans lui, les deux éditions
+/// partageraient silencieusement le même `settings.json` et le même dossier
+/// de sauvegardes, alors qu'elles ne partagent aucun périmètre d'écriture.
+pub fn data_dir_name(app_name: &str) -> String {
     if is_staging() {
-        "SpaceMapper-Staging"
+        format!("{app_name}-Staging")
     } else {
-        "SpaceMapper"
+        app_name.to_string()
     }
 }
 
-/// Racine des données applicatives : `%APPDATA%\SpaceMapper[-Staging]`.
+/// Racine des données applicatives : `%APPDATA%\<app_name>[-Staging]`.
 ///
 /// Volontairement hors de l'arborescence de Star Citizen : le nettoyage du
 /// dossier `USER` lors des patchs ne doit avoir aucun effet sur les profils
 /// sauvegardés.
-pub fn data_dir() -> Option<PathBuf> {
+pub fn data_dir(app_name: &str) -> Option<PathBuf> {
     let roaming = std::env::var_os("APPDATA")?;
-    Some(PathBuf::from(roaming).join(data_dir_name()))
+    Some(PathBuf::from(roaming).join(data_dir_name(app_name)))
 }
 
 #[cfg(test)]
@@ -65,12 +69,20 @@ mod tests {
         // même dossier, sinon une build de test corromprait de vrais profils.
         assert_ne!("SpaceMapper", "SpaceMapper-Staging");
         assert_eq!(
-            data_dir_name(),
+            data_dir_name("SpaceMapper"),
             if is_staging() {
                 "SpaceMapper-Staging"
             } else {
                 "SpaceMapper"
             }
         );
+    }
+
+    #[test]
+    fn data_dir_name_is_also_isolated_per_application() {
+        // Lite et Premium ne doivent jamais désigner le même dossier non plus :
+        // sans ça, save_bindings/backup d'une édition abîmerait les données de
+        // l'autre.
+        assert_ne!(data_dir_name("SpaceMapper"), data_dir_name("SpaceMapper-Premium"));
     }
 }

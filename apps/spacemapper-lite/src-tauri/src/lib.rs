@@ -21,6 +21,7 @@ mod capture;
 mod commands;
 mod editing;
 mod gamedata;
+mod layouts;
 mod settings;
 
 pub fn run() {
@@ -34,6 +35,8 @@ pub fn run() {
             commands::locate_actionmaps,
             commands::diagnose_devices,
             commands::build_info,
+            layouts::list_layouts,
+            layouts::inspect_layout,
             editing::list_editable_bindings,
             editing::save_bindings,
             editing::create_backup,
