@@ -1,139 +1,130 @@
-import type { Filters, SetupMode } from "./lib/filter";
+import { Tag } from "@spacemapper/ui";
+import type { Filters } from "./lib/filter";
 import { isFiltering, NO_FILTERS } from "./lib/filter";
-import type { Origin } from "./lib/api";
-import type { Key } from "./lib/i18n";
 import { useT } from "./lib/i18nContext";
 
 /**
- * Barre de recherche et de filtres.
+ * Recherche et filtres.
  *
- * Les filtres sont des boutons plutôt que des listes déroulantes : ils sont
- * peu nombreux, et leur état doit se lire sans les ouvrir.
+ * Trois interrupteurs, pas de taxonomie. Ils répondent aux seules questions
+ * qu'on se pose en configurant : qu'est-ce qui n'est pas encore assigné,
+ * qu'est-ce qui se marche dessus, et qu'est-ce que je peux réellement changer.
  */
 export default function FilterBar({
   filters,
   onChange,
   shown,
   total,
+  conflictCount,
+  unassignedCount,
 }: {
   filters: Filters;
   onChange: (filters: Filters) => void;
   shown: number;
   total: number;
+  conflictCount: number;
+  unassignedCount: number;
 }) {
   const t = useT();
 
-  const origins: { id: Origin | "all"; label: Key }[] = [
-    { id: "all", label: "filter.origin.all" },
-    { id: "override", label: "filter.origin.override" },
-    { id: "game_default", label: "filter.origin.default" },
-  ];
-
-  // Trois façons de piloter, dans l'ordre où les joueurs les adoptent.
-  const modes: { id: SetupMode | "all"; label: Key }[] = [
-    { id: "all", label: "filter.mode.all" },
-    { id: "desk", label: "filter.mode.desk" },
-    { id: "gamepad", label: "filter.mode.gamepad" },
-    { id: "joystick", label: "filter.mode.joystick" },
-  ];
-
   return (
-    <div className="space-y-3 rounded-lg border border-ink-200 bg-white p-4">
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
       <input
         type="search"
         value={filters.query}
         onChange={(e) => onChange({ ...filters, query: e.target.value })}
         placeholder={t("filter.placeholder")}
-        className="w-full rounded-md border border-ink-300 bg-white px-3 py-2 text-sm placeholder:text-ink-400 focus:border-accent-500 focus:outline-none"
+        className="min-w-56 flex-1 rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-2)] px-[var(--sp-6)] py-[var(--sp-4)] text-[length:var(--fs-body-sm)] text-[var(--text-primary)] placeholder:text-[var(--text-disabled)] focus:border-[var(--border-accent)] focus-visible:shadow-[var(--ring-focus)] focus:outline-none"
       />
 
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-        <Group label={t("filter.origin")}>
-          {origins.map((o) => (
-            <Chip
-              key={o.id}
-              active={filters.origin === o.id}
-              onClick={() => onChange({ ...filters, origin: o.id })}
-            >
-              {t(o.label)}
-            </Chip>
-          ))}
-        </Group>
+      <Toggle
+        active={filters.unassignedOnly}
+        count={unassignedCount}
+        onClick={() =>
+          onChange({ ...filters, unassignedOnly: !filters.unassignedOnly })
+        }
+      >
+        {t("filter.unassigned")}
+      </Toggle>
 
-        <Group label={t("filter.mode")}>
-          {modes.map((m) => (
-            <Chip
-              key={m.id}
-              active={filters.mode === m.id}
-              onClick={() => onChange({ ...filters, mode: m.id })}
-            >
-              {t(m.label)}
-            </Chip>
-          ))}
-        </Group>
+      <Toggle
+        active={filters.conflictsOnly}
+        count={conflictCount}
+        warn
+        onClick={() =>
+          onChange({ ...filters, conflictsOnly: !filters.conflictsOnly })
+        }
+      >
+        {t("filter.conflicts")}
+      </Toggle>
 
-        <Chip
-          active={filters.editableOnly}
-          onClick={() =>
-            onChange({ ...filters, editableOnly: !filters.editableOnly })
-          }
+      <Toggle
+        active={filters.editableOnly}
+        onClick={() =>
+          onChange({ ...filters, editableOnly: !filters.editableOnly })
+        }
+      >
+        {t("filter.editableOnly")}
+      </Toggle>
+
+      <span className="ml-auto whitespace-nowrap text-[length:var(--fs-caption)] text-[var(--text-tertiary)]">
+        {shown === total ? `${total}` : `${shown} / ${total}`}
+      </span>
+
+      {isFiltering(filters) && (
+        <button
+          onClick={() => onChange(NO_FILTERS)}
+          className="whitespace-nowrap text-[length:var(--fs-caption)] font-medium text-[var(--text-accent)] hover:text-[var(--accent-hover)]"
         >
-          {t("filter.editableOnly")}
-        </Chip>
-      </div>
-
-      <div className="flex items-center justify-between border-t border-ink-100 pt-2">
-        <p className="text-xs text-ink-500">
-          {shown === total ? `${total}` : `${shown} / ${total}`}
-        </p>
-        {isFiltering(filters) && (
-          <button
-            onClick={() => onChange(NO_FILTERS)}
-            className="text-xs font-medium text-accent-700 hover:text-accent-600"
-          >
-            {t("filter.showAll")}
-          </button>
-        )}
-      </div>
+          {t("filter.showAll")}
+        </button>
+      )}
     </div>
   );
 }
 
-function Group({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex items-center gap-1.5">
-      <span className="text-xs font-medium text-ink-500">{label}</span>
-      <div className="flex gap-1">{children}</div>
-    </div>
-  );
-}
-
-function Chip({
+/**
+ * Interrupteur portant son propre compteur.
+ *
+ * Le nombre est là avant même qu'on clique : savoir qu'il reste 12 commandes
+ * non assignées est une information en soi, et évite d'activer un filtre pour
+ * découvrir qu'il ne montre rien.
+ */
+function Toggle({
   active,
+  count,
+  warn,
   onClick,
   children,
 }: {
   active: boolean;
+  count?: number;
+  /** Teinte d'alerte : réservée aux conflits, qui sont un défaut. */
+  warn?: boolean;
   onClick: () => void;
   children: React.ReactNode;
 }) {
+  const empty = count === 0;
+  // `Tag` ne connaît que la sélection ; l'alerte conflit est une teinte à part,
+  // superposée par-dessus quand elle est à la fois active et pertinente.
+  const warnActiveClasses =
+    warn && active
+      ? "!border-[var(--danger)] !bg-[var(--danger-soft)] !text-[var(--danger-text)]"
+      : "";
+
   return (
-    <button
+    <Tag
+      selected={active}
       onClick={onClick}
-      className={
-        "rounded-full px-2.5 py-1 text-xs font-medium transition-colors " +
-        (active
-          ? "bg-accent-600 text-white"
-          : "bg-ink-100 text-ink-600 hover:bg-ink-200")
-      }
+      disabled={empty && !active}
+      className={`${empty && !active ? "opacity-[0.42]" : ""} ${warnActiveClasses}`}
     >
       {children}
-    </button>
+      {count !== undefined && (
+        <span className="tabular-nums text-[length:var(--fs-caption)] opacity-80">
+          {count}
+        </span>
+      )}
+    </Tag>
   );
 }

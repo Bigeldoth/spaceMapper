@@ -135,7 +135,7 @@ function Workspace({
   }
 
   return (
-    <div className="flex h-full flex-col bg-ink-50">
+    <div className="flex h-full flex-col bg-[var(--bg-base)]">
       {build?.channel === "staging" && <StagingBanner version={build.version} />}
       <Header />
       {/* La navigation vit sous l'en-tête plutôt que dans le flux : elle ne
@@ -145,7 +145,7 @@ function Workspace({
 
       <main className="mx-auto w-full max-w-6xl flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
         {loading ? (
-          <p className="text-sm text-ink-500">{t("loading")}</p>
+          <p className="text-sm text-[var(--text-tertiary)]">{t("loading")}</p>
         ) : (
           <div className="space-y-4">
             {error && <ErrorNotice message={error} />}
@@ -202,7 +202,7 @@ function Workspace({
 function StagingBanner({ version }: { version: string }) {
   const t = useT();
   return (
-    <div className="bg-warn-600 px-8 py-1.5 text-center text-xs font-medium text-white">
+    <div className="bg-[var(--warning)] px-8 py-1.5 text-center text-xs font-medium text-[var(--n-950)]">
       {t("staging.banner")} {version} — {t("staging.isolated")}
     </div>
   );
@@ -210,9 +210,9 @@ function StagingBanner({ version }: { version: string }) {
 
 function Header() {
   return (
-    <header className="border-b border-ink-200 bg-white">
+    <header className="border-b border-[var(--border-subtle)] bg-[var(--surface-2)]">
       <div className="mx-auto flex w-full max-w-6xl items-baseline gap-2 px-4 py-3 sm:px-6 lg:px-8">
-        <h1 className="text-base font-semibold tracking-tight text-ink-900 sm:text-lg">
+        <h1 className="text-base font-semibold tracking-tight text-[var(--text-primary)] sm:text-lg">
           SpaceMapper
         </h1>
         <Badge tone="accent">Lite</Badge>
@@ -244,7 +244,7 @@ function Tabs({
   ];
 
   return (
-    <nav className="border-b border-ink-200 bg-white">
+    <nav className="border-b border-[var(--border-subtle)] bg-[var(--surface-2)]">
       <div className="mx-auto flex w-full max-w-6xl gap-1 overflow-x-auto px-4 sm:px-6 lg:px-8">
         {tabs.map((tab) => (
           <button
@@ -253,8 +253,8 @@ function Tabs({
             className={
               "-mb-px shrink-0 whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition-colors sm:px-4 " +
               (active === tab.id
-                ? "border-accent-600 text-accent-700"
-                : "border-transparent text-ink-500 hover:text-ink-800")
+                ? "border-accent text-[var(--text-accent)]"
+                : "border-transparent text-[var(--text-tertiary)] hover:text-[var(--text-primary)]")
             }
           >
             {t(tab.label)}
@@ -269,11 +269,11 @@ function Tabs({
 function NoProfile({ onSettings }: { onSettings: () => void }) {
   const t = useT();
   return (
-    <div className="rounded-lg border border-ink-200 bg-white px-4 py-10 text-center">
-      <p className="text-sm text-ink-600">{t("profile.none")}</p>
+    <div className="rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-2)] px-4 py-10 text-center">
+      <p className="text-sm text-[var(--text-secondary)]">{t("profile.none")}</p>
       <button
         onClick={onSettings}
-        className="mt-3 rounded-md bg-accent-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-700"
+        className="mt-3 rounded-[var(--radius-control)] bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-[var(--accent-hover)]"
       >
         {t("profile.goToSettings")}
       </button>
@@ -286,9 +286,9 @@ function NoProfile({ onSettings }: { onSettings: () => void }) {
 function ErrorNotice({ message }: { message: string }) {
   const t = useT();
   return (
-    <div className="rounded-lg border border-warn-200 bg-warn-50 p-4">
-      <p className="text-sm font-medium text-warn-700">{t("error.title")}</p>
-      <p className="technical mt-1 text-ink-600">{message}</p>
+    <div className="rounded-[var(--radius-card)] border border-[var(--danger)]/30 bg-[var(--danger-soft)] p-4">
+      <p className="text-sm font-medium text-[var(--danger-text)]">{t("error.title")}</p>
+      <p className="technical mt-1 text-[var(--text-secondary)]">{message}</p>
     </div>
   );
 }

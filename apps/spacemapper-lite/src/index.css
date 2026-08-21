@@ -2,53 +2,20 @@
 @import "@spacemapper/ui/tokens.css";
 @source "../../../packages/ui/src";
 
-/* Thème clair premium SaaS.
-   Palette sobre : ardoise pour la structure, un bleu profond comme unique
-   accent. On évite le néon « cockpit » — la lisibilité prime, l'application
-   sera lue longtemps et de près. */
-@theme {
-  --color-ink-50: #f8fafc;
-  --color-ink-100: #f1f5f9;
-  --color-ink-200: #e2e8f0;
-  --color-ink-300: #cbd5e1;
-  --color-ink-400: #94a3b8;
-  --color-ink-500: #64748b;
-  --color-ink-600: #475569;
-  --color-ink-700: #334155;
-  --color-ink-800: #1e293b;
-  --color-ink-900: #0f172a;
-
-  --color-accent-50: #eef4ff;
-  --color-accent-100: #dbe6ff;
-  --color-accent-500: #3b62f6;
-  --color-accent-600: #2b4ad9;
-  --color-accent-700: #2039ad;
-
-  --color-warn-50: #fff7ed;
-  --color-warn-200: #fed7aa;
-  --color-warn-600: #ea580c;
-  --color-warn-700: #c2410c;
-}
-
 html,
 body,
 #root {
   height: 100%;
 }
 
-body {
-  background-color: var(--color-ink-50);
-  color: var(--color-ink-800);
-  font-family:
-    "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  font-feature-settings: "cv02", "cv03", "cv04";
-  -webkit-font-smoothing: antialiased;
-}
+/* body reprend déjà background/color/font depuis packages/ui/src/base.css
+   (--bg-base, --text-primary, IBM Plex Sans) — rien à redéfinir ici. */
 
-/* Les identifiants techniques (GUID, `js1_button5`) doivent être
-   déchiffrables caractère par caractère : chasse fixe, jamais de ligature. */
+/* Les identifiants techniques (GUID, `js1_button5`) reprennent la signature
+   HUD du design system : IBM Plex Mono, capitales, tracking large. */
 .technical {
-  font-family: ui-monospace, "Cascadia Code", "Consolas", monospace;
+  font-family: var(--font-mono);
   font-variant-ligatures: none;
-  font-size: 0.8125rem;
+  font-size: var(--fs-micro);
+  letter-spacing: var(--ls-label);
 }

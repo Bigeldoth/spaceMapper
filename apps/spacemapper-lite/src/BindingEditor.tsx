@@ -11,11 +11,14 @@ import {
   controlLabel,
   controlsFor,
   devicePrefix,
+  groupLabel,
+  type ControlGroup,
   type ControlOption,
 } from "./lib/controls";
 import {
   build,
   captureErrorMessage,
+  describe,
   fromKeyPress,
   fromMouse,
   fromWheel,
@@ -23,15 +26,31 @@ import {
   type CaptureError,
   type CaptureResult,
 } from "./lib/keyboard";
-import BackupPanel from "./BackupPanel";
+import EditorToolbar from "./EditorToolbar";
 import FilterBar from "./FilterBar";
 import * as filter from "./lib/filter";
+import type { SetupMode } from "./lib/filter";
+import {
+  ContextRules,
+  hasConflict,
+  indexConflicts,
+  isAssigned,
+  keyOf,
+  rivalsOf,
+  type ConflictIndex,
+} from "./lib/conflicts";
 import { capturedToken, useCapture, type CaptureFeed } from "./useCapture";
 import { useT } from "./lib/i18nContext";
 
-/** Clé stable d'une assignation, indépendante de l'ordre du fichier. */
-function keyOf(actionmap: string, action: string): string {
-  return `${actionmap}/${action}`;
+/**
+ * Identité d'une **ligne**, jeton compris.
+ *
+ * Distincte de [`keyOf`], qui identifie une commande : une action peut porter
+ * plusieurs assignations — une au clavier et une au manche. Les confondre
+ * donnait deux lignes de même clé React, que React rendait à l'identique.
+ */
+function rowKey(binding: EditableBinding): string {
+  return `${keyOf(binding.actionmap, binding.action)}/${binding.input_raw}`;
 }
 
 export default function BindingEditor({
@@ -51,7 +70,13 @@ export default function BindingEditor({
   const [upsell, setUpsell] = useState<LockReason | null>(null);
   /** Les valeurs par défaut du jeu n'ont pas pu être lues. */
   const [defaultsError, setDefaultsError] = useState<string | null>(null);
+  /** Règles de coexistence des situations, fournies par le backend. */
+  const [rules, setRules] = useState<ContextRules>(() => new ContextRules(null));
   const [filters, setFilters] = useState<filter.Filters>(filter.NO_FILTERS);
+  /** Contexte de configuration, et non filtre : « qu'est-ce que je règle ». */
+  const [mode, setMode] = useState<SetupMode | "all">("all");
+  /** Ligne dont le détail est affiché, par [`rowKey`]. */
+  const [selected, setSelected] = useState<string | null>(null);
 
   /**
    * Modifications non enregistrées, par clé d'assignation. `null` signifie
@@ -72,6 +97,7 @@ export default function BindingEditor({
       const merged = await api.listEditableBindings(profilePath);
       setBindings(merged.bindings);
       setDefaultsError(merged.defaults_error);
+      setRules(new ContextRules(merged.colliding_contexts));
       setError(null);
     } catch (e) {
       setError(String(e));
@@ -130,19 +156,22 @@ export default function BindingEditor({
     }
   }
 
+  const conflicts = useMemo(
+    () => indexConflicts(bindings, pending, rules),
+    [bindings, pending, rules],
+  );
+
   // Les modifications en attente restent visibles quoi qu'affichent les
   // filtres : les masquer laisserait le bandeau du bas annoncer des
   // changements introuvables à l'écran.
   const visible = useMemo(() => {
-    const kept = filter.apply(bindings, filters);
-    const shown = new Set(kept.map((b) => keyOf(b.actionmap, b.action)));
+    const kept = filter.apply(bindings, filters, mode, pending, conflicts);
+    const shown = new Set(kept.map((b) => rowKey(b)));
     const staged = bindings.filter(
-      (b) =>
-        pending.has(keyOf(b.actionmap, b.action)) &&
-        !shown.has(keyOf(b.actionmap, b.action)),
+      (b) => pending.has(keyOf(b.actionmap, b.action)) && !shown.has(rowKey(b)),
     );
     return [...kept, ...staged];
-  }, [bindings, filters, pending]);
+  }, [bindings, filters, mode, pending, conflicts]);
 
   const grouped = useMemo(() => {
     const map = new Map<string, EditableBinding[]>();
@@ -159,9 +188,8 @@ export default function BindingEditor({
    *
    * Le jeu définit parfois deux commandes distinctes sous le même nom et sur
    * la même touche — `player/mobiglas` et `spaceship_hud/mobiglas` sont tous
-   * deux « mobiGlas (ON/OFF) » sur F1. Les catégories les séparent à l'écran,
-   * mais deux lignes rigoureusement identiques passent pour un doublon. On
-   * affiche alors le nom interne, qui les distingue.
+   * deux « mobiGlas (ON/OFF) » sur F1. On affiche alors la catégorie, seul
+   * élément qui les sépare.
    */
   const ambiguous = useMemo(() => {
     const seen = new Map<string, number>();
@@ -174,105 +202,94 @@ export default function BindingEditor({
     );
   }, [visible]);
 
-  return (
-    <div className="space-y-6 pb-4">
-      <ScopeNotice />
+  // Compteurs affichés sur les interrupteurs eux-mêmes : savoir qu'il reste
+  // douze commandes à assigner est une information avant d'être un filtre.
+  const unassignedCount = useMemo(
+    () => bindings.filter((b) => !isAssigned(b, pending)).length,
+    [bindings, pending],
+  );
+  const conflictCount = useMemo(
+    () => bindings.filter((b) => hasConflict(b, pending, conflicts)).length,
+    [bindings, pending, conflicts],
+  );
 
-      <BackupPanel profilePath={profilePath} onRestored={() => void reload()} />
+  const selectedBinding =
+    visible.find((b) => rowKey(b) === selected) ??
+    bindings.find((b) => rowKey(b) === selected) ??
+    null;
 
-      <LiveProbe
-        capture={capture}
-        token={activeToken}
-        devices={devices}
-        matches={
-          activeToken
-            ? bindings.filter((b) => b.input_raw === activeToken).length
-            : 0
+  // Ce que la sonde a relevé, mis en mots pour la barre d'outils.
+  const probedDevice = capture.last
+    ? devices.find((d) => d.instance_guid === capture.last!.guid)
+    : undefined;
+  const probe =
+    activeToken && capture.last && probedDevice
+      ? {
+          device: devicePrefix(devices, probedDevice),
+          control: controlLabel(capture.last.control, t),
+          matches: bindings.filter((b) => b.input_raw === activeToken).length,
         }
+      : null;
+
+  return (
+    <div className="flex flex-col gap-3 pb-4">
+      <EditorToolbar
+        profilePath={profilePath}
+        mode={mode}
+        onModeChange={setMode}
+        listening={capture.listening}
+        deviceCount={devices.length}
+        captureError={capture.error}
+        probe={probe}
+        onClearProbe={capture.reset}
+        onRestored={() => void reload()}
       />
 
       {defaultsError && (
-        <div className="rounded-lg border border-warn-200 bg-warn-50 p-4">
-          <p className="text-sm font-medium text-warn-700">
-            {t("defaults.unavailable")}
-          </p>
-          <p className="mt-1 text-sm text-ink-600">
-            {t("defaults.unavailableHint")}
-          </p>
-          <p className="technical mt-1 text-ink-500">{defaultsError}</p>
-        </div>
+        <Notice tone="warn" title={t("defaults.unavailable")}>
+          {t("defaults.unavailableHint")}
+        </Notice>
       )}
-
-      {status && (
-        <p className="rounded-md border border-accent-100 bg-accent-50 px-4 py-2 text-sm text-accent-700">
-          {status}
-        </p>
-      )}
-      {error && (
-        <p className="rounded-md border border-warn-200 bg-warn-50 px-4 py-2 text-sm text-warn-700">
-          {error}
-        </p>
-      )}
+      {status && <Notice tone="accent">{status}</Notice>}
+      {error && <Notice tone="warn">{error}</Notice>}
 
       <FilterBar
         filters={filters}
         onChange={setFilters}
         shown={visible.length}
         total={bindings.length}
+        conflictCount={conflictCount}
+        unassignedCount={unassignedCount}
       />
 
-      {visible.length === 0 && bindings.length > 0 && (
-        <p className="rounded-lg border border-ink-200 bg-white px-4 py-6 text-center text-sm text-ink-500">
-          {t("filter.noMatch")}
-        </p>
-      )}
+      {/* Deux volets : on navigue dans les catégories plutôt que de dérouler
+          451 lignes. Le détail est collant, il reste sous les yeux pendant
+          qu'on parcourt la liste. */}
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_22rem]">
+        <CategoryTree
+          groups={grouped}
+          selected={selected}
+          onSelect={setSelected}
+          pending={pending}
+          conflicts={conflicts}
+          activeToken={activeToken}
+          ambiguous={ambiguous}
+          empty={visible.length === 0 && bindings.length > 0}
+          filtering={filter.isFiltering(filters)}
+        />
 
-      {grouped.map(([actionmap, items]) => {
-        const teaser = items[0]!.access === "premium_teaser";
-        return (
-          <div
-            key={actionmap}
-            className={
-              "overflow-hidden rounded-lg border bg-white " +
-              (teaser ? "border-ink-200 opacity-75" : "border-ink-200")
-            }
-          >
-            <h3 className="flex items-center gap-2 border-b border-ink-100 bg-ink-50 px-4 py-2">
-              <span className="text-xs font-semibold uppercase tracking-wide text-ink-500">
-                {categoryLabel(actionmap)}
-              </span>
-              {teaser && <PremiumBadge />}
-            </h3>
-            <ul className="divide-y divide-ink-100">
-              {items.map((b) => {
-                const key = keyOf(b.actionmap, b.action);
-                return (
-                  <BindingRow
-                    // Une action peut porter plusieurs assignations — une au
-                    // clavier et une au manche, par exemple. `keyOf` ne les
-                    // distingue pas : deux frères de même clé font rendre à
-                    // React deux lignes identiques, ce qui passait pour un
-                    // doublon. Le jeton complète l'identité de la ligne.
-                    key={`${key}/${b.input_raw}`}
-                    binding={b}
-                    disambiguate={ambiguous.has(bindingLabel(b))}
-                    pending={pending.has(key) ? pending.get(key)! : undefined}
-                    hasPending={pending.has(key)}
-                    // Une assignation dont le contrôle est actionné en ce
-                    // moment même : c'est le lien direct entre le geste et la
-                    // ligne du fichier.
-                    live={activeToken !== null && b.input_raw === activeToken}
-                    onEdit={() => setEditing(b)}
-                    onClear={() => stage(b, null)}
-                    onRevert={() => discardOne(key)}
-                    onLockedClick={() => setUpsell(b.lock)}
-                  />
-                );
-              })}
-            </ul>
-          </div>
-        );
-      })}
+        <DetailPane
+          binding={selectedBinding}
+          pending={pending}
+          conflicts={conflicts}
+          ambiguous={ambiguous}
+          onEdit={(b) => setEditing(b)}
+          onClear={(b) => stage(b, null)}
+          onRevert={(key) => discardOne(key)}
+          onLockedClick={(reason) => setUpsell(reason)}
+          onSelect={setSelected}
+        />
+      </div>
 
       {editing && (
         <ControlPicker
@@ -329,22 +346,22 @@ function UnsavedBar({
   const t = useT();
   return (
     <div className="sticky bottom-0 z-[5] -mx-2 mt-2">
-      <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-warn-200 bg-warn-50 px-4 py-3 shadow-lg">
-        <p className="text-sm font-medium text-warn-700">
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-card)] border border-[var(--danger)]/30 bg-[var(--danger-soft)] px-4 py-3 shadow-[var(--shadow-2)]">
+        <p className="text-sm font-medium text-[var(--danger-text)]">
           {count} {t(count > 1 ? "save.unsavedPlural" : "save.unsaved")}
         </p>
         <div className="flex items-center gap-2">
           <button
             onClick={onDiscardAll}
             disabled={saving}
-            className="rounded-md px-2.5 py-1.5 text-sm text-ink-600 hover:text-warn-700 disabled:text-ink-400"
+            className="rounded-[var(--radius-control)] px-2.5 py-1.5 text-sm text-[var(--text-secondary)] hover:text-[var(--danger-text)] disabled:text-[var(--text-disabled)]"
           >
             {t("save.discardAll")}
           </button>
           <button
             onClick={onReview}
             disabled={saving}
-            className="rounded-md bg-accent-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-700 disabled:bg-ink-300"
+            className="rounded-[var(--radius-control)] bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-[var(--accent-hover)] disabled:bg-[var(--border-default)]"
           >
             {t(saving ? "save.saving" : "save.open")}
           </button>
@@ -380,42 +397,42 @@ function SaveDialog({
 
   return (
     <Modal onCancel={onCancel} title={t("save.title")}>
-      <p className="text-sm text-ink-600">
+      <p className="text-sm text-[var(--text-secondary)]">
         {rows.length}{" "}
         {t(rows.length > 1 ? "save.unsavedPlural" : "save.unsaved")}
       </p>
 
       <button
         onClick={() => setShowDetail((v) => !v)}
-        className="mt-2 text-sm font-medium text-accent-700 hover:text-accent-600"
+        className="mt-2 text-sm font-medium text-[var(--text-accent)] hover:text-[var(--accent-hover)]"
       >
         {t(showDetail ? "save.hideReview" : "save.review")}
       </button>
 
       {showDetail && (
-        <ul className="mt-3 max-h-60 divide-y divide-ink-100 overflow-y-auto rounded-md border border-ink-200">
+        <ul className="mt-3 max-h-60 divide-y divide-[var(--border-subtle)] overflow-y-auto rounded-[var(--radius-control)] border border-[var(--border-subtle)]">
           {rows.map(({ key, input, binding }) => (
             <li
               key={key}
               className="flex items-center justify-between gap-3 px-3 py-2"
             >
               <div className="min-w-0">
-                <p className="truncate text-sm text-ink-800">
+                <p className="truncate text-sm text-[var(--text-primary)]">
                   {binding ? bindingLabel(binding) : key}
                 </p>
-                <p className="technical mt-0.5 truncate text-ink-400">
+                <p className="technical mt-0.5 truncate text-[var(--text-disabled)]">
                   {binding?.control
                     ? `${binding.device}_${binding.control}`
                     : t("binding.unassigned")}
                   {" → "}
-                  <span className="text-accent-700">
+                  <span className="text-[var(--text-accent)]">
                     {input ?? t("binding.clear")}
                   </span>
                 </p>
               </div>
               <button
                 onClick={() => onDiscardOne(key)}
-                className="shrink-0 rounded px-2 py-1 text-xs text-ink-500 hover:text-warn-700"
+                className="shrink-0 rounded px-2 py-1 text-xs text-[var(--text-tertiary)] hover:text-[var(--danger-text)]"
               >
                 {t("save.remove")}
               </button>
@@ -431,9 +448,9 @@ function SaveDialog({
           onChange={(e) => setWithBackup(e.target.checked)}
           className="mt-0.5"
         />
-        <span className="text-sm text-ink-700">
+        <span className="text-sm text-[var(--text-primary)]">
           {t("save.restorePoint")}
-          <span className="mt-0.5 block text-xs text-ink-500">
+          <span className="mt-0.5 block text-xs text-[var(--text-tertiary)]">
             {t("save.restorePointHint")}
           </span>
         </span>
@@ -442,13 +459,13 @@ function SaveDialog({
       <div className="mt-5 flex justify-end gap-2">
         <button
           onClick={onCancel}
-          className="rounded-md border border-ink-300 bg-white px-3 py-1.5 text-sm text-ink-700 hover:bg-ink-50"
+          className="rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-2)] px-3 py-1.5 text-sm text-[var(--text-primary)] hover:bg-[var(--surface-hover)]"
         >
           {t("save.cancel")}
         </button>
         <button
           onClick={() => onConfirm(withBackup)}
-          className="rounded-md bg-accent-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-700"
+          className="rounded-[var(--radius-control)] bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-[var(--accent-hover)]"
         >
           {t("save.confirm")}
         </button>
@@ -457,236 +474,400 @@ function SaveDialog({
   );
 }
 
-function ScopeNotice() {
-  const t = useT();
+/** Message court, aux deux seules tonalités dont l'éditeur a besoin. */
+function Notice({
+  tone,
+  title,
+  children,
+}: {
+  tone: "accent" | "warn";
+  title?: string;
+  children: React.ReactNode;
+}) {
+  const skin =
+    tone === "warn"
+      ? "border-[var(--danger)]/30 bg-[var(--danger-soft)] text-[var(--danger-text)]"
+      : "border-[var(--border-accent)] bg-[var(--accent-soft)] text-[var(--text-accent)]";
   return (
-    <div className="rounded-lg border border-ink-200 bg-white p-4">
-      <p className="text-sm text-ink-700">{t("scope.title")}</p>
-      <p className="mt-2 text-sm text-ink-500">{t("scope.defaults")}</p>
-      <p className="mt-2 text-sm text-ink-500">{t("scope.closeGame")}</p>
+    <div className={`rounded-[var(--radius-control)] border px-3 py-2 text-sm ${skin}`}>
+      {title && <p className="font-medium">{title}</p>}
+      <p className={title ? "mt-0.5 text-[var(--text-secondary)]" : ""}>{children}</p>
     </div>
   );
 }
 
-function PremiumBadge() {
+/**
+ * Colonne de gauche : catégories repliables, commandes à l'intérieur.
+ *
+ * Repliées par défaut. Dérouler 451 lignes d'un coup ne sert personne — on
+ * cherche une commande précise, ou on parcourt une catégorie. Dès qu'un filtre
+ * est actif, en revanche, tout s'ouvre : masquer les résultats d'une recherche
+ * derrière un chevron serait absurde.
+ */
+function CategoryTree({
+  groups,
+  selected,
+  onSelect,
+  pending,
+  conflicts,
+  activeToken,
+  ambiguous,
+  empty,
+  filtering,
+}: {
+  groups: [string, EditableBinding[]][];
+  selected: string | null;
+  onSelect: (key: string) => void;
+  pending: Map<string, string | null>;
+  conflicts: ConflictIndex;
+  activeToken: string | null;
+  ambiguous: Set<string>;
+  empty: boolean;
+  filtering: boolean;
+}) {
+  const t = useT();
+  const [openMap, setOpenMap] = useState<Set<string>>(new Set());
+
+  if (empty) {
+    return (
+      <p className="rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-2)] px-4 py-10 text-center text-sm text-[var(--text-tertiary)]">
+        {t("filter.noMatch")}
+      </p>
+    );
+  }
+
   return (
-    <span className="rounded-full bg-accent-50 px-2 py-0.5 text-[0.6875rem] font-medium text-accent-700">
-      Premium
+    // La liste défile en interne pour que le volet de détail reste visible.
+    // Plus courte en fenêtre étroite, où les deux volets s'empilent : sans
+    // cela il faudrait franchir un écran entier de liste pour lire le détail.
+    <div className="max-h-[45vh] divide-y divide-[var(--border-subtle)] overflow-y-auto rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-2)] lg:max-h-[62vh]">
+      {groups.map(([actionmap, items]) => {
+        const open = filtering || openMap.has(actionmap);
+        const teaser = items[0]!.access === "premium_teaser";
+        const flagged = items.filter((b) =>
+          hasConflict(b, pending, conflicts),
+        ).length;
+
+        return (
+          <div key={actionmap}>
+            <button
+              onClick={() =>
+                setOpenMap((previous) => {
+                  const next = new Set(previous);
+                  if (next.has(actionmap)) next.delete(actionmap);
+                  else next.add(actionmap);
+                  return next;
+                })
+              }
+              className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-[var(--surface-hover)]"
+            >
+              <span className="w-3 text-xs text-[var(--text-disabled)]">
+                {open ? "▾" : "▸"}
+              </span>
+              <span className="flex-1 truncate text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+                {categoryLabel(actionmap)}
+              </span>
+              {teaser && <PremiumBadge />}
+              {flagged > 0 && (
+                <span className="rounded-full bg-[var(--danger-soft)] px-1.5 text-[0.6875rem] font-medium text-[var(--danger-text)]">
+                  {flagged}
+                </span>
+              )}
+              <span className="tabular-nums text-xs text-[var(--text-disabled)]">
+                {items.length}
+              </span>
+            </button>
+
+            {open && (
+              <ul>
+                {items.map((b) => (
+                  <CommandRow
+                    key={rowKey(b)}
+                    binding={b}
+                    selected={selected === rowKey(b)}
+                    disambiguate={ambiguous.has(bindingLabel(b))}
+                    pending={
+                      pending.has(keyOf(b.actionmap, b.action))
+                        ? pending.get(keyOf(b.actionmap, b.action))!
+                        : undefined
+                    }
+                    hasPending={pending.has(keyOf(b.actionmap, b.action))}
+                    conflicting={hasConflict(b, pending, conflicts)}
+                    live={activeToken !== null && b.input_raw === activeToken}
+                    onSelect={() => onSelect(rowKey(b))}
+                  />
+                ))}
+              </ul>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * Une ligne de commande, réduite à ce qui se lit d'un coup d'œil.
+ *
+ * Les boutons d'action ont quitté la ligne pour le volet de détail : les
+ * répéter sur 451 lignes chargeait l'écran sans rien apporter, puisqu'on doit
+ * de toute façon sélectionner une commande pour la modifier.
+ */
+function CommandRow({
+  binding,
+  selected,
+  disambiguate,
+  pending,
+  hasPending,
+  conflicting,
+  live,
+  onSelect,
+}: {
+  binding: EditableBinding;
+  selected: boolean;
+  disambiguate: boolean;
+  pending: string | null | undefined;
+  hasPending: boolean;
+  conflicting: boolean;
+  live: boolean;
+  onSelect: () => void;
+}) {
+  const t = useT();
+  const assigned = binding.control !== null && binding.control !== "";
+
+  return (
+    <li>
+      <button
+        onClick={onSelect}
+        className={
+          "flex w-full items-center justify-between gap-3 border-l-2 py-2 pl-8 pr-3 text-left transition-colors " +
+          (live
+            ? "border-[var(--border-accent)] bg-[var(--accent-soft)]"
+            : selected
+              ? "border-[var(--border-accent)] bg-[var(--accent-soft)]"
+              : hasPending
+                ? "border-transparent bg-[var(--accent-soft)]/50 hover:bg-[var(--surface-hover)]"
+                : "border-transparent hover:bg-[var(--surface-hover)]")
+        }
+      >
+        <span className="min-w-0">
+          <span className="block truncate text-sm text-[var(--text-primary)]">
+            {bindingLabel(binding)}
+          </span>
+          {disambiguate && (
+            <span className="block truncate text-xs text-[var(--text-disabled)]">
+              {categoryLabel(binding.actionmap)}
+            </span>
+          )}
+        </span>
+
+        <span className="flex shrink-0 items-center gap-1.5">
+          {conflicting && (
+            <span
+              title={t("conflict.badge")}
+              className="rounded bg-[var(--danger-soft)] px-1.5 py-0.5 text-[0.6875rem] font-medium text-[var(--danger-text)]"
+            >
+              !
+            </span>
+          )}
+          {hasPending ? (
+            <Key accent>{pending ?? t("binding.clear")}</Key>
+          ) : assigned ? (
+            <TokenChips binding={binding} />
+          ) : (
+            <span className="text-xs italic text-[var(--text-disabled)]">
+              {t("binding.unassigned")}
+            </span>
+          )}
+        </span>
+      </button>
+    </li>
+  );
+}
+
+/** Représentation compacte d'un jeton : périphérique, modificateur, contrôle. */
+function TokenChips({ binding }: { binding: EditableBinding }) {
+  const t = useT();
+  return (
+    <span className="technical flex items-center gap-1">
+      {/* Une valeur par défaut ne porte pas d'index de périphérique : le jeu
+          l'applique au premier de la famille. L'afficher comme une surcharge
+          laisserait croire qu'elle est écrite quelque part. */}
+      {binding.origin === "game_default" ? (
+        <span
+          title={t("binding.defaultTitle")}
+          className="rounded border border-[var(--border-subtle)] px-1.5 py-0.5 text-[0.6875rem] font-medium text-[var(--text-tertiary)]"
+        >
+          {t("binding.default")}
+        </span>
+      ) : (
+        <Key>{binding.device}</Key>
+      )}
+      {binding.modifier && (
+        <>
+          <Key>{binding.modifier}</Key>
+          <span className="text-[var(--text-disabled)]">+</span>
+        </>
+      )}
+      <Key>{binding.control}</Key>
     </span>
   );
 }
 
 /**
- * Bandeau de sonde.
+ * Colonne de droite : tout ce qu'on peut dire d'une commande.
  *
- * Actionner un contrôle éclaire les assignations correspondantes. C'est le
- * moyen le plus direct de répondre à la question que se pose tout joueur
- * devant une configuration héritée : « ce bouton, il sert à quoi ? »
+ * C'est ici que vivent les actions et, surtout, les conflits : le jeu ne
+ * signale nulle part que deux commandes se disputent un bouton, et c'est
+ * précisément ce qu'on découvre en vol.
  */
-function LiveProbe({
-  capture,
-  token,
-  devices,
-  matches,
-}: {
-  capture: CaptureFeed;
-  token: string | null;
-  devices: DeviceView[];
-  matches: number;
-}) {
-  const t = useT();
-  const device = capture.last
-    ? devices.find((d) => d.instance_guid === capture.last!.guid)
-    : undefined;
-
-  return (
-    <div
-      className={
-        "rounded-lg border p-4 " +
-        (token
-          ? "border-accent-500 bg-accent-50"
-          : "border-ink-200 bg-white")
-      }
-    >
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h3 className="text-sm font-semibold text-ink-900">
-          {t("probe.title")}
-        </h3>
-        <span className="text-xs text-ink-500">
-          {capture.error
-            ? t("probe.stopped")
-            : capture.listening
-              ? `${devices.length} ${t(
-                  devices.length > 1 ? "probe.deviceMany" : "probe.deviceOne",
-                )} · ${t("probe.listening")}`
-              : t("probe.opening")}
-        </span>
-      </div>
-
-      {capture.error ? (
-        <p className="mt-2 text-sm text-warn-700">{capture.error}</p>
-      ) : token && capture.last && device ? (
-        <div className="mt-2">
-          <p className="text-sm text-ink-700">
-            <span className="font-medium text-accent-700">
-              {devicePrefix(devices, device)}
-            </span>{" "}
-            — {device.product_name || device.instance_name} ·{" "}
-            {controlLabel(capture.last.control)}
-            <span className="technical ml-2 text-ink-500">{token}</span>
-          </p>
-          <p className="mt-1 text-sm text-ink-600">
-            {/* Un nombre nu ne dit rien : c'est le compte des commandes déjà
-                assignées à ce contrôle, autrement dit ses conflits. */}
-            {matches === 0
-              ? t("probe.noMatch")
-              : `${matches} ${t(
-                  matches > 1 ? "probe.matchMany" : "probe.matchOne",
-                )}`}
-          </p>
-          <button
-            onClick={capture.reset}
-            className="mt-2 text-xs font-medium text-accent-700 hover:text-accent-600"
-          >
-            {t("probe.clear")}
-          </button>
-        </div>
-      ) : (
-        <p className="mt-2 text-sm text-ink-500">{t("probe.idle")}</p>
-      )}
-    </div>
-  );
-}
-
-function BindingRow({
+function DetailPane({
   binding,
-  disambiguate,
   pending,
-  hasPending,
-  live,
+  conflicts,
+  ambiguous,
   onEdit,
   onClear,
   onRevert,
   onLockedClick,
+  onSelect,
 }: {
-  binding: EditableBinding;
-  /** Une autre commande porte le même nom : préciser laquelle est laquelle. */
-  disambiguate: boolean;
-  pending: string | null | undefined;
-  hasPending: boolean;
-  live: boolean;
-  onEdit: () => void;
-  onClear: () => void;
-  onRevert: () => void;
-  onLockedClick: () => void;
+  binding: EditableBinding | null;
+  pending: Map<string, string | null>;
+  conflicts: ConflictIndex;
+  ambiguous: Set<string>;
+  onEdit: (binding: EditableBinding) => void;
+  onClear: (binding: EditableBinding) => void;
+  onRevert: (key: string) => void;
+  onLockedClick: (reason: LockReason) => void;
+  onSelect: (key: string) => void;
 }) {
   const t = useT();
-  const assigned = binding.control !== null;
+
+  if (!binding) {
+    return (
+      <aside className="hidden rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-2)] px-4 py-10 text-center text-sm text-[var(--text-tertiary)] lg:block">
+        {/* Masqué en fenêtre étroite : une invite à sélectionner n'a pas
+            besoin d'un écran entier sous la liste. */}
+        {t("detail.empty")}
+      </aside>
+    );
+  }
+
+  const key = keyOf(binding.actionmap, binding.action);
+  const hasPending = pending.has(key);
+  const staged = hasPending ? pending.get(key)! : undefined;
+  const assigned = binding.control !== null && binding.control !== "";
+  const rivals = rivalsOf(binding, pending, conflicts);
 
   return (
-    <li
-      className={
-        "flex items-center justify-between gap-4 px-4 py-2.5 " +
-        // La sonde prime sur la modification en attente : c'est un retour
-        // immédiat au geste de l'utilisateur.
-        (live
-          ? "bg-accent-100 ring-1 ring-inset ring-accent-500"
-          : hasPending
-            ? "bg-accent-50/60"
-            : "")
-      }
-    >
-      <div className="min-w-0">
-        <p
-          className="truncate text-sm text-ink-800"
-          // Le jeu fournit sa propre description : c'est sa réponse à
-          // « à quoi sert cette touche ? », plus fiable que la nôtre.
-          title={binding.description ?? undefined}
-        >
+    <aside className="space-y-4 self-start rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-2)] p-4 lg:sticky lg:top-0">
+      <div>
+        <h3 className="text-sm font-semibold text-[var(--text-primary)]">
           {bindingLabel(binding)}
-        </p>
-        <p className="technical mt-0.5 truncate text-ink-400">
+        </h3>
+        <p className="technical mt-0.5 text-[var(--text-disabled)]">
           {binding.action}
-          {/* Le nom interne ne suffit pas toujours : `mobiglas` existe à
-              l'identique dans deux catégories. La catégorie est le seul
-              élément qui les sépare. */}
-          {disambiguate && (
-            <span className="ml-1.5 text-ink-500">
+          {ambiguous.has(bindingLabel(binding)) && (
+            <span className="ml-1.5 text-[var(--text-tertiary)]">
               · {categoryLabel(binding.actionmap)}
             </span>
           )}
         </p>
       </div>
 
-      <div className="flex shrink-0 items-center gap-2">
-        {hasPending ? (
-          <span className="technical flex items-center gap-1">
-            <span className="text-ink-400 line-through">
-              {assigned ? `${binding.device}_${binding.control}` : "vide"}
-            </span>
-            <span className="text-ink-400">→</span>
-            <Key accent>{pending ?? "effacée"}</Key>
-          </span>
-        ) : assigned ? (
-          <span className="technical flex items-center gap-1">
-            {/* Une valeur par défaut ne porte pas d'index de périphérique :
-                le jeu l'applique au premier de la famille. L'afficher comme
-                une surcharge laisserait croire qu'elle est écrite quelque
-                part, alors qu'elle n'existe que dans l'archive du jeu. */}
-            {binding.origin === "game_default" ? (
-              <span
-                title={t("binding.defaultTitle")}
-                className="rounded border border-ink-200 px-1.5 py-0.5 text-[0.6875rem] font-medium text-ink-500"
-              >
-                {t("binding.default")}
-              </span>
-            ) : (
-              <Key>{binding.device}</Key>
-            )}
-            {/* Le modificateur faisait partie du jeton mais n'était pas
-                affiché : `kb1_lshift+f` se lisait « kb1 f », soit une autre
-                touche que celle réellement exigée. */}
-            {binding.modifier && (
-              <>
-                <Key>{binding.modifier}</Key>
-                <span className="text-ink-400">+</span>
-              </>
-            )}
-            <Key>{binding.control}</Key>
-          </span>
-        ) : (
-          <span className="text-xs italic text-ink-400">
-            {t("binding.unassigned")}
-          </span>
-        )}
+      {binding.description && (
+        <p className="text-xs leading-relaxed text-[var(--text-secondary)]">
+          {binding.description}
+        </p>
+      )}
 
+      {/* La situation explique pourquoi telle touche partagée n'est pas
+          signalée : une commande de siège et une commande à pied ne
+          répondent jamais ensemble. */}
+      <p className="text-xs text-[var(--text-tertiary)]">
+        {t("detail.activeIn")}{" "}
+        <span className="font-medium text-[var(--text-primary)]">
+          {t(`context.${binding.context}`)}
+        </span>
+      </p>
+
+      <div>
+        <p className="text-xs font-medium text-[var(--text-tertiary)]">
+          {t("detail.assignment")}
+        </p>
+        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+          {hasPending ? (
+            <>
+              {assigned && (
+                <span className="technical text-[var(--text-disabled)] line-through">
+                  {binding.device}_{binding.control}
+                </span>
+              )}
+              <span className="text-[var(--text-disabled)]">→</span>
+              <Key accent>{staged ?? t("binding.clear")}</Key>
+            </>
+          ) : assigned ? (
+            <TokenChips binding={binding} />
+          ) : (
+            <span className="text-sm italic text-[var(--text-disabled)]">
+              {t("binding.unassigned")}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {rivals.length > 0 && (
+        <div className="rounded-[var(--radius-control)] border border-[var(--danger)]/30 bg-[var(--danger-soft)] p-3">
+          <p className="text-xs font-medium text-[var(--danger-text)]">
+            {rivals.length}{" "}
+            {t(rivals.length > 1 ? "conflict.manyBody" : "conflict.oneBody")}
+          </p>
+          <ul className="mt-1.5 space-y-1">
+            {rivals.map((other) => (
+              <li key={rowKey(other)}>
+                <button
+                  onClick={() => onSelect(rowKey(other))}
+                  className="text-left text-xs text-[var(--text-primary)] underline decoration-[var(--warning)] underline-offset-2 hover:text-[var(--danger-text)]"
+                >
+                  {bindingLabel(other)}
+                  <span className="ml-1 text-[var(--text-disabled)]">
+                    · {categoryLabel(other.actionmap)}
+                  </span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-2 border-t border-[var(--border-subtle)] pt-3">
         {binding.lock ? (
           <button
-            onClick={onLockedClick}
-            title={t(`lock.${binding.lock}`)}
-            className="cursor-not-allowed rounded border border-ink-200 bg-ink-50 px-2 py-1 text-xs text-ink-400"
+            onClick={() => onLockedClick(binding.lock!)}
+            className="rounded-[var(--radius-control)] border border-[var(--border-subtle)] bg-[var(--surface-2)] px-3 py-1.5 text-xs text-[var(--text-tertiary)]"
           >
             {t("binding.locked")}
           </button>
         ) : hasPending ? (
           <button
-            onClick={onRevert}
-            className="rounded-md border border-ink-300 bg-white px-2.5 py-1 text-xs font-medium text-ink-700 hover:bg-ink-50"
+            onClick={() => onRevert(key)}
+            className="rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-2)] px-3 py-1.5 text-xs font-medium text-[var(--text-primary)] hover:bg-[var(--surface-hover)]"
           >
             {t("binding.revert")}
           </button>
         ) : (
           <>
             <button
-              onClick={onEdit}
-              className="rounded-md border border-ink-300 bg-white px-2.5 py-1 text-xs font-medium text-ink-700 hover:bg-ink-50"
+              onClick={() => onEdit(binding)}
+              className="rounded-[var(--radius-control)] bg-accent px-3 py-1.5 text-xs font-medium text-white hover:bg-[var(--accent-hover)]"
             >
               {t("binding.edit")}
             </button>
             {assigned && (
               <button
-                onClick={onClear}
-                className="rounded-md px-2 py-1 text-xs text-ink-500 hover:text-warn-700"
+                onClick={() => onClear(binding)}
+                className="rounded-[var(--radius-control)] px-3 py-1.5 text-xs text-[var(--text-tertiary)] hover:text-[var(--danger-text)]"
               >
                 {t("binding.clear")}
               </button>
@@ -694,7 +875,19 @@ function BindingRow({
           </>
         )}
       </div>
-    </li>
+
+      {binding.lock && (
+        <p className="text-xs text-[var(--text-tertiary)]">{t(`lock.${binding.lock}`)}</p>
+      )}
+    </aside>
+  );
+}
+
+function PremiumBadge() {
+  return (
+    <span className="rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-[0.6875rem] font-medium text-[var(--text-accent)]">
+      Premium
+    </span>
   );
 }
 
@@ -708,12 +901,12 @@ function UpsellDialog({
   const t = useT();
   return (
     <Modal onCancel={onClose} title={t("upsell.title")}>
-      <p className="text-sm text-ink-600">{t(`lock.${reason}`)}</p>
-      <p className="mt-3 text-sm text-ink-600">{t("upsell.body")}</p>
+      <p className="text-sm text-[var(--text-secondary)]">{t(`lock.${reason}`)}</p>
+      <p className="mt-3 text-sm text-[var(--text-secondary)]">{t("upsell.body")}</p>
       <div className="mt-5 flex justify-end">
         <button
           onClick={onClose}
-          className="rounded-md border border-ink-300 bg-white px-3 py-1.5 text-sm text-ink-700 hover:bg-ink-50"
+          className="rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-2)] px-3 py-1.5 text-sm text-[var(--text-primary)] hover:bg-[var(--surface-hover)]"
         >
           {t("upsell.close")}
         </button>
@@ -747,7 +940,7 @@ function ControlPicker({
 
   return (
     <Modal onCancel={onCancel} title={bindingLabel(binding)}>
-      <div className="mb-4 flex gap-1 border-b border-ink-200">
+      <div className="mb-4 flex gap-1 border-b border-[var(--border-subtle)]">
         <SourceTab
           active={source === "keyboard"}
           onClick={() => setSource("keyboard")}
@@ -811,15 +1004,15 @@ function SourceTab({
       className={
         "-mb-px border-b-2 px-3 py-1.5 text-sm font-medium " +
         (empty
-          ? "cursor-not-allowed border-transparent text-ink-300"
+          ? "cursor-not-allowed border-transparent text-[var(--text-disabled)]"
           : active
-            ? "border-accent-600 text-accent-700"
-            : "border-transparent text-ink-500 hover:text-ink-800")
+            ? "border-[var(--border-accent)] text-[var(--text-accent)]"
+            : "border-transparent text-[var(--text-tertiary)] hover:text-[var(--text-primary)]")
       }
     >
       {children}
       {count !== undefined && count > 1 && (
-        <span className="ml-1 text-xs text-ink-400">({count})</span>
+        <span className="ml-1 text-xs text-[var(--text-disabled)]">({count})</span>
       )}
     </button>
   );
@@ -871,7 +1064,7 @@ function KeyboardCapture({
         setHint(null);
       } else {
         setCaptured(null);
-        setHint(captureErrorMessage(result.error));
+        setHint(captureErrorMessage(result.error, t));
       }
     }
 
@@ -911,7 +1104,7 @@ function KeyboardCapture({
       setHint(null);
     } else {
       setCaptured(null);
-      setHint(captureErrorMessage(result.error));
+      setHint(captureErrorMessage(result.error, t));
     }
   }
 
@@ -928,41 +1121,41 @@ function KeyboardCapture({
         onWheel={(e) => apply(fromWheel(e.deltaY, held.current))}
         onContextMenu={(e) => e.preventDefault()}
         className={
-          "cursor-pointer select-none rounded-lg border-2 border-dashed px-4 py-8 text-center " +
+          "cursor-pointer select-none rounded-[var(--radius-card)] border-2 border-dashed px-4 py-8 text-center " +
           (captured
-            ? "border-accent-500 bg-accent-50"
-            : "border-ink-300 bg-ink-50")
+            ? "border-[var(--border-accent)] bg-[var(--accent-soft)]"
+            : "border-[var(--border-default)] bg-[var(--surface-2)]")
         }
       >
         {captured ? (
           <>
-            <p className="text-lg font-medium text-accent-700">
-              {captured.label}
+            <p className="text-lg font-medium text-[var(--text-accent)]">
+              {describe(captured, t)}
             </p>
-            <p className="technical mt-1 text-ink-500">{captured.token}</p>
+            <p className="technical mt-1 text-[var(--text-tertiary)]">{captured.token}</p>
           </>
         ) : (
-          <p className="text-sm text-ink-500">
+          <p className="text-sm text-[var(--text-tertiary)]">
             {t("picker.pressKey")}
           </p>
         )}
       </div>
 
-      {hint && <p className="text-sm text-warn-700">{hint}</p>}
+      {hint && <p className="text-sm text-[var(--danger-text)]">{hint}</p>}
 
-      <p className="text-xs text-ink-500">{t("picker.keyHint")}</p>
+      <p className="text-xs text-[var(--text-tertiary)]">{t("picker.keyHint")}</p>
 
       <div className="flex justify-end gap-2">
         <button
           onClick={onCancel}
-          className="rounded-md border border-ink-300 bg-white px-3 py-1.5 text-sm text-ink-700 hover:bg-ink-50"
+          className="rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-2)] px-3 py-1.5 text-sm text-[var(--text-primary)] hover:bg-[var(--surface-hover)]"
         >
           {t("save.cancel")}
         </button>
         <button
           disabled={!captured}
           onClick={() => captured && onPick(captured.token)}
-          className="rounded-md bg-accent-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-700 disabled:cursor-not-allowed disabled:bg-ink-300"
+          className="rounded-[var(--radius-control)] bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:bg-[var(--border-default)]"
         >
           {t("picker.apply")}
         </button>
@@ -1017,9 +1210,11 @@ function DevicePicker({
       : null;
 
   const manualDevice = family[manualIndex];
-  const options: ControlOption[] = manualDevice ? controlsFor(manualDevice) : [];
+  const options: ControlOption[] = manualDevice
+    ? controlsFor(manualDevice, t)
+    : [];
   const groups = useMemo(() => {
-    const map = new Map<string, ControlOption[]>();
+    const map = new Map<ControlGroup, ControlOption[]>();
     for (const o of options) {
       const list = map.get(o.group);
       if (list) list.push(o);
@@ -1030,7 +1225,7 @@ function DevicePicker({
 
   if (family.length === 0) {
     return (
-      <p className="text-sm text-ink-600">
+      <p className="text-sm text-[var(--text-secondary)]">
         {t("picker.noDevice")}
       </p>
     );
@@ -1054,11 +1249,11 @@ function DevicePicker({
       {manual ? (
         <>
           <label className="block">
-            <span className="text-xs font-medium text-ink-600">
+            <span className="text-xs font-medium text-[var(--text-secondary)]">
               {t("picker.device")}
             </span>
             <select
-              className="mt-1 w-full rounded-md border border-ink-300 bg-white px-3 py-1.5 text-sm"
+              className="mt-1 w-full rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-2)] px-3 py-1.5 text-sm"
               value={manualIndex}
               onChange={(e) => {
                 setManualIndex(Number(e.target.value));
@@ -1075,17 +1270,17 @@ function DevicePicker({
           </label>
 
           <label className="block">
-            <span className="text-xs font-medium text-ink-600">
+            <span className="text-xs font-medium text-[var(--text-secondary)]">
               {t("picker.control")}
             </span>
             <select
-              className="mt-1 w-full rounded-md border border-ink-300 bg-white px-3 py-1.5 text-sm"
+              className="mt-1 w-full rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-2)] px-3 py-1.5 text-sm"
               value={control}
               onChange={(e) => setControl(e.target.value)}
             >
               <option value="">{t("picker.choose")}</option>
               {groups.map(([group, items]) => (
-                <optgroup key={group} label={group}>
+                <optgroup key={group} label={groupLabel(group, t)}>
                   {items.map((o) => (
                     <option key={o.value} value={o.value}>
                       {o.label}
@@ -1099,29 +1294,29 @@ function DevicePicker({
       ) : (
         <div
           className={
-            "rounded-lg border-2 border-dashed px-4 py-8 text-center " +
+            "rounded-[var(--radius-card)] border-2 border-dashed px-4 py-8 text-center " +
             (captured
-              ? "border-accent-500 bg-accent-50"
-              : "border-ink-300 bg-ink-50")
+              ? "border-[var(--border-accent)] bg-[var(--accent-soft)]"
+              : "border-[var(--border-default)] bg-[var(--surface-2)]")
           }
         >
           {captured && capturedDevice ? (
             <>
-              <p className="text-xs font-medium uppercase tracking-wide text-accent-700">
+              <p className="text-xs font-medium uppercase tracking-wide text-[var(--text-accent)]">
                 {devicePrefix(allDevices, capturedDevice)} —{" "}
                 {capturedDevice.product_name || capturedDevice.instance_name}
               </p>
-              <p className="mt-1 text-lg font-medium text-accent-700">
-                {controlLabel(captured.control)}
+              <p className="mt-1 text-lg font-medium text-[var(--text-accent)]">
+                {controlLabel(captured.control, t)}
               </p>
-              <p className="technical mt-1 text-ink-500">{token}</p>
+              <p className="technical mt-1 text-[var(--text-tertiary)]">{token}</p>
             </>
           ) : (
             <>
-              <p className="text-sm text-ink-500">
+              <p className="text-sm text-[var(--text-tertiary)]">
                 {t("picker.pressControl")}
               </p>
-              <p className="mt-1 text-xs text-ink-400">
+              <p className="mt-1 text-xs text-[var(--text-disabled)]">
                 {capture.listening
                   ? `${family.length} ${t(
                       family.length > 1 ? "probe.deviceMany" : "probe.deviceOne",
@@ -1134,7 +1329,7 @@ function DevicePicker({
       )}
 
       {capture.error && (
-        <p className="text-sm text-warn-700">{capture.error}</p>
+        <p className="text-sm text-[var(--danger-text)]">{capture.error}</p>
       )}
 
       <button
@@ -1143,7 +1338,7 @@ function DevicePicker({
           setControl("");
           capture.reset();
         }}
-        className="text-sm font-medium text-accent-700 hover:text-accent-600"
+        className="text-sm font-medium text-[var(--text-accent)] hover:text-[var(--accent-hover)]"
       >
         {t(manual ? "picker.useCapture" : "picker.useList")}
       </button>
@@ -1151,14 +1346,14 @@ function DevicePicker({
       <div className="flex justify-end gap-2 pt-2">
         <button
           onClick={onCancel}
-          className="rounded-md border border-ink-300 bg-white px-3 py-1.5 text-sm text-ink-700 hover:bg-ink-50"
+          className="rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-2)] px-3 py-1.5 text-sm text-[var(--text-primary)] hover:bg-[var(--surface-hover)]"
         >
           {t("save.cancel")}
         </button>
         <button
           disabled={!token}
           onClick={() => token && onPick(token)}
-          className="rounded-md bg-accent-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-700 disabled:cursor-not-allowed disabled:bg-ink-300"
+          className="rounded-[var(--radius-control)] bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:bg-[var(--border-default)]"
         >
           {t("picker.apply")}
         </button>
@@ -1178,14 +1373,14 @@ function Modal({
 }) {
   return (
     <div
-      className="fixed inset-0 z-10 flex items-center justify-center bg-ink-900/30 p-8"
+      className="fixed inset-0 z-10 flex items-center justify-center overflow-y-auto bg-[var(--scrim)] p-4 sm:p-8"
       onClick={onCancel}
     >
       <div
-        className="w-full max-w-md rounded-lg border border-ink-200 bg-white p-5 shadow-lg"
+        className="w-full max-w-md rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-2)] p-5 shadow-[var(--shadow-2)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="mb-4 text-sm font-semibold text-ink-900">{title}</h3>
+        <h3 className="mb-4 text-sm font-semibold text-[var(--text-primary)]">{title}</h3>
         {children}
       </div>
     </div>
@@ -1204,8 +1399,8 @@ function Key({
       className={
         "rounded border px-1.5 py-0.5 " +
         (accent
-          ? "border-accent-100 bg-accent-50 text-accent-700"
-          : "border-ink-200 bg-ink-50 text-ink-700")
+          ? "border-[var(--border-accent)] bg-[var(--accent-soft)] text-[var(--text-accent)]"
+          : "border-[var(--border-subtle)] bg-[var(--surface-2)] text-[var(--text-primary)]")
       }
     >
       {children}

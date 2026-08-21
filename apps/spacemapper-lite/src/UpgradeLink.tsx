@@ -1,4 +1,5 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { Button } from "@spacemapper/ui";
 import { useT } from "./lib/i18nContext";
 
 /**
@@ -17,13 +18,13 @@ const TIPEEE_URL = "https://fr.tipeee.com/padek-interactive";
 export default function UpgradeLink() {
   const t = useT();
   return (
-    <button
+    <Button
       // L'ouverture peut échouer si la permission `opener:allow-open-url`
       // vient à manquer ; on ne veut pas d'un rejet non capturé pour autant.
       onClick={() => void openUrl(TIPEEE_URL).catch(() => {})}
-      className="mt-3 rounded-md bg-accent-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-accent-700"
+      className="mt-3"
     >
       {t("upgrade.cta")}
-    </button>
+    </Button>
   );
 }

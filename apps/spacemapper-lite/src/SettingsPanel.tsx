@@ -1,9 +1,20 @@
 import { useEffect, useState } from "react";
-import { api, type Language, type Settings } from "./lib/api";
+import { Button, Card } from "@spacemapper/ui";
+import {
+  api,
+  type Language,
+  type ProfileLocation,
+  type Settings,
+} from "./lib/api";
 import { useT } from "./lib/i18nContext";
 
 /**
  * Réglages de l'application.
+ *
+ * Le choix du profil vit ici, et non en tête de chaque écran : on le fait une
+ * fois, à l'installation ou lors d'un changement de canal. L'y laisser en
+ * permanence coûtait un bandeau sur toutes les pages pour un réglage qu'on ne
+ * touche presque jamais.
  *
  * Deux langues distinctes, et la distinction est volontaire : un joueur peut
  * vouloir l'interface en français tout en gardant les noms de commandes en
@@ -15,9 +26,15 @@ import { useT } from "./lib/i18nContext";
  */
 export default function SettingsPanel({
   profilePath,
+  profiles,
+  onSelectProfile,
+  onBrowse,
   onChanged,
 }: {
-  profilePath: string;
+  profilePath: string | null;
+  profiles: ProfileLocation[];
+  onSelectProfile: (path: string) => void;
+  onBrowse: () => void;
   onChanged: () => void;
 }) {
   const t = useT();
@@ -35,6 +52,7 @@ export default function SettingsPanel({
       } catch (e) {
         if (!cancelled) setError(String(e));
       }
+      if (!profilePath) return;
       try {
         const found = await api.listGameLanguages(profilePath);
         if (!cancelled) setLanguages(found);
@@ -62,34 +80,70 @@ export default function SettingsPanel({
   }
 
   if (!settings) {
-    return <p className="text-sm text-ink-500">{t("settings.loading")}</p>;
+    return (
+      <p className="text-[length:var(--fs-body-sm)] text-[var(--text-tertiary)]">
+        {t("settings.loading")}
+      </p>
+    );
   }
 
+  const selectClasses =
+    "min-w-0 rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-2)] px-[var(--sp-6)] py-[var(--sp-4)] text-[length:var(--fs-body-sm)] text-[var(--text-primary)] focus:border-[var(--border-accent)] focus-visible:shadow-[var(--ring-focus)] focus:outline-none";
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-[var(--sp-6)]">
+      <Section title={t("profile.title")} hint={t("profile.hint")}>
+        <div className="flex flex-wrap items-center gap-[var(--sp-4)]">
+          {profiles.length > 0 ? (
+            <select
+              className={`flex-1 sm:flex-none ${selectClasses}`}
+              value={profilePath ?? ""}
+              onChange={(e) => onSelectProfile(e.target.value)}
+            >
+              {profiles.map((p) => (
+                <option key={p.path} value={p.path}>
+                  {p.channel}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <p className="text-[length:var(--fs-body-sm)] text-[var(--text-tertiary)]">
+              {t("profile.none")}
+            </p>
+          )}
+          <Button variant="secondary" size="sm" onClick={onBrowse} className="shrink-0">
+            {t("profile.browse")}
+          </Button>
+        </div>
+        {profilePath && (
+          <p className="technical mt-[var(--sp-4)] break-all text-[var(--text-disabled)]">
+            {profilePath}
+          </p>
+        )}
+      </Section>
+
       <Section
         title={t("settings.gameLanguage")}
         hint={t("settings.gameLanguageHint")}
       >
         {languages.length === 0 ? (
-          <p className="text-sm text-ink-500">{t("settings.noLanguages")}</p>
+          <p className="text-[length:var(--fs-body-sm)] text-[var(--text-tertiary)]">
+            {t("settings.noLanguages")}
+          </p>
         ) : (
-          <>
-            <select
-              className="w-full max-w-sm rounded-md border border-ink-300 bg-white px-3 py-1.5 text-sm"
-              value={settings.game_language}
-              onChange={(e) =>
-                void update({ ...settings, game_language: e.target.value })
-              }
-            >
-              {languages.map((l) => (
-                <option key={l.id} value={l.id}>
-                  {l.label}
-                </option>
-              ))}
-            </select>
-            <p className="mt-2 text-xs text-ink-500">{languages.length}</p>
-          </>
+          <select
+            className={`w-full max-w-sm ${selectClasses}`}
+            value={settings.game_language}
+            onChange={(e) =>
+              void update({ ...settings, game_language: e.target.value })
+            }
+          >
+            {languages.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.label}
+              </option>
+            ))}
+          </select>
         )}
       </Section>
 
@@ -97,32 +151,32 @@ export default function SettingsPanel({
         title={t("settings.uiLanguage")}
         hint={t("settings.uiLanguageHint")}
       >
-        <div className="flex gap-2">
+        <div className="flex gap-[var(--sp-4)]">
           {[
             { id: "fr", label: "Français" },
             { id: "en", label: "English" },
           ].map((option) => (
-            <button
+            <Button
               key={option.id}
-              onClick={() =>
-                void update({ ...settings, ui_language: option.id })
-              }
-              className={
-                "rounded-md px-3 py-1.5 text-sm font-medium " +
-                (settings.ui_language === option.id
-                  ? "bg-accent-600 text-white"
-                  : "border border-ink-300 bg-white text-ink-700 hover:bg-ink-50")
-              }
+              size="sm"
+              variant={settings.ui_language === option.id ? "primary" : "secondary"}
+              onClick={() => void update({ ...settings, ui_language: option.id })}
             >
               {option.label}
-            </button>
+            </Button>
           ))}
         </div>
-        <p className="mt-2 text-xs text-ink-500">{t("settings.installHint")}</p>
+        <p className="mt-[var(--sp-4)] text-[length:var(--fs-caption)] text-[var(--text-tertiary)]">
+          {t("settings.installHint")}
+        </p>
       </Section>
 
-      {status && <p className="text-sm text-accent-700">{status}</p>}
-      {error && <p className="text-sm text-warn-700">{error}</p>}
+      {status && (
+        <p className="text-[length:var(--fs-body-sm)] text-[var(--success-text)]">{status}</p>
+      )}
+      {error && (
+        <p className="text-[length:var(--fs-body-sm)] text-[var(--danger-text)]">{error}</p>
+      )}
     </div>
   );
 }
@@ -133,14 +187,18 @@ function Section({
   children,
 }: {
   title: string;
-  hint: string;
+  hint?: string;
   children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-lg border border-ink-200 bg-white p-4">
-      <h3 className="text-sm font-semibold text-ink-900">{title}</h3>
-      <p className="mb-3 mt-0.5 text-xs text-ink-500">{hint}</p>
+    <Card>
+      <h3 className="text-[length:var(--fs-body)] font-semibold text-[var(--text-primary)]">
+        {title}
+      </h3>
+      <p className="mb-[var(--sp-4)] mt-[var(--sp-1)] text-[length:var(--fs-caption)] text-[var(--text-tertiary)]">
+        {hint}
+      </p>
       {children}
-    </div>
+    </Card>
   );
 }
