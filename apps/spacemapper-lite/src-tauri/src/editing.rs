@@ -11,8 +11,9 @@
 //! écriture : c'est le seul moment où l'utilisateur sait ce qu'il s'apprête à
 //! changer.
 
-use crate::gamedata::GameData;
 use serde::{Deserialize, Serialize};
+use spacemapper_app_support::gamedata::GameData;
+use spacemapper_app_support::settings as app_settings;
 use spacemapper_core::actionmaps::{self, ActionMaps, InputBinding};
 use spacemapper_core::channel;
 use spacemapper_core::context::{self, Context};
@@ -139,7 +140,7 @@ pub fn list_editable_bindings(
         Err(message) => (None, Some(message)),
     };
 
-    let language = crate::settings::load(APP_NAME).game_language;
+    let language = app_settings::load(APP_NAME).game_language;
     let catalog = state.catalog_for(Path::new(&path), &language);
 
     let mut bindings = collect_editable(&maps, defaults.as_ref());
@@ -215,13 +216,13 @@ pub fn list_game_languages(
 }
 
 #[tauri::command]
-pub fn get_settings() -> crate::settings::Settings {
-    crate::settings::load(APP_NAME)
+pub fn get_settings() -> app_settings::Settings {
+    app_settings::load(APP_NAME)
 }
 
 #[tauri::command]
-pub fn set_settings(settings: crate::settings::Settings) -> CmdResult<()> {
-    crate::settings::save(APP_NAME, &settings)
+pub fn set_settings(settings: app_settings::Settings) -> CmdResult<()> {
+    app_settings::save(APP_NAME, &settings)
 }
 
 #[derive(Debug, Serialize)]

@@ -17,12 +17,10 @@
 //! L'export, l'import, la synchronisation et les profils nommés relèvent de
 //! l'édition Premium.
 
-mod capture;
 mod commands;
 mod editing;
-mod gamedata;
-mod layouts;
-mod settings;
+
+use spacemapper_app_support::{capture, gamedata, layouts};
 
 pub fn run() {
     tauri::Builder::default()

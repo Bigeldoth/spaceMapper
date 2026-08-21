@@ -120,7 +120,10 @@ pub fn start_capture(
 
             // Repère d'entrée : sans lui, un thread bloqué *dans* l'ouverture
             // est indiscernable d'un thread qui n'a jamais démarré.
-            eprintln!("[capture] session {id} : ouverture de {} périphérique(s)…", parsed.len());
+            eprintln!(
+                "[capture] session {id} : ouverture de {} périphérique(s)…",
+                parsed.len()
+            );
             let (session, failures) = MultiCaptureSession::open(&parsed, hwnd);
             eprintln!(
                 "[capture] session {id} : {} ouvert(s), {} échec(s){}",

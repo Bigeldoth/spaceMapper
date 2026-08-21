@@ -50,7 +50,10 @@ impl GameData {
             Err(_) => return Catalog::default(),
         };
 
-        if guard.as_ref().is_none_or(|(cached, _)| cached != language) {
+        if guard
+            .as_ref()
+            .map_or(true, |(cached, _)| cached != language)
+        {
             let loaded = load_catalog(actionmaps, language).unwrap_or_default();
             *guard = Some((language.to_string(), loaded));
         }

@@ -30,6 +30,7 @@ tauri-plugin-opener = "2"
 
 spacemapper-core = { workspace = true }
 spacemapper-edit = { workspace = true }
+spacemapper-app-support = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
