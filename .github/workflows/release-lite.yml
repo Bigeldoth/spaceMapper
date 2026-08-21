@@ -1,0 +1,53 @@
+name: Release Lite
+
+# DirectInput est Windows-only, tauri.conf.json ne cible que nsis : un seul
+# runner suffit, pas de matrice multi-OS comme un template Tauri générique.
+on:
+  push:
+    tags:
+      - "lite-v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & publish l'installateur Windows
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Installer la toolchain Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/spacemapper-lite/src-tauri
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/spacemapper-lite/package-lock.json
+
+      - name: Installer les dépendances frontend
+        working-directory: apps/spacemapper-lite
+        run: npm ci
+
+      - name: Build + publication de l'installateur
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: apps/spacemapper-lite
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || format('lite-v{0}-dev', github.run_number) }}
+          releaseName: "SpaceMapper Lite ${{ github.ref_type == 'tag' && github.ref_name || format('(build de test #{0})', github.run_number) }}"
+          releaseBody: |
+            Voir le [journal des modifications](https://github.com/Bigeldoth/spaceMapper/commits/main) pour le détail des changements.
+
+            Édition Lite, gratuite et hors-ligne. Installateur Windows (NSIS), français et anglais.
+          # Brouillon : la publication reste une action manuelle depuis GitHub,
+          # cette Action ne rend jamais une release publique toute seule.
+          releaseDraft: true
+          prerelease: false
