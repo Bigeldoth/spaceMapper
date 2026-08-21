@@ -24,7 +24,7 @@ pub mod backup;
 pub mod scope;
 pub mod writer;
 
-pub use scope::{EditAccess, EditCategory};
+pub use scope::{EditAccess, EditCategory, LiteScope, ScopePolicy};
 pub use writer::BindingEdit;
 
 use std::path::{Path, PathBuf};
@@ -54,10 +54,7 @@ pub enum Error {
     )]
     NoInsertionPoint { actionmap: String, action: String },
 
-    #[error(
-        "« {actionmap} » n'est pas modifiable dans l'édition Lite, \
-         qui se limite aux déplacements à pied et en vol"
-    )]
+    #[error("« {actionmap} » n'est pas modifiable dans ce périmètre d'édition")]
     OutOfScope { actionmap: String },
 
     /// Une opération destructrice visait une cible hors de son périmètre.
@@ -80,9 +77,27 @@ impl Error {
     }
 }
 
-/// Applique une modification à un `actionmaps.xml` sur disque.
+/// Applique une modification à un `actionmaps.xml` sur disque, sous la
+/// politique de périmètre Lite.
 pub fn apply_to_file(target: &Path, edit: &BindingEdit) -> Result<()> {
-    apply_all_to_file(target, std::slice::from_ref(edit))
+    apply_to_file_scoped(target, edit, &LiteScope)
+}
+
+/// Applique une modification à un `actionmaps.xml` sur disque, sous la
+/// politique de périmètre fournie par l'appelant.
+pub fn apply_to_file_scoped(
+    target: &Path,
+    edit: &BindingEdit,
+    scope: &dyn ScopePolicy,
+) -> Result<()> {
+    apply_all_to_file_scoped(target, std::slice::from_ref(edit), scope)
+}
+
+/// Applique un lot de modifications en une seule écriture, sous la politique
+/// de périmètre Lite. Voir [`apply_all_to_file_scoped`] pour lever ce
+/// périmètre.
+pub fn apply_all_to_file(target: &Path, edits: &[BindingEdit]) -> Result<()> {
+    apply_all_to_file_scoped(target, edits, &LiteScope)
 }
 
 /// Applique un lot de modifications en une seule écriture.
@@ -96,12 +111,19 @@ pub fn apply_to_file(target: &Path, edit: &BindingEdit) -> Result<()> {
 /// modification est hors périmètre, aucune n'est appliquée. Un lot n'est pas
 /// une occasion de faire passer en fraude ce qu'on refuse à l'unité.
 ///
+/// La politique elle-même vient de l'appelant : ce crate applique un
+/// périmètre, il ne décide pas lequel. Voir [`ScopePolicy`].
+///
 /// Ne crée **aucune** sauvegarde : c'est à l'appelant de proposer
 /// [`backup::create`] au moment opportun.
-pub fn apply_all_to_file(target: &Path, edits: &[BindingEdit]) -> Result<()> {
+pub fn apply_all_to_file_scoped(
+    target: &Path,
+    edits: &[BindingEdit],
+    scope: &dyn ScopePolicy,
+) -> Result<()> {
     if let Some(refused) = edits
         .iter()
-        .find(|e| !scope::is_editable(&e.actionmap, &e.action))
+        .find(|e| !scope.is_editable(&e.actionmap, &e.action))
     {
         return Err(Error::OutOfScope {
             actionmap: refused.actionmap.clone(),
@@ -141,6 +163,57 @@ mod tests {
         let target = dir.join("actionmaps.xml");
         std::fs::write(&target, DOC).unwrap();
         (target, dir.join("Backups"))
+    }
+
+    /// Politique de test : tout est modifiable. Incarne, côté tests, ce
+    /// qu'une distribution qui lève le périmètre Lite (Premium) fournirait
+    /// dans son propre dépôt.
+    struct AllowAll;
+
+    impl ScopePolicy for AllowAll {
+        fn is_editable(&self, _actionmap: &str, _action: &str) -> bool {
+            true
+        }
+    }
+
+    #[test]
+    fn a_custom_scope_policy_can_lift_the_lite_restriction() {
+        // La preuve que le périmètre n'est plus câblé en dur ici : une
+        // politique fournie par l'appelant peut autoriser une catégorie que
+        // `LiteScope` refuse.
+        let (target, _) = fixture("custom-scope");
+        apply_all_to_file_scoped(
+            &target,
+            &[BindingEdit::set(
+                "spaceship_weapons",
+                "v_attack1",
+                "js1_button9",
+            )],
+            &AllowAll,
+        )
+        .unwrap();
+
+        assert!(std::fs::read_to_string(&target)
+            .unwrap()
+            .contains("js1_button9"));
+    }
+
+    #[test]
+    fn the_default_entry_point_still_enforces_lite_scope() {
+        // apply_all_to_file (sans suffixe) doit rester la politique Lite par
+        // défaut : les appelants existants ne changent pas de comportement.
+        let (target, _) = fixture("default-still-lite");
+        let err = apply_all_to_file(
+            &target,
+            &[BindingEdit::set(
+                "spaceship_weapons",
+                "v_attack1",
+                "js1_button9",
+            )],
+        )
+        .unwrap_err();
+
+        assert!(matches!(err, Error::OutOfScope { .. }));
     }
 
     #[test]

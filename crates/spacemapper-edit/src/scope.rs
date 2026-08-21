@@ -89,6 +89,29 @@ pub fn is_editable(actionmap: &str, action: &str) -> bool {
     LITE.contains(&actionmap) && !DANGEROUS.contains(&action)
 }
 
+/// Politique de périmètre appliquée par la couche d'écriture.
+///
+/// `spacemapper-edit` ne connaît qu'une question — cette assignation est-elle
+/// modifiable ? — et la pose à une politique fournie par l'appelant, plutôt
+/// que de la trancher elle-même. Ce dépôt public n'incarne qu'une seule
+/// réponse, [`LiteScope`] ; une distribution qui lève tout ou partie du
+/// périmètre fournit sa propre implémentation sans toucher à ce crate.
+pub trait ScopePolicy {
+    /// Cette assignation est-elle modifiable sous cette politique ?
+    fn is_editable(&self, actionmap: &str, action: &str) -> bool;
+}
+
+/// Politique de l'édition Lite : décoller, se déplacer, se poser — rien de
+/// plus. C'est la seule politique incarnée dans ce dépôt public.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct LiteScope;
+
+impl ScopePolicy for LiteScope {
+    fn is_editable(&self, actionmap: &str, action: &str) -> bool {
+        is_editable(actionmap, action)
+    }
+}
+
 /// Cette action est-elle refusée pour sa dangerosité ?
 pub fn is_dangerous(action: &str) -> bool {
     DANGEROUS.contains(&action)
