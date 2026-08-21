@@ -25,7 +25,7 @@
  * attestée majoritairement.
  */
 
-import type { Key } from "./i18n";
+import type { Translate } from "./i18nContext";
 
 /** Modificateurs, reconnus séparément de la touche principale. */
 const MODIFIERS: Record<string, string> = {
@@ -117,7 +117,6 @@ export interface CaptureResult {
  * langue de l'interface, et les noms qu'il produisait — « Maj gauche »,
  * « Clic droit » — restaient en français quel que soit le réglage.
  */
-type Translate = (key: Key) => string;
 
 export type CaptureError =
   | { kind: "too_many_modifiers" }
@@ -225,7 +224,7 @@ function keyName(code: string): string | null {
  * Tout ce qui n'y figure pas se lit déjà bien de lui-même : une lettre, un
  * chiffre ou `F5` n'ont pas besoin d'être traduits.
  */
-const LABELS: Record<string, Key> = {
+const LABELS: Record<string, string> = {
   lshift: "key.lshift",
   rshift: "key.rshift",
   lctrl: "key.lctrl",

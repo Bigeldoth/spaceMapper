@@ -20,7 +20,7 @@
 mod commands;
 mod editing;
 
-use spacemapper_app_support::{capture, gamedata, layouts};
+use spacemapper_app_support::{capture, devices, gamedata, layouts};
 
 pub fn run() {
     tauri::Builder::default()
@@ -29,9 +29,9 @@ pub fn run() {
         .manage(capture::CaptureState::default())
         .manage(gamedata::GameData::default())
         .invoke_handler(tauri::generate_handler![
-            commands::list_devices,
-            commands::locate_actionmaps,
-            commands::diagnose_devices,
+            devices::list_devices,
+            devices::locate_actionmaps,
+            devices::diagnose_devices,
             commands::build_info,
             layouts::list_layouts,
             layouts::inspect_layout,

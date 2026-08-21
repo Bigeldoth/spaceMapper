@@ -5,8 +5,8 @@ import {
   type EditableBinding,
   type LockReason,
   type PendingEdit,
-} from "./lib/api";
-import { bindingLabel, categoryLabel } from "./lib/actionLabels";
+} from "@spacemapper/app-core";
+import { bindingLabel, categoryLabel } from "@spacemapper/app-core";
 import {
   controlLabel,
   controlsFor,
@@ -14,7 +14,7 @@ import {
   groupLabel,
   type ControlGroup,
   type ControlOption,
-} from "./lib/controls";
+} from "@spacemapper/app-core";
 import {
   build,
   captureErrorMessage,
@@ -25,11 +25,13 @@ import {
   modifierOf,
   type CaptureError,
   type CaptureResult,
-} from "./lib/keyboard";
-import EditorToolbar from "./EditorToolbar";
-import FilterBar from "./FilterBar";
-import * as filter from "./lib/filter";
-import type { SetupMode } from "./lib/filter";
+} from "@spacemapper/app-core";
+import {
+  EditorToolbar,
+  FilterBar,
+  filters as filter,
+  type SetupMode,
+} from "@spacemapper/app-core";
 import {
   ContextRules,
   hasConflict,
@@ -38,9 +40,9 @@ import {
   keyOf,
   rivalsOf,
   type ConflictIndex,
-} from "./lib/conflicts";
-import { capturedToken, useCapture, type CaptureFeed } from "./useCapture";
-import { useT } from "./lib/i18nContext";
+} from "@spacemapper/app-core";
+import { capturedToken, useCapture, type CaptureFeed } from "@spacemapper/app-core";
+import { useT } from "@spacemapper/app-core";
 
 /**
  * Identité d'une **ligne**, jeton compris.

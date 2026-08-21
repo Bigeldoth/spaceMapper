@@ -1,6 +1,6 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { Button } from "@spacemapper/ui";
-import { useT } from "./lib/i18nContext";
+import { useT } from "@spacemapper/app-core";
 
 /**
  * Renvoi vers la page de vente.

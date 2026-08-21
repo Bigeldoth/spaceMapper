@@ -28,33 +28,18 @@ export interface ProfileLocation {
   path: string;
 }
 
-export interface BindingView {
-  category: string;
-  action: string;
-  input_raw: string;
-  device: string | null;
-  modifier: string | null;
-  control: string | null;
-  activation_mode: string | null;
-  multi_tap: string | null;
-  corrupt: boolean;
-  line: number;
-}
-
-export interface FlightBindings {
-  profile_name: string | null;
-  joysticks_in_use: number[];
-  known_guids: string[];
-  bindings: BindingView[];
-  corrupt_count: number;
-}
-
 export interface BuildInfo {
   edition: string;
   channel: string;
   version: string;
 }
 
+/**
+ * Taxonomie propre au périmètre restreint de Lite.
+ *
+ * Absente des réponses de Premium, dont aucune catégorie n'est hors de
+ * portée — d'où les champs optionnels sur [`EditableBinding`].
+ */
 export type EditCategory = "flight" | "on_foot";
 
 /** `premium_only` n'est jamais renvoyé à Lite : ces catégories sont filtrées. */
@@ -70,8 +55,9 @@ export type Origin = "override" | "game_default";
 
 export interface EditableBinding {
   actionmap: string;
-  category: EditCategory;
-  access: EditAccess;
+  /** Renseignés par Lite seulement : Premium ne classe pas par périmètre. */
+  category?: EditCategory;
+  access?: EditAccess;
   origin: Origin;
   action: string;
   /** Libellé fourni par le jeu, dans la langue choisie. */
@@ -94,6 +80,10 @@ export interface EditableBinding {
  *
  * Un code plutôt qu'une phrase : le texte dépend de la langue de l'interface,
  * que le backend ne connaît pas.
+ *
+ * Union des deux éditions. `dangerous_action` et `premium_category` relèvent
+ * du périmètre restreint et ne sortent que de Lite ; les deux autres sont une
+ * limite de l'éditeur à champ unique et sortent des deux.
  */
 export type LockReason =
   | "dangerous_action"
@@ -264,8 +254,6 @@ export interface LayoutInspection {
 export const api = {
   listDevices: () => invoke<DeviceView[]>("list_devices"),
   locateActionmaps: () => invoke<ProfileLocation[]>("locate_actionmaps"),
-  readFlightBindings: (path: string) =>
-    invoke<FlightBindings>("read_flight_bindings", { path }),
   buildInfo: () => invoke<BuildInfo>("build_info"),
 
   /** Confronte le profil au matériel branché. */

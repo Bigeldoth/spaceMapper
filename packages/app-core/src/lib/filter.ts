@@ -31,7 +31,7 @@ export interface Filters {
   unassignedOnly: boolean;
   /** Partagent un contrôle avec une autre commande. */
   conflictsOnly: boolean;
-  /** Ne montrer que ce que l'édition Lite peut modifier. */
+  /** Ne montrer que ce que cet éditeur peut modifier. */
   editableOnly: boolean;
 }
 

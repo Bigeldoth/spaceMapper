@@ -59,8 +59,24 @@ jobs:
 
       # packages/ui expose du JS pré-compilé ; npm ci l'installe/lie mais ne
       # le construit pas — sans cette étape, Lite ne trouverait pas dist/.
-      - name: Build @spacemapper/ui
-        run: npm run build -w packages/ui
+      - name: Build des paquets partagés
+        run: |
+          npm run build -w packages/ui
+          npm run build -w packages/app-core
+
+      # packages/ui/dist est commité, parce que le dépôt privé Premium le
+      # consomme par submodule git sans reconstruire ce workspace. Un dist
+      # commité peut donc diverger de src/ sans que rien ne le signale : Lite
+      # compilerait depuis les sources et paraîtrait correct pendant que
+      # Premium sert l'ancien build. On refuse le commit dans ce cas.
+      - name: Vérifier que dist/ correspond aux sources
+        run: |
+          if ! git diff --quiet -- packages/ui/dist packages/app-core/dist; then
+            echo "::error::Un dist/ commité ne correspond pas aux sources."
+            echo "Relancez le build des paquets partagés et committez le résultat."
+            git diff --stat -- packages/ui/dist packages/app-core/dist
+            exit 1
+          fi
 
       - name: Typecheck
         working-directory: apps/spacemapper-lite

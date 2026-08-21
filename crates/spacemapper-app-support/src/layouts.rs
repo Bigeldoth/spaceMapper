@@ -9,6 +9,7 @@
 //! Lecture seule, entièrement. Appliquer un profil, l'adapter à un autre ordre
 //! de périphériques ou en permuter les manches relève de l'édition Premium.
 
+use crate::devices::enumerator;
 use serde::Serialize;
 use spacemapper_core::actionmaps::{self, ActionMaps, DeviceKind};
 use spacemapper_core::device::{DeviceEnumerator, InputDevice};
@@ -244,16 +245,6 @@ fn usable(maps: &ActionMaps) -> impl Iterator<Item = ()> + '_ {
 /// description, et l'afficher laisserait une ligne blanche.
 fn non_empty(value: Option<String>) -> Option<String> {
     value.filter(|v| !v.trim().is_empty())
-}
-
-#[cfg(windows)]
-fn enumerator() -> impl DeviceEnumerator {
-    spacemapper_core::device::directinput::DirectInputEnumerator::new()
-}
-
-#[cfg(not(windows))]
-fn enumerator() -> impl DeviceEnumerator {
-    spacemapper_core::device::FakeEnumerator::default()
 }
 
 #[cfg(test)]

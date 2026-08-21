@@ -3,6 +3,7 @@
   "private": true,
   "workspaces": [
     "apps/spacemapper-lite",
-    "packages/ui"
+    "packages/ui",
+    "packages/app-core"
   ]
 }

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { api, type BackupView } from "./lib/api";
 import type { SetupMode } from "./lib/filter";
-import type { Key } from "./lib/i18n";
+import type { CoreKey } from "./lib/keys";
 import { useT } from "./lib/i18nContext";
 
 /**
@@ -65,7 +65,7 @@ export default function EditorToolbar({
     }
   }
 
-  const modes: { id: SetupMode | "all"; label: Key }[] = [
+  const modes: { id: SetupMode | "all"; label: CoreKey }[] = [
     { id: "all", label: "filter.mode.all" },
     { id: "desk", label: "filter.mode.desk" },
     { id: "gamepad", label: "filter.mode.gamepad" },
@@ -224,7 +224,7 @@ function Probe({
 }
 
 /**
- * Périmètre de l'édition Lite, en info-bulle.
+ * Périmètre de l'édition, en info-bulle.
  *
  * Le texte était un pavé permanent. On le lit une fois ; le garder déplié
  * revenait à répéter la même phrase à chaque ouverture.
@@ -249,7 +249,7 @@ function ScopeHint() {
             <h4 className="text-xs font-semibold text-[var(--text-primary)]">
               {t("scope.title")}
             </h4>
-            <p className="mt-1 text-xs text-[var(--text-secondary)]">{t("scope.lite")}</p>
+            <p className="mt-1 text-xs text-[var(--text-secondary)]">{t("scope.editable")}</p>
             <p className="mt-2 text-xs text-[var(--text-secondary)]">{t("scope.defaults")}</p>
             <p className="mt-2 text-xs text-[var(--danger-text)]">{t("scope.closeGame")}</p>
           </div>

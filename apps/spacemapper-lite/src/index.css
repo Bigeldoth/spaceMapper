@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "@spacemapper/ui/tokens.css";
 @source "../../../packages/ui/src";
+@source "../../../packages/app-core/src";
 
 html,
 body,

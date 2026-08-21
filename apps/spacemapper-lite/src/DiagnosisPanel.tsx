@@ -6,9 +6,9 @@ import {
   type Finding,
   type LiveDevice,
   type SlotUsage,
-} from "./lib/api";
-import { useT } from "./lib/i18nContext";
-import { useCapture } from "./useCapture";
+} from "@spacemapper/app-core";
+import { useT } from "@spacemapper/app-core";
+import { useCapture } from "@spacemapper/app-core";
 import UpgradeLink from "./UpgradeLink";
 
 /** Durée d'allumage d'une ligne après le dernier mouvement détecté. */

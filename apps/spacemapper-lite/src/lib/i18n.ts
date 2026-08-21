@@ -9,6 +9,8 @@
  * n'est pas une commodité mais la condition d'un marché.
  */
 
+import type { CoreKey } from "@spacemapper/app-core";
+
 export type Lang = "fr" | "en";
 
 /**
@@ -64,7 +66,7 @@ const FR = {
 
   // Titre court : l'info-bulle a besoin d'un en-tête, pas d'un paragraphe.
   "scope.title": "Ce que l'édition Lite peut modifier",
-  "scope.lite":
+  "scope.editable":
     "L'édition Lite couvre tout ce qu'il faut pour décoller, se déplacer et se poser. Les autres catégories sont affichées mais verrouillées.",
   "scope.defaults":
     "Les commandes marquées « défaut » viennent des réglages d'origine du jeu : elles fonctionnent sans figurer dans votre fichier, et les modifier y crée une surcharge.",
@@ -356,7 +358,7 @@ const EN: Record<Key, string> = {
   "layout.withMultiTap": "with a multi-tap",
 
   "scope.title": "What the Lite edition can change",
-  "scope.lite":
+  "scope.editable":
     "The Lite edition covers everything needed to take off, fly and land. Other categories are shown but locked.",
   "scope.defaults":
     "Controls marked “default” come from the game's own settings: they work without appearing in your file, and changing one writes an override.",
@@ -593,8 +595,28 @@ const EN: Record<Key, string> = {
 
 const TABLES: Record<Lang, Record<Key, string>> = { fr: FR, en: EN };
 
-/** Fonction de traduction pour une langue donnée. */
-export function translator(lang: Lang): (key: Key) => string {
+/**
+ * Fonction de traduction pour une langue donnée.
+ *
+ * Accepte une chaîne quelconque plutôt que le seul type `Key` : les écrans
+ * partagés de `@spacemapper/app-core` ne connaissent pas le vocabulaire
+ * complet de cette édition. Ce qu'ils réclament est vérifié séparément, par
+ * l'affectation `Record<CoreKey, string>` en fin de fichier.
+ *
+ * Une clé absente est renvoyée telle quelle : elle se voit à l'écran, là où
+ * une chaîne vide passerait inaperçue.
+ */
+export function translator(lang: Lang): (key: string) => string {
   const table = TABLES[lang] ?? FR;
-  return (key) => table[key];
+  return (key) => (table as Record<string, string>)[key] ?? key;
 }
+
+/**
+ * Les écrans partagés (`@spacemapper/app-core`) réclament ce vocabulaire.
+ *
+ * L'affectation ne sert qu'au compilateur : une clé que ces écrans affichent
+ * mais que cette table a oubliée devient une erreur de compilation, plutôt
+ * qu'un libellé vide découvert à l'écran.
+ */
+const _coreKeyCoverage: Record<CoreKey, string> = FR;
+void _coreKeyCoverage;

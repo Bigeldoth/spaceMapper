@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Badge } from "@spacemapper/ui";
 import {
@@ -6,13 +6,12 @@ import {
   type BuildInfo,
   type DeviceView,
   type ProfileLocation,
-} from "./lib/api";
+} from "@spacemapper/app-core";
 import BindingEditor from "./BindingEditor";
 import DiagnosisPanel from "./DiagnosisPanel";
 import LayoutPanel from "./LayoutPanel";
-import SettingsPanel from "./SettingsPanel";
-import type { Key, Lang } from "./lib/i18n";
-import { TranslationProvider, useT } from "./lib/i18nContext";
+import { SettingsPanel, TranslationProvider, useT } from "@spacemapper/app-core";
+import { translator, type Key, type Lang } from "./lib/i18n";
 
 type Tab = "edit" | "diagnosis" | "layouts" | "settings";
 
@@ -32,8 +31,12 @@ export default function App() {
       .catch(() => {});
   }, []);
 
+  // La table est propre à cette édition ; seul le mécanisme de distribution
+  // est partagé. On mémoïse pour ne pas re-rendre tout l'arbre à chaque rendu.
+  const translate = useMemo(() => translator(lang), [lang]);
+
   return (
-    <TranslationProvider lang={lang}>
+    <TranslationProvider translate={translate}>
       <Workspace onLanguageChange={setLang} />
     </TranslationProvider>
   );

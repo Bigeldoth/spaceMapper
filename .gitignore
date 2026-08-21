@@ -22,11 +22,13 @@ dist-ssr/
 .vite/
 *.local
 
-# packages/ui est consomme par le depot prive Premium via submodule git,
+# packages/ui et packages/app-core sont consommes par le depot prive Premium
+# via submodule git,
 # sans workspace npm partage entre les deux depots : dist/ (JS + .d.ts
 # pre-compiles) doit donc etre commite plutot qu'ignore, sans quoi Premium
 # devrait reconstruire un workspace npm qui n'est pas le sien.
 !/packages/ui/dist/
+!/packages/app-core/dist/
 
 # ---- Tauri ----
 /apps/*/src-tauri/target/

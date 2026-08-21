@@ -4,9 +4,9 @@ import {
   type ExpectedDevice,
   type LayoutFile,
   type LayoutInspection,
-} from "./lib/api";
-import { categoryLabel } from "./lib/actionLabels";
-import { useT } from "./lib/i18nContext";
+} from "@spacemapper/app-core";
+import { categoryLabel } from "@spacemapper/app-core";
+import { useT } from "@spacemapper/app-core";
 import UpgradeLink from "./UpgradeLink";
 
 /**

@@ -9,7 +9,7 @@
  */
 
 import type { DeviceView } from "./api";
-import type { Key } from "./i18n";
+import type { Translate } from "./i18nContext";
 
 /** Axes DirectInput, dans l'ordre où le jeu les nomme. */
 const AXES = ["x", "y", "z", "rotx", "roty", "rotz", "slider1", "slider2"];
@@ -17,7 +17,6 @@ const AXES = ["x", "y", "z", "rotx", "roty", "rotz", "slider1", "slider2"];
 const HAT_DIRECTIONS = ["up", "right", "down", "left"];
 
 /** Voir la note du même nom dans `keyboard.ts`. */
-type Translate = (key: Key) => string;
 
 /** Famille de contrôle, pour regrouper la liste déroulante. */
 export type ControlGroup = "buttons" | "axes" | "hats";
@@ -128,10 +127,10 @@ function directionLabel(direction: string, t: Translate): string {
  * et la première manette `gp1`, même si Windows les a énumérés dans un autre
  * ordre. Mélanger les deux familles décalerait tous les index.
  *
- * Le jeu numérote selon son propre ordre d'énumération, que SpaceMapper Lite
- * ne corrige pas — c'est justement ce qu'apporte l'édition Premium. On se cale
- * donc sur l'ordre de détection, et l'interface affiche le préfixe pour que
- * l'utilisateur puisse vérifier lui-même.
+ * Le jeu numérote selon son propre ordre d'énumération, que SpaceMapper ne
+ * corrige pas encore (réparation de l'ordre des périphériques : à venir). On
+ * se cale donc sur l'ordre de détection, et l'interface affiche le préfixe
+ * pour que l'utilisateur puisse vérifier lui-même.
  */
 export function devicePrefix(devices: DeviceView[], device: DeviceView): string {
   const family = devices.filter((d) => d.category === device.category);

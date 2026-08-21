@@ -11,6 +11,7 @@
 //! verrouillé) reste dans le crate applicatif de cette édition, jamais ici.
 
 pub mod capture;
+pub mod devices;
 pub mod gamedata;
 pub mod layouts;
 pub mod settings;
