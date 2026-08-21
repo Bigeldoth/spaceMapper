@@ -21,6 +21,13 @@ pub struct ActionMaps {
     pub options_version: Option<String>,
     pub rebind_version: Option<String>,
     pub profile_name: Option<String>,
+    /// Nom lisible donné par l'auteur, dans `<CustomisationUIHeader label>`.
+    ///
+    /// Propre aux profils **exportés** : c'est ce que le jeu affiche dans sa
+    /// liste de dispositions, et souvent la seule chose qui distingue deux
+    /// fichiers aux noms cryptiques.
+    pub header_label: Option<String>,
+    pub header_description: Option<String>,
     /// Blocs `<options type="..." instance="N">`.
     pub options: Vec<DeviceOptions>,
     /// Blocs `<deviceoptions name="NOM  {GUID}">` : réglages d'axes, et

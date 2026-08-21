@@ -41,6 +41,8 @@ pub fn parse_str(text: &str) -> Result<ActionMaps> {
     let mut device_options = Vec::new();
     let mut declared_devices = Vec::new();
     let mut action_maps = Vec::new();
+    let mut header_label = None;
+    let mut header_description = None;
 
     for node in container.children().filter(|n| n.is_element()) {
         match node.tag_name().name() {
@@ -55,6 +57,12 @@ pub fn parse_str(text: &str) -> Result<ActionMaps> {
                 }
             }
             "CustomisationUIHeader" => {
+                // Le nom que l'auteur a donné à son profil, et sa description.
+                // Propres aux exports : c'est ce que le jeu montre dans sa
+                // liste de dispositions, et la seule chose qui distingue deux
+                // fichiers dont les noms sont cryptiques.
+                header_label = attr(&node, "label");
+                header_description = attr(&node, "description");
                 declared_devices.extend(parse_declared_devices(&node));
             }
             "actionmap" => {
@@ -71,6 +79,8 @@ pub fn parse_str(text: &str) -> Result<ActionMaps> {
         options_version: attr(&container, "optionsVersion"),
         rebind_version: attr(&container, "rebindVersion"),
         profile_name: attr(&container, "profileName"),
+        header_label,
+        header_description,
         options,
         device_options,
         declared_devices,

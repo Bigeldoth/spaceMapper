@@ -11,6 +11,7 @@
 
 pub mod actionmaps;
 pub mod channel;
+pub mod context;
 pub mod cryxml;
 pub mod defaults;
 pub mod device;
