@@ -26,7 +26,10 @@ fn main() {
     };
 
     println!("profil          {:?}", maps.profile_name);
-    println!("versions        {:?} / {:?}", maps.version, maps.rebind_version);
+    println!(
+        "versions        {:?} / {:?}",
+        maps.version, maps.rebind_version
+    );
     println!("catégories      {}", maps.action_maps.len());
     println!("périphériques déclarés (CustomisationUIHeader)");
     for d in &maps.declared_devices {

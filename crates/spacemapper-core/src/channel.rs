@@ -83,6 +83,9 @@ mod tests {
         // Lite et Premium ne doivent jamais désigner le même dossier non plus :
         // sans ça, save_bindings/backup d'une édition abîmerait les données de
         // l'autre.
-        assert_ne!(data_dir_name("SpaceMapper"), data_dir_name("SpaceMapper-Premium"));
+        assert_ne!(
+            data_dir_name("SpaceMapper"),
+            data_dir_name("SpaceMapper-Premium")
+        );
     }
 }

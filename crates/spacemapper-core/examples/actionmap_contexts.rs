@@ -62,20 +62,12 @@ fn main() {
         }
     };
 
-    println!(
-        "{} catégories\n",
-        profile_defaults.action_maps.len()
-    );
+    println!("{} catégories\n", profile_defaults.action_maps.len());
     println!("{:<34} {:>7} {:>9}", "catégorie", "actions", "assignées");
     println!("{}", "-".repeat(52));
 
     for map in &profile_defaults.action_maps {
         let bound = map.actions.iter().filter(|a| a.has_any_default()).count();
-        println!(
-            "{:<34} {:>7} {:>9}",
-            map.name,
-            map.actions.len(),
-            bound
-        );
+        println!("{:<34} {:>7} {:>9}", map.name, map.actions.len(), bound);
     }
 }

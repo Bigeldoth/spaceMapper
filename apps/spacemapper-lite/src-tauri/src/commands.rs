@@ -115,4 +115,3 @@ fn enumerator() -> impl DeviceEnumerator {
 fn enumerator() -> impl DeviceEnumerator {
     spacemapper_core::device::FakeEnumerator::default()
 }
-

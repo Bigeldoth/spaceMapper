@@ -277,7 +277,11 @@ fn findings(
         out.push(Finding::CorruptBindings { count: corrupt });
     }
 
-    let anonymous: Vec<u8> = slots.iter().filter(|s| !s.named).map(|s| s.instance).collect();
+    let anonymous: Vec<u8> = slots
+        .iter()
+        .filter(|s| !s.named)
+        .map(|s| s.instance)
+        .collect();
     if !anonymous.is_empty() {
         out.push(Finding::AnonymousSlots {
             instances: anonymous,
@@ -286,7 +290,10 @@ fn findings(
 
     // Ambiguïté de modèle : plusieurs exemplaires branchés, un seul GUID.
     let mut seen: Vec<&str> = Vec::new();
-    for d in live.iter().filter(|d| d.category == DeviceCategory::Joystick) {
+    for d in live
+        .iter()
+        .filter(|d| d.category == DeviceCategory::Joystick)
+    {
         if seen.contains(&d.product_guid.as_str()) {
             continue;
         }
@@ -341,7 +348,12 @@ mod tests {
     /// GUID d'instance du même exemplaire, généré par DirectInput.
     const T16000_INSTANCE: &str = "{5724A890-99A1-11F0-8004-444553540000}";
 
-    fn stick(product_name: &str, instance_name: &str, product: &str, instance: &str) -> InputDevice {
+    fn stick(
+        product_name: &str,
+        instance_name: &str,
+        product: &str,
+        instance: &str,
+    ) -> InputDevice {
         InputDevice {
             instance_guid: DeviceGuid::parse(instance).unwrap(),
             product_guid: DeviceGuid::parse(product).unwrap(),
@@ -422,10 +434,10 @@ mod tests {
 
         let d = diagnose(&maps, &devices);
 
-        assert!(d.findings.iter().any(|f| matches!(
-            f,
-            Finding::AmbiguousModel { count: 2, .. }
-        )));
+        assert!(d
+            .findings
+            .iter()
+            .any(|f| matches!(f, Finding::AmbiguousModel { count: 2, .. })));
         // Chaque déclaration correspond aux *deux* exemplaires : c'est bien
         // l'ambiguïté qui est constatée, pas une correspondance.
         assert!(d.declared.iter().all(|x| x.matching_devices == 2));
@@ -493,10 +505,7 @@ mod tests {
         let mut pad = stick("Controller", "Controller", T16000, T16000_INSTANCE);
         pad.category = DeviceCategory::Gamepad;
         // La manette est énumérée en premier, comme sur la machine de test.
-        let devices = vec![
-            pad,
-            stick("T.16000M", "T.16000M", T16000, T16000_INSTANCE),
-        ];
+        let devices = vec![pad, stick("T.16000M", "T.16000M", T16000, T16000_INSTANCE)];
 
         let d = diagnose(&maps, &devices);
 

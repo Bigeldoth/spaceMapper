@@ -59,10 +59,7 @@ fn main() {
         edits.push(BindingEdit {
             actionmap: map.name.clone(),
             action: action.name.clone(),
-            input: Some(format!(
-                "{}{swapped}_{control}",
-                input.device_kind.prefix()
-            )),
+            input: Some(format!("{}{swapped}_{control}", input.device_kind.prefix())),
         });
     }
 

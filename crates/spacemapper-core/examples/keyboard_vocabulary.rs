@@ -21,12 +21,48 @@ use std::collections::BTreeSet;
 /// la comparaison n'a de sens que si les deux listes parlent du même moment.
 const PRODUCED: &[&str] = &[
     // Modificateurs
-    "lshift", "rshift", "lctrl", "rctrl", "lalt", "ralt",
+    "lshift",
+    "rshift",
+    "lctrl",
+    "rctrl",
+    "lalt",
+    "ralt",
     // Touches nommées
-    "space", "enter", "escape", "tab", "backspace", "capslock", "up", "down", "left", "right",
-    "insert", "delete", "home", "end", "pgup", "pgdn", "minus", "equals", "lbracket", "rbracket",
-    "semicolon", "apostrophe", "tilde", "backslash", "comma", "period", "slash", "np_add",
-    "np_subtract", "np_multiply", "np_divide", "np_period", "np_enter", "print", "scrolllock",
+    "space",
+    "enter",
+    "escape",
+    "tab",
+    "backspace",
+    "capslock",
+    "up",
+    "down",
+    "left",
+    "right",
+    "insert",
+    "delete",
+    "home",
+    "end",
+    "pgup",
+    "pgdn",
+    "minus",
+    "equals",
+    "lbracket",
+    "rbracket",
+    "semicolon",
+    "apostrophe",
+    "tilde",
+    "backslash",
+    "comma",
+    "period",
+    "slash",
+    "np_add",
+    "np_subtract",
+    "np_multiply",
+    "np_divide",
+    "np_period",
+    "np_enter",
+    "print",
+    "scrolllock",
     "pause",
 ];
 
@@ -99,7 +135,10 @@ fn main() {
     // `keyboard.ts` plutôt qu'une table ; on les reconnaît pour ne pas les
     // signaler à tort.
     let by_rule = |name: &str| {
-        (name.len() == 1 && name.chars().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit()))
+        (name.len() == 1
+            && name
+                .chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit()))
             || (name.starts_with('f')
                 && name[1..].parse::<u8>().is_ok_and(|n| (1..=12).contains(&n)))
             || name
@@ -115,7 +154,10 @@ fn main() {
     if missing.is_empty() {
         println!("✅ toutes les touches du jeu sont couvertes par la capture");
     } else {
-        println!("⚠️  employées par le jeu, absentes de keyboard.ts ({}) :", missing.len());
+        println!(
+            "⚠️  employées par le jeu, absentes de keyboard.ts ({}) :",
+            missing.len()
+        );
         for name in &missing {
             println!("    {name}");
         }
