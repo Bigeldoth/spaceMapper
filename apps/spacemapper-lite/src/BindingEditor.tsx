@@ -914,7 +914,8 @@ function DetailPane({
   );
 }
 
-function PremiumBadge() {
+/** Exporté : l'aperçu verrouillé du wizard (App.tsx) réutilise ce même badge. */
+export function PremiumBadge() {
   return (
     <span className="rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-[0.6875rem] font-medium text-[var(--text-accent)]">
       Premium
@@ -1411,7 +1412,9 @@ function DevicePicker({
   );
 }
 
-function Modal({
+/** Exporté : l'aperçu verrouillé du wizard (App.tsx) réutilise cette même
+ * enveloppe plutôt que d'en écrire une seconde. */
+export function Modal({
   title,
   children,
   onCancel,

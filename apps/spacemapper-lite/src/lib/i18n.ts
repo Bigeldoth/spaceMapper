@@ -23,6 +23,7 @@ export type Lang = "fr" | "en";
  */
 const FR = {
   "tab.edit": "Commandes",
+  "tab.wizard": "Assistant",
   "tab.layouts": "Profils partagés",
   "tab.settings": "Réglages",
 
@@ -120,6 +121,13 @@ const FR = {
   "upsell.title": "Réservé à l'édition Premium",
   "upsell.body":
     "SpaceMapper Premium débloque toutes les catégories — combat, énergie, systèmes de bord, tourelles — ainsi que les modificateurs, les modes d'activation, les profils nommés et la synchronisation entre machines.",
+
+  "wizard.activity.piloting.title": "Piloter",
+  "wizard.activity.dogfight.title": "Chasse",
+  "wizard.activity.mining.title": "Minage",
+  "wizard.activity.salvage.title": "Récupération",
+  "wizard.teaser.body":
+    "Un assistant pas-à-pas configure vos commandes activité par activité — piloter, chasse, minage, récupération — et propose une configuration HOSAS s'il détecte deux manches.",
   "upsell.close": "Fermer",
 
   "save.unsaved": "modification non enregistrée",
@@ -318,6 +326,7 @@ export type Key = keyof typeof FR;
 
 const EN: Record<Key, string> = {
   "tab.edit": "Controls",
+  "tab.wizard": "Assistant",
   "tab.layouts": "Shared profiles",
   "tab.settings": "Settings",
 
@@ -412,6 +421,13 @@ const EN: Record<Key, string> = {
   "upsell.title": "Reserved for the Premium edition",
   "upsell.body":
     "SpaceMapper Premium unlocks every category — combat, power, ship systems, turrets — along with modifiers, activation modes, named profiles and sync across machines.",
+
+  "wizard.activity.piloting.title": "Piloting",
+  "wizard.activity.dogfight.title": "Dogfight",
+  "wizard.activity.mining.title": "Mining",
+  "wizard.activity.salvage.title": "Salvage",
+  "wizard.teaser.body":
+    "A step-by-step assistant configures your controls activity by activity — piloting, dogfight, mining, salvage — and suggests a HOSAS layout if it detects two joysticks.",
   "upsell.close": "Close",
 
   "save.unsaved": "unsaved change",

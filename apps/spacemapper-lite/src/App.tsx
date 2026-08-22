@@ -1,19 +1,26 @@
 import { useEffect, useMemo, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
-import { Badge } from "@spacemapper/ui";
+import { Badge, Crosshair, Diamond, Magnet, RocketLaunch } from "@spacemapper/ui";
 import {
   api,
   type BuildInfo,
   type DeviceView,
   type ProfileLocation,
 } from "@spacemapper/app-core";
-import BindingEditor from "./BindingEditor";
+import BindingEditor, { Modal, PremiumBadge } from "./BindingEditor";
 import DiagnosisPanel from "./DiagnosisPanel";
 import LayoutPanel from "./LayoutPanel";
 import { SettingsPanel, TranslationProvider, useT } from "@spacemapper/app-core";
 import { translator, type Key, type Lang } from "./lib/i18n";
 
-type Tab = "edit" | "diagnosis" | "layouts" | "settings";
+type Tab = "edit" | "wizard" | "diagnosis" | "layouts" | "settings";
+
+const WIZARD_ACTIVITIES = [
+  { icon: RocketLaunch, titleKey: "wizard.activity.piloting.title" },
+  { icon: Crosshair, titleKey: "wizard.activity.dogfight.title" },
+  { icon: Diamond, titleKey: "wizard.activity.mining.title" },
+  { icon: Magnet, titleKey: "wizard.activity.salvage.title" },
+] as const;
 
 /**
  * Racine de l'application.
@@ -171,6 +178,10 @@ function Workspace({
                     .catch(() => {});
                 }}
               />
+            ) : tab === "wizard" ? (
+              // Aperçu seul : aucune donnée de profil requise, contrairement
+              // aux autres onglets — c'est une vitrine, pas une fonctionnalité.
+              <WizardTeaser />
             ) : selected ? (
               <>
                 {tab === "edit" && (
@@ -241,6 +252,7 @@ function Tabs({
   const t = useT();
   const tabs: { id: Tab; label: Key }[] = [
     { id: "edit", label: "tab.edit" },
+    { id: "wizard", label: "tab.wizard" },
     { id: "diagnosis", label: "tab.diagnosis" },
     { id: "layouts", label: "tab.layouts" },
     { id: "settings", label: "tab.settings" },
@@ -274,6 +286,64 @@ function Tabs({
 }
 
 /** Aucun profil retenu : on dit où le choisir plutôt que d'afficher du vide. */
+/**
+ * Aperçu verrouillé de l'assistant de configuration.
+ *
+ * Même liste d'activités que Premium (voir spaceMapper-premium/Wizard.tsx),
+ * mais purement décorative : aucune commande réelle, aucune donnée de
+ * profil. On montre ce que débloquerait Premium plutôt que de cacher
+ * l'onglet — cohérent avec les catégories « vitrine » de l'éditeur.
+ */
+function WizardTeaser() {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+
+  return (
+    <>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {WIZARD_ACTIVITIES.map(({ icon: Icon, titleKey }) => (
+          <button
+            key={titleKey}
+            onClick={() => setOpen(true)}
+            className="flex items-start gap-3 rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--surface-1)] p-[var(--pad-card)] text-left opacity-[0.7] shadow-[var(--shadow-1)] transition-opacity hover:opacity-100"
+          >
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-[var(--accent-soft)] text-[var(--text-accent)]">
+              <Icon size={20} />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-[var(--text-primary)]">
+                  {t(titleKey)}
+                </span>
+                <PremiumBadge />
+              </span>
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {open && (
+        <Modal onCancel={() => setOpen(false)} title={t("upsell.title")}>
+          <p className="text-sm text-[var(--text-secondary)]">
+            {t("wizard.teaser.body")}
+          </p>
+          <p className="mt-3 text-sm text-[var(--text-secondary)]">
+            {t("upsell.body")}
+          </p>
+          <div className="mt-5 flex justify-end">
+            <button
+              onClick={() => setOpen(false)}
+              className="rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-2)] px-3 py-1.5 text-sm text-[var(--text-primary)] hover:bg-[var(--surface-hover)]"
+            >
+              {t("upsell.close")}
+            </button>
+          </div>
+        </Modal>
+      )}
+    </>
+  );
+}
+
 function NoProfile({ onSettings }: { onSettings: () => void }) {
   const t = useT();
   return (
