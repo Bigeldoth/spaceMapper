@@ -110,10 +110,12 @@ const FR = {
   "lock.dangerous_action":
     "Action irréversible — réassignation réservée à l'édition Premium",
   "lock.premium_category": "Catégorie réservée à l'édition Premium",
-  "lock.has_modifier":
-    "Comporte un modificateur — réservé à l'édition Premium",
-  "lock.has_activation_mode":
-    "Comporte un mode d'activation — réservé à l'édition Premium",
+
+  "detail.activationMode": "Mode d'activation",
+  "detail.multiTap": "Multi-appui",
+  "picker.currentAssignment": "Assignation actuelle",
+  "picker.modifierHint":
+    "Maintenez le même modificateur pendant la capture pour le conserver.",
 
   "upsell.title": "Réservé à l'édition Premium",
   "upsell.body":
@@ -400,10 +402,12 @@ const EN: Record<Key, string> = {
   "lock.dangerous_action":
     "Irreversible action — reassignment reserved for the Premium edition",
   "lock.premium_category": "Category reserved for the Premium edition",
-  "lock.has_modifier":
-    "Uses a modifier — reserved for the Premium edition",
-  "lock.has_activation_mode":
-    "Uses an activation mode — reserved for the Premium edition",
+
+  "detail.activationMode": "Activation mode",
+  "detail.multiTap": "Multi-tap",
+  "picker.currentAssignment": "Current assignment",
+  "picker.modifierHint":
+    "Hold the same modifier during capture to keep it.",
 
   "upsell.title": "Reserved for the Premium edition",
   "upsell.body":

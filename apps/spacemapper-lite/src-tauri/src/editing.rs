@@ -28,6 +28,13 @@ type CmdResult<T> = Result<T, String>;
 /// Un code plutôt qu'une phrase : le texte affiché dépend de la langue de
 /// l'interface, que seul le frontend connaît. Renvoyer du français figé
 /// rendrait l'application intraduisible.
+///
+/// Les deux seuls motifs restants relèvent du périmètre commercial de Lite.
+/// Un modificateur ou un mode d'activation ne verrouillent plus rien : la
+/// capture sait déjà produire un jeton complet (`kb1_lshift+f`), et
+/// `spacemapper_edit::writer` réécrit `input` sans toucher aux attributs
+/// `activationMode`/`multiTap` voisins — les verrouiller relevait d'une
+/// prudence de l'éditeur à champ unique, pas d'une limite réelle.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum LockReason {
@@ -35,10 +42,6 @@ pub enum LockReason {
     DangerousAction,
     /// Catégorie de vitrine, réservée au Premium.
     PremiumCategory,
-    /// Porte un modificateur que l'édition simplifiée ne sait pas restituer.
-    HasModifier,
-    /// Porte un mode d'activation, idem.
-    HasActivationMode,
 }
 
 /// D'où vient une assignation.
@@ -80,6 +83,10 @@ pub struct EditableBinding {
     /// affichait `kb1 f` pour une assignation qui exige en réalité Maj+F.
     pub modifier: Option<String>,
     pub control: Option<String>,
+    /// `Some("press")`, etc. — jamais un motif de verrouillage, seulement une
+    /// information affichée pour qui édite une assignation qui en porte un.
+    pub activation_mode: Option<String>,
+    pub multi_tap: Option<String>,
     /// Motif du verrouillage, ou `None` si l'assignation est modifiable.
     pub lock: Option<LockReason>,
 }
@@ -389,7 +396,7 @@ fn collect_editable(maps: &ActionMaps, defaults: Option<&DefaultProfile>) -> Vec
             };
 
             let input = InputBinding::parse(&token);
-            let locked_reason = lock_reason(access, &action.name, input.as_ref(), None, None);
+            let locked_reason = lock_reason(access, &action.name);
 
             bindings.push(EditableBinding {
                 actionmap: map.name.clone(),
@@ -407,6 +414,9 @@ fn collect_editable(maps: &ActionMaps, defaults: Option<&DefaultProfile>) -> Vec
                     .map(|i| format!("{}{}", i.device_kind.prefix(), i.instance)),
                 modifier: input.as_ref().and_then(|i| i.modifier.clone()),
                 control: input.as_ref().map(|i| i.control.clone()),
+                // Le profil par défaut ne modélise ni l'un ni l'autre.
+                activation_mode: None,
+                multi_tap: None,
                 lock: locked_reason,
             });
         }
@@ -428,22 +438,14 @@ fn default_token(action: &spacemapper_core::defaults::DefaultAction) -> Option<S
 }
 
 /// Motif de verrouillage, commun aux deux origines.
-fn lock_reason(
-    access: EditAccess,
-    action: &str,
-    input: Option<&InputBinding>,
-    activation_mode: Option<&str>,
-    multi_tap: Option<&str>,
-) -> Option<LockReason> {
-    // L'ordre compte : c'est la raison la plus spécifique qu'il faut afficher.
+///
+/// Uniquement le périmètre commercial : un modificateur ou un mode
+/// d'activation ne verrouillent plus rien, voir [`LockReason`].
+fn lock_reason(access: EditAccess, action: &str) -> Option<LockReason> {
     if scope::is_dangerous(action) {
         Some(LockReason::DangerousAction)
     } else if access == EditAccess::PremiumTeaser {
         Some(LockReason::PremiumCategory)
-    } else if input.is_some_and(|i| i.modifier.is_some()) {
-        Some(LockReason::HasModifier)
-    } else if activation_mode.is_some_and(|m| !m.is_empty()) || multi_tap.is_some() {
-        Some(LockReason::HasActivationMode)
     } else {
         None
     }
@@ -469,13 +471,7 @@ fn collect_overrides(maps: &ActionMaps) -> Vec<EditableBinding> {
                 None => (None, None, None),
             };
 
-            let locked_reason = lock_reason(
-                access,
-                &action.name,
-                rebind.input.as_ref(),
-                rebind.activation_mode.as_deref(),
-                rebind.multi_tap.as_deref(),
-            );
+            let locked_reason = lock_reason(access, &action.name);
 
             Some(EditableBinding {
                 actionmap: map.name.clone(),
@@ -490,6 +486,11 @@ fn collect_overrides(maps: &ActionMaps) -> Vec<EditableBinding> {
                 device,
                 modifier,
                 control,
+                // `Some("")` distingue un attribut vide (bug connu du client)
+                // d'une absence : on transmet tel quel, l'interface décide de
+                // ce qu'elle affiche.
+                activation_mode: rebind.activation_mode.clone(),
+                multi_tap: rebind.multi_tap.clone(),
                 lock: locked_reason,
             })
         })
@@ -673,18 +674,23 @@ mod tests {
     }
 
     #[test]
-    fn bindings_with_modifiers_are_locked_not_hidden() {
-        // Les masquer laisserait croire qu'elles n'existent pas ; les éditer
-        // écraserait un réglage invisible dans l'interface simplifiée.
+    fn bindings_with_modifiers_are_editable_and_expose_the_modifier() {
+        // La capture sait déjà composer « modificateur + contrôle » ; verrouiller
+        // l'édition ne protégeait rien de réel.
         let list = editable();
         let pitch = list.iter().find(|b| b.action == "v_pitch_up").unwrap();
-        assert_eq!(pitch.lock, Some(LockReason::HasModifier));
+        assert!(pitch.lock.is_none());
+        assert_eq!(pitch.modifier.as_deref(), Some("rctrl"));
     }
 
     #[test]
-    fn bindings_with_activation_modes_are_locked() {
+    fn bindings_with_activation_modes_are_editable_and_expose_the_mode() {
+        // `writer::apply` ne touche qu'à `input` : `multiTap` survit à une
+        // réassignation sans intervention de ce module, voir
+        // `spacemapper_edit::writer::preserves_sibling_attributes`.
         let list = editable();
         let roll = list.iter().find(|b| b.action == "v_roll_left").unwrap();
-        assert_eq!(roll.lock, Some(LockReason::HasActivationMode));
+        assert!(roll.lock.is_none());
+        assert_eq!(roll.multi_tap.as_deref(), Some("2"));
     }
 }

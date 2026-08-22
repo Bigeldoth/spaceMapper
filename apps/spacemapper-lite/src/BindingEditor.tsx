@@ -717,6 +717,32 @@ function TokenChips({ binding }: { binding: EditableBinding }) {
 }
 
 /**
+ * Rappelle qu'un modificateur ou un mode d'activation accompagne le contrôle.
+ *
+ * Purement informatif : `spacemapper_edit::writer` préserve ces attributs
+ * qu'on édite ou non le contrôle lui-même, donc rien n'empêche l'édition —
+ * mais un joueur qui change le bouton sans savoir que « double-appui » est
+ * aussi en jeu risque de ne plus comprendre le comportement en vol.
+ */
+function ActivationModeNote({ binding }: { binding: EditableBinding }) {
+  const t = useT();
+  return (
+    <p className="mt-1.5 text-xs text-[var(--text-tertiary)]">
+      {binding.activation_mode && (
+        <span className="technical mr-2">
+          {t("detail.activationMode")}: {binding.activation_mode}
+        </span>
+      )}
+      {binding.multi_tap && (
+        <span className="technical">
+          {t("detail.multiTap")}: {binding.multi_tap}
+        </span>
+      )}
+    </p>
+  );
+}
+
+/**
  * Colonne de droite : tout ce qu'on peut dire d'une commande.
  *
  * C'est ici que vivent les actions et, surtout, les conflits : le jeu ne
@@ -817,6 +843,9 @@ function DetailPane({
             </span>
           )}
         </div>
+        {!hasPending && (binding.activation_mode || binding.multi_tap) && (
+          <ActivationModeNote binding={binding} />
+        )}
       </div>
 
       {rivals.length > 0 && (
@@ -940,8 +969,26 @@ function ControlPicker({
     joysticks.length > 0 ? "joystick" : "keyboard",
   );
 
+  const assigned = binding.control !== null && binding.control !== "";
+
   return (
     <Modal onCancel={onCancel} title={bindingLabel(binding)}>
+      {assigned && (
+        <div className="mb-4 rounded-[var(--radius-control)] border border-[var(--border-subtle)] bg-[var(--surface-2)] px-3 py-2">
+          <p className="text-xs font-medium text-[var(--text-tertiary)]">
+            {t("picker.currentAssignment")}
+          </p>
+          <div className="mt-1">
+            <TokenChips binding={binding} />
+          </div>
+          {binding.modifier && (
+            <p className="mt-1.5 text-xs text-[var(--text-tertiary)]">
+              {t("picker.modifierHint")}
+            </p>
+          )}
+        </div>
+      )}
+
       <div className="mb-4 flex gap-1 border-b border-[var(--border-subtle)]">
         <SourceTab
           active={source === "keyboard"}

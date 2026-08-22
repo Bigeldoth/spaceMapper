@@ -71,8 +71,20 @@ export interface EditableBinding {
   /** Touche modificatrice, ex. `lshift` dans `kb1_lshift+f`. */
   modifier: string | null;
   control: string | null;
-  /** Motif du verrouillage, ou `null` si l'assignation est modifiable. */
-  lock: LockReason | null;
+  /**
+   * `Some("press")`, etc. Jamais un motif de verrouillage — seulement de quoi
+   * afficher un contexte pour qui édite une assignation qui en porte un :
+   * l'écriture (`spacemapper_edit::writer`) préserve ces attributs sans
+   * intervention de l'interface.
+   */
+  activation_mode: string | null;
+  multi_tap: string | null;
+  /**
+   * Motif du verrouillage, ou `null`/absent si l'assignation est modifiable.
+   * Absent des réponses de Premium, qui n'en produit jamais — d'où
+   * l'optionalité, au même titre que `category`/`access`.
+   */
+  lock?: LockReason | null;
 }
 
 /**
@@ -81,15 +93,10 @@ export interface EditableBinding {
  * Un code plutôt qu'une phrase : le texte dépend de la langue de l'interface,
  * que le backend ne connaît pas.
  *
- * Union des deux éditions. `dangerous_action` et `premium_category` relèvent
- * du périmètre restreint et ne sortent que de Lite ; les deux autres sont une
- * limite de l'éditeur à champ unique et sortent des deux.
+ * Les deux relèvent du périmètre commercial de Lite ; Premium ne produit
+ * jamais de verrou.
  */
-export type LockReason =
-  | "dangerous_action"
-  | "premium_category"
-  | "has_modifier"
-  | "has_activation_mode";
+export type LockReason = "dangerous_action" | "premium_category";
 
 /**
  * Situation de jeu où une commande répond.
