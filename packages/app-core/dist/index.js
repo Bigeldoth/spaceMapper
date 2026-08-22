@@ -1,7 +1,7 @@
 import { invoke as v } from "@tauri-apps/api/core";
 import { jsx as a, jsxs as c, Fragment as L } from "react/jsx-runtime";
 import { createContext as U, useContext as G, useMemo as K, useState as f, useEffect as O, useRef as W } from "react";
-const h = {
+const g = {
   listDevices: () => v("list_devices"),
   locateActionmaps: () => v("locate_actionmaps"),
   buildInfo: () => v("build_info"),
@@ -591,21 +591,21 @@ function je(e, t) {
     }
     let u = !1;
     d(null), s(!1);
-    const g = h.startCapture(p.split("|"));
-    g.then(
+    const h = g.startCapture(p.split("|"));
+    h.then(
       () => !u && s(!0),
       (m) => !u && d(String(m))
     );
     const b = window.setInterval(async () => {
       try {
-        const m = await h.pollCapture();
+        const m = await g.pollCapture();
         !u && m && n(m);
       } catch (m) {
         u || d(String(m));
       }
     }, 60);
     return () => {
-      u = !0, window.clearInterval(b), g.then((m) => h.stopCapture(m)).catch(() => {
+      u = !0, window.clearInterval(b), h.then((m) => g.stopCapture(m)).catch(() => {
       });
     };
   }, [p, t]), {
@@ -615,7 +615,7 @@ function je(e, t) {
     // L'oubli doit aussi porter côté Rust : le thread garde son relevé, et le
     // sondage suivant le restaurerait aussitôt.
     reset: () => {
-      n(null), h.clearCapture().catch(() => {
+      n(null), g.clearCapture().catch(() => {
       });
     }
   };
@@ -636,10 +636,10 @@ function Ve({
   onClearProbe: d,
   onRestored: p
 }) {
-  const u = y(), [g, b] = f([]), [m, N] = f(!1), [$, w] = f(!1), [l, _] = f(null);
+  const u = y(), [h, b] = f([]), [m, N] = f(!1), [$, w] = f(!1), [l, _] = f(null);
   async function C() {
     try {
-      b(await h.listBackups());
+      b(await g.listBackups());
     } catch {
     }
   }
@@ -649,7 +649,7 @@ function Ve({
   async function Z() {
     w(!0);
     try {
-      await h.createBackup(e), _(u("backup.created")), await C();
+      await g.createBackup(e), _(u("backup.created")), await C();
     } catch (x) {
       _(String(x));
     } finally {
@@ -707,7 +707,7 @@ function Ve({
                 className: "border-l border-[var(--border-default)] px-2 py-1 text-xs text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]",
                 title: u("backup.title"),
                 children: [
-                  g.length,
+                  h.length,
                   " ▾"
                 ]
               }
@@ -717,7 +717,7 @@ function Ve({
             pe,
             {
               profilePath: e,
-              backups: g,
+              backups: h,
               onClose: () => N(!1),
               onChanged: async () => {
                 await C(), p();
@@ -805,10 +805,10 @@ function pe({
   const i = y(), [s, o] = f(null), d = W(null);
   async function p() {
     if (!s) return;
-    const { backup: u, action: g } = s;
+    const { backup: u, action: h } = s;
     o(null);
     try {
-      g === "restore" ? await h.restoreBackup(e, u.path) : await h.deleteBackup(u.path), n();
+      h === "restore" ? await g.restoreBackup(e, u.path) : await g.deleteBackup(u.path), n();
     } catch {
     }
     r();
@@ -930,7 +930,7 @@ function z({
   );
 }
 const _e = "cursor-pointer transition-transform duration-[var(--dur-fast)] ease-[var(--ease-out)] hover:-translate-y-px hover:border-[var(--border-accent)]";
-function he() {
+function ge() {
   const e = "pointer-events-none absolute h-[10px] w-[10px] border-[var(--border-hud)]";
   return /* @__PURE__ */ c(L, { children: [
     /* @__PURE__ */ a("span", { "aria-hidden": !0, className: `${e} left-0 top-0 border-l-2 border-t-2` }),
@@ -939,7 +939,7 @@ function he() {
     /* @__PURE__ */ a("span", { "aria-hidden": !0, className: `${e} bottom-0 right-0 border-b-2 border-r-2` })
   ] });
 }
-function ge({
+function he({
   variant: e = "standard",
   interactive: t = !1,
   className: r = "",
@@ -953,7 +953,7 @@ function ge({
       className: `relative rounded-[var(--radius-xs)] border border-[var(--border-hud)] bg-[var(--surface-1)] p-[var(--pad-card)] ${s} ${r}`,
       ...i,
       children: [
-        /* @__PURE__ */ a(he, {}),
+        /* @__PURE__ */ a(ge, {}),
         n
       ]
     }
@@ -1064,19 +1064,19 @@ function Pe({
   onBrowse: n,
   onChanged: i
 }) {
-  const s = y(), [o, d] = f(null), [p, u] = f([]), [g, b] = f(null), [m, N] = f(null);
+  const s = y(), [o, d] = f(null), [p, u] = f([]), [h, b] = f(null), [m, N] = f(null);
   O(() => {
     let l = !1;
     return (async () => {
       try {
-        const _ = await h.getSettings();
+        const _ = await g.getSettings();
         l || d(_);
       } catch (_) {
         l || b(String(_));
       }
       if (e)
         try {
-          const _ = await h.listGameLanguages(e);
+          const _ = await g.listGameLanguages(e);
           l || u(_);
         } catch (_) {
           l || b(String(_));
@@ -1088,7 +1088,7 @@ function Pe({
   async function $(l) {
     d(l);
     try {
-      await h.setSettings(l), N(s("settings.saved")), b(null), i();
+      await g.setSettings(l), N(s("settings.saved")), b(null), i();
     } catch (_) {
       b(String(_));
     }
@@ -1156,7 +1156,7 @@ function Pe({
       }
     ),
     m && /* @__PURE__ */ a("p", { className: "text-[length:var(--fs-body-sm)] text-[var(--success-text)]", children: m }),
-    g && /* @__PURE__ */ a("p", { className: "text-[length:var(--fs-body-sm)] text-[var(--danger-text)]", children: g })
+    h && /* @__PURE__ */ a("p", { className: "text-[length:var(--fs-body-sm)] text-[var(--danger-text)]", children: h })
   ] });
 }
 function S({
@@ -1164,13 +1164,14 @@ function S({
   hint: t,
   children: r
 }) {
-  return /* @__PURE__ */ c(ge, { children: [
+  return /* @__PURE__ */ c(he, { children: [
     /* @__PURE__ */ a("h3", { className: "text-[length:var(--fs-body)] font-semibold text-[var(--text-primary)]", children: e }),
     /* @__PURE__ */ a("p", { className: "mb-[var(--sp-4)] mt-[var(--sp-1)] text-[length:var(--fs-caption)] text-[var(--text-tertiary)]", children: t }),
     r
   ] });
 }
 export {
+  re as AXES,
   Ne as ContextRules,
   Ve as EditorToolbar,
   Ie as FilterBar,
@@ -1178,7 +1179,7 @@ export {
   Pe as SettingsPanel,
   Fe as TranslationProvider,
   X as actionLabel,
-  h as api,
+  g as api,
   ne as apply,
   Q as bindingLabel,
   le as build,

@@ -9,6 +9,14 @@
  */
 import type { DeviceView } from "./api";
 import type { Translate } from "./i18nContext";
+/**
+ * Axes DirectInput, dans l'ordre où le jeu les nomme.
+ *
+ * Exportée (et non locale à ce fichier) : le wizard d'activités de Premium
+ * en a besoin pour vérifier qu'un axe qu'il s'apprête à suggérer existe
+ * réellement sur le périphérique visé, sans dupliquer cette convention.
+ */
+export declare const AXES: string[];
 /** Voir la note du même nom dans `keyboard.ts`. */
 /** Famille de contrôle, pour regrouper la liste déroulante. */
 export type ControlGroup = "buttons" | "axes" | "hats";

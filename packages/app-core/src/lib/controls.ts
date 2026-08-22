@@ -11,8 +11,14 @@
 import type { DeviceView } from "./api";
 import type { Translate } from "./i18nContext";
 
-/** Axes DirectInput, dans l'ordre où le jeu les nomme. */
-const AXES = ["x", "y", "z", "rotx", "roty", "rotz", "slider1", "slider2"];
+/**
+ * Axes DirectInput, dans l'ordre où le jeu les nomme.
+ *
+ * Exportée (et non locale à ce fichier) : le wizard d'activités de Premium
+ * en a besoin pour vérifier qu'un axe qu'il s'apprête à suggérer existe
+ * réellement sur le périphérique visé, sans dupliquer cette convention.
+ */
+export const AXES = ["x", "y", "z", "rotx", "roty", "rotz", "slider1", "slider2"];
 
 const HAT_DIRECTIONS = ["up", "right", "down", "left"];
 

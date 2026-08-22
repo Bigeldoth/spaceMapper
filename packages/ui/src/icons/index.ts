@@ -5,3 +5,7 @@ export { LockSimple } from "./LockSimple";
 export { Info } from "./Info";
 export { X } from "./X";
 export { CaretDown } from "./CaretDown";
+export { RocketLaunch } from "./RocketLaunch";
+export { Crosshair } from "./Crosshair";
+export { Diamond } from "./Diamond";
+export { Magnet } from "./Magnet";
