@@ -248,7 +248,12 @@ function Tabs({
 
   return (
     <nav className="border-b border-[var(--border-subtle)] bg-[var(--surface-2)]">
-      <div className="mx-auto flex w-full max-w-6xl gap-1 overflow-x-auto px-4 sm:px-6 lg:px-8">
+      {/* `overflow-y-hidden` n'est pas décoratif : sans lui, la ligne (dont le
+          contenu déborde d'un pixel via les métriques de police) hérite un
+          `overflow-y: auto` du seul `overflow-x-auto` posé — la CSS impose ça
+          dès qu'un seul axe n'est pas `visible` — et affiche une barre de
+          défilement verticale résiduelle, réduite à ses flèches. */}
+      <div className="mx-auto flex w-full max-w-6xl gap-1 overflow-x-auto overflow-y-hidden px-4 sm:px-6 lg:px-8">
         {tabs.map((tab) => (
           <button
             key={tab.id}

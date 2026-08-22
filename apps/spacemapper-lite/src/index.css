@@ -7,6 +7,12 @@ html,
 body,
 #root {
   height: 100%;
+  /* La fenêtre gère elle-même son défilement (`<main class="overflow-y-auto">`) :
+     sans ce blocage, un dépassement de quelques pixels du document (fréquent
+     avec une mise en page flex 100%) fait apparaître une barre de défilement
+     native tout en haut de la fenêtre — trop courte pour rien défiler
+     d'utile, mais visible en permanence à côté de l'en-tête. */
+  overflow: hidden;
 }
 
 /* body reprend déjà background/color/font depuis packages/ui/src/base.css

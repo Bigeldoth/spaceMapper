@@ -78,8 +78,12 @@ export default function EditorToolbar({
         {/* Le mode n'est pas un filtre mais un contexte : « qu'est-ce que je
             configure ». Il précède donc la recherche et lui survit.
             Défilant horizontalement plutôt que replié : en fenêtre étroite on
-            fait glisser, on ne perd pas de vue le mode actif. */}
-        <div className="-mx-1 flex max-w-full items-center gap-1 overflow-x-auto px-1">
+            fait glisser, on ne perd pas de vue le mode actif.
+            `overflow-y-hidden` : sans lui, `overflow-x-auto` seul hérite un
+            `overflow-y: auto` (règle CSS dès qu'un axe n'est pas `visible`),
+            et le débordement d'un pixel de la ligne affiche une barre de
+            défilement verticale résiduelle, réduite à ses flèches. */}
+        <div className="-mx-1 flex max-w-full items-center gap-1 overflow-x-auto overflow-y-hidden px-1">
           <span className="mr-1 shrink-0 text-xs font-medium text-[var(--text-tertiary)]">
             {t("filter.mode")}
           </span>

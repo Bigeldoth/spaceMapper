@@ -1,7 +1,7 @@
 import { invoke as v } from "@tauri-apps/api/core";
 import { jsx as a, jsxs as c, Fragment as L } from "react/jsx-runtime";
 import { createContext as U, useContext as G, useMemo as K, useState as f, useEffect as O, useRef as W } from "react";
-const g = {
+const h = {
   listDevices: () => v("list_devices"),
   locateActionmaps: () => v("locate_actionmaps"),
   buildInfo: () => v("build_info"),
@@ -591,21 +591,21 @@ function je(e, t) {
     }
     let u = !1;
     d(null), s(!1);
-    const h = g.startCapture(p.split("|"));
-    h.then(
+    const g = h.startCapture(p.split("|"));
+    g.then(
       () => !u && s(!0),
       (m) => !u && d(String(m))
     );
     const b = window.setInterval(async () => {
       try {
-        const m = await g.pollCapture();
+        const m = await h.pollCapture();
         !u && m && n(m);
       } catch (m) {
         u || d(String(m));
       }
     }, 60);
     return () => {
-      u = !0, window.clearInterval(b), h.then((m) => g.stopCapture(m)).catch(() => {
+      u = !0, window.clearInterval(b), g.then((m) => h.stopCapture(m)).catch(() => {
       });
     };
   }, [p, t]), {
@@ -615,7 +615,7 @@ function je(e, t) {
     // L'oubli doit aussi porter côté Rust : le thread garde son relevé, et le
     // sondage suivant le restaurerait aussitôt.
     reset: () => {
-      n(null), g.clearCapture().catch(() => {
+      n(null), h.clearCapture().catch(() => {
       });
     }
   };
@@ -636,10 +636,10 @@ function Ve({
   onClearProbe: d,
   onRestored: p
 }) {
-  const u = y(), [h, b] = f([]), [m, N] = f(!1), [$, w] = f(!1), [l, _] = f(null);
+  const u = y(), [g, b] = f([]), [m, N] = f(!1), [$, w] = f(!1), [l, _] = f(null);
   async function C() {
     try {
-      b(await g.listBackups());
+      b(await h.listBackups());
     } catch {
     }
   }
@@ -649,7 +649,7 @@ function Ve({
   async function Z() {
     w(!0);
     try {
-      await g.createBackup(e), _(u("backup.created")), await C();
+      await h.createBackup(e), _(u("backup.created")), await C();
     } catch (x) {
       _(String(x));
     } finally {
@@ -664,7 +664,7 @@ function Ve({
   ];
   return /* @__PURE__ */ c("div", { className: "space-y-2", children: [
     /* @__PURE__ */ c("div", { className: "flex flex-wrap items-center gap-x-4 gap-y-2 rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-2)] px-3 py-2", children: [
-      /* @__PURE__ */ c("div", { className: "-mx-1 flex max-w-full items-center gap-1 overflow-x-auto px-1", children: [
+      /* @__PURE__ */ c("div", { className: "-mx-1 flex max-w-full items-center gap-1 overflow-x-auto overflow-y-hidden px-1", children: [
         /* @__PURE__ */ a("span", { className: "mr-1 shrink-0 text-xs font-medium text-[var(--text-tertiary)]", children: u("filter.mode") }),
         H.map((x) => /* @__PURE__ */ a(
           "button",
@@ -707,7 +707,7 @@ function Ve({
                 className: "border-l border-[var(--border-default)] px-2 py-1 text-xs text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]",
                 title: u("backup.title"),
                 children: [
-                  h.length,
+                  g.length,
                   " ▾"
                 ]
               }
@@ -717,7 +717,7 @@ function Ve({
             pe,
             {
               profilePath: e,
-              backups: h,
+              backups: g,
               onClose: () => N(!1),
               onChanged: async () => {
                 await C(), p();
@@ -805,10 +805,10 @@ function pe({
   const i = y(), [s, o] = f(null), d = W(null);
   async function p() {
     if (!s) return;
-    const { backup: u, action: h } = s;
+    const { backup: u, action: g } = s;
     o(null);
     try {
-      h === "restore" ? await g.restoreBackup(e, u.path) : await g.deleteBackup(u.path), n();
+      g === "restore" ? await h.restoreBackup(e, u.path) : await h.deleteBackup(u.path), n();
     } catch {
     }
     r();
@@ -930,7 +930,7 @@ function z({
   );
 }
 const _e = "cursor-pointer transition-transform duration-[var(--dur-fast)] ease-[var(--ease-out)] hover:-translate-y-px hover:border-[var(--border-accent)]";
-function ge() {
+function he() {
   const e = "pointer-events-none absolute h-[10px] w-[10px] border-[var(--border-hud)]";
   return /* @__PURE__ */ c(L, { children: [
     /* @__PURE__ */ a("span", { "aria-hidden": !0, className: `${e} left-0 top-0 border-l-2 border-t-2` }),
@@ -939,7 +939,7 @@ function ge() {
     /* @__PURE__ */ a("span", { "aria-hidden": !0, className: `${e} bottom-0 right-0 border-b-2 border-r-2` })
   ] });
 }
-function he({
+function ge({
   variant: e = "standard",
   interactive: t = !1,
   className: r = "",
@@ -953,7 +953,7 @@ function he({
       className: `relative rounded-[var(--radius-xs)] border border-[var(--border-hud)] bg-[var(--surface-1)] p-[var(--pad-card)] ${s} ${r}`,
       ...i,
       children: [
-        /* @__PURE__ */ a(ge, {}),
+        /* @__PURE__ */ a(he, {}),
         n
       ]
     }
@@ -1064,19 +1064,19 @@ function Pe({
   onBrowse: n,
   onChanged: i
 }) {
-  const s = y(), [o, d] = f(null), [p, u] = f([]), [h, b] = f(null), [m, N] = f(null);
+  const s = y(), [o, d] = f(null), [p, u] = f([]), [g, b] = f(null), [m, N] = f(null);
   O(() => {
     let l = !1;
     return (async () => {
       try {
-        const _ = await g.getSettings();
+        const _ = await h.getSettings();
         l || d(_);
       } catch (_) {
         l || b(String(_));
       }
       if (e)
         try {
-          const _ = await g.listGameLanguages(e);
+          const _ = await h.listGameLanguages(e);
           l || u(_);
         } catch (_) {
           l || b(String(_));
@@ -1088,7 +1088,7 @@ function Pe({
   async function $(l) {
     d(l);
     try {
-      await g.setSettings(l), N(s("settings.saved")), b(null), i();
+      await h.setSettings(l), N(s("settings.saved")), b(null), i();
     } catch (_) {
       b(String(_));
     }
@@ -1156,7 +1156,7 @@ function Pe({
       }
     ),
     m && /* @__PURE__ */ a("p", { className: "text-[length:var(--fs-body-sm)] text-[var(--success-text)]", children: m }),
-    h && /* @__PURE__ */ a("p", { className: "text-[length:var(--fs-body-sm)] text-[var(--danger-text)]", children: h })
+    g && /* @__PURE__ */ a("p", { className: "text-[length:var(--fs-body-sm)] text-[var(--danger-text)]", children: g })
   ] });
 }
 function S({
@@ -1164,7 +1164,7 @@ function S({
   hint: t,
   children: r
 }) {
-  return /* @__PURE__ */ c(he, { children: [
+  return /* @__PURE__ */ c(ge, { children: [
     /* @__PURE__ */ a("h3", { className: "text-[length:var(--fs-body)] font-semibold text-[var(--text-primary)]", children: e }),
     /* @__PURE__ */ a("p", { className: "mb-[var(--sp-4)] mt-[var(--sp-1)] text-[length:var(--fs-caption)] text-[var(--text-tertiary)]", children: t }),
     r
@@ -1178,7 +1178,7 @@ export {
   Pe as SettingsPanel,
   Fe as TranslationProvider,
   X as actionLabel,
-  g as api,
+  h as api,
   ne as apply,
   Q as bindingLabel,
   le as build,
