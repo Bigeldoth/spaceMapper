@@ -553,7 +553,10 @@ mod tests {
         .unwrap();
 
         assert!(out.contains(r#"input="js3_button2""#), "{out}");
-        assert!(out.contains(r#"input="kb1_w""#), "le clavier n'aurait pas dû bouger: {out}");
+        assert!(
+            out.contains(r#"input="kb1_w""#),
+            "le clavier n'aurait pas dû bouger: {out}"
+        );
     }
 
     #[test]

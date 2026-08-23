@@ -425,8 +425,7 @@ fn collect_editable(maps: &ActionMaps, defaults: Option<&DefaultProfile>) -> Vec
                 DeviceKind::Mouse,
                 DeviceKind::Gamepad,
             ] {
-                if known_families.contains(&(map.name.clone(), action.name.clone(), device_kind))
-                {
+                if known_families.contains(&(map.name.clone(), action.name.clone(), device_kind)) {
                     continue;
                 }
                 // Le profil par défaut applique toujours la valeur au premier
