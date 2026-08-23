@@ -4,7 +4,7 @@ export * from "./lib/conflicts";
 export * from "./lib/controls";
 export * from "./lib/filter";
 export * as filters from "./lib/filter";
-export { build, captureErrorMessage, describe, fromKeyPress, fromMouse, fromWheel, modifierOf, type CaptureError, type CaptureResult, } from "./lib/keyboard";
+export { build, captureErrorMessage, describe, fromKeyPress, fromMouse, fromWheel, keycapLabel, modifierOf, useKeyboardLayoutMap, type CaptureError, type CaptureResult, } from "./lib/keyboard";
 export * from "./lib/keys";
 export { TranslationProvider, useT, type Translate } from "./lib/i18nContext";
 export * from "./useCapture";

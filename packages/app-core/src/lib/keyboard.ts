@@ -25,6 +25,7 @@
  * attestée majoritairement.
  */
 
+import { useEffect, useState } from "react";
 import type { Translate } from "./i18nContext";
 
 /** Modificateurs, reconnus séparément de la touche principale. */
@@ -219,6 +220,59 @@ function keyName(code: string): string | null {
 }
 
 /**
+ * `KeyboardEvent.code` d'une lettre ou d'un chiffre nommé à la Star Citizen —
+ * l'inverse de `keyName()`. Sert uniquement à retrouver, pour affichage, ce
+ * que la disposition courante produit à cette position physique.
+ */
+function codeForKeyName(name: string): string | null {
+  if (/^[a-z]$/.test(name)) return `Key${name.toUpperCase()}`;
+  if (/^[0-9]$/.test(name)) return `Digit${name}`;
+  return null;
+}
+
+/**
+ * Disposition clavier courante, position physique → caractère produit.
+ *
+ * `KeyboardEvent.code` (utilisé pour écrire dans le fichier, voir le
+ * commentaire de module) est indépendant de la disposition — c'est vital pour
+ * que le jeu relise la bonne touche, mais ça veut aussi dire qu'un joueur
+ * AZERTY qui appuie sur la touche marquée « A » voit SpaceMapper lui annoncer
+ * « Q » : la lettre à la position QWERTY de son clavier. Cette table sert
+ * uniquement à *afficher* la bonne lettre, jamais à décider quoi écrire.
+ *
+ * La `Keyboard API` (Chromium, donc disponible dans le WebView2 de Tauri) est
+ * la seule source fiable : aucune bibliothèque de dispositions clavier ne
+ * suffirait, l'utilisateur peut avoir configuré n'importe quoi. Absente ou en
+ * échec (dispositions plus anciennes, permission refusée), l'affichage
+ * retombe silencieusement sur la position QWERTY — le comportement d'avant
+ * cette fonctionnalité, jamais pire.
+ */
+export function useKeyboardLayoutMap(): Map<string, string> | null {
+  const [map, setMap] = useState<Map<string, string> | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const kb = (navigator as { keyboard?: { getLayoutMap?: () => Promise<Map<string, string>> } })
+      .keyboard;
+    if (!kb?.getLayoutMap) return;
+
+    kb.getLayoutMap()
+      .then((layoutMap) => {
+        if (!cancelled) setMap(layoutMap);
+      })
+      .catch(() => {
+        // Permission refusée ou API indisponible : on reste sur le repli QWERTY.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  return map;
+}
+
+/**
  * Noms de contrôle qui méritent un libellé lisible, et leur clé de traduction.
  *
  * Tout ce qui n'y figure pas se lit déjà bien de lui-même : une lettre, un
@@ -266,9 +320,42 @@ export function controlLabel(control: string, t: Translate): string {
   return control.toUpperCase();
 }
 
-/** Libellé complet d'une capture, modificateur compris. */
-export function describe(result: CaptureResult, t: Translate): string {
-  const control = controlLabel(result.control, t);
+/**
+ * Libellé d'un contrôle **clavier**, conscient de la disposition si elle est
+ * connue — voir `useKeyboardLayoutMap`. Sans elle (`layoutMap` nul), se
+ * comporte exactement comme `controlLabel`.
+ *
+ * Ne s'applique qu'aux lettres et chiffres nus : les touches nommées
+ * (`lshift`, `enter`…) ont déjà un libellé traduit et invariant, et une
+ * disposition qui produit un symbole à la place d'un chiffre (`&` pour `1` en
+ * AZERTY non maintenu) ne vaut pas mieux que le repli — la garde
+ * `[a-z0-9]` l'exclut explicitement.
+ */
+export function keycapLabel(
+  control: string,
+  layoutMap: Map<string, string> | null,
+  t: Translate,
+): string {
+  if (layoutMap && /^[a-z0-9]$/.test(control)) {
+    const code = codeForKeyName(control);
+    const produced = code ? layoutMap.get(code) : undefined;
+    if (produced && /^[a-z0-9]$/i.test(produced)) return produced.toUpperCase();
+  }
+  return controlLabel(control, t);
+}
+
+/**
+ * Libellé complet d'une capture, modificateur compris.
+ *
+ * `layoutMap` est optionnel : les appelants qui ne l'ont pas encore adopté
+ * gardent le comportement d'avant (position QWERTY).
+ */
+export function describe(
+  result: CaptureResult,
+  t: Translate,
+  layoutMap?: Map<string, string> | null,
+): string {
+  const control = keycapLabel(result.control, layoutMap ?? null, t);
   return result.modifier
     ? `${controlLabel(result.modifier, t)} + ${control}`
     : control;

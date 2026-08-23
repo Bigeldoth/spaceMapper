@@ -14,7 +14,9 @@ export {
   fromKeyPress,
   fromMouse,
   fromWheel,
+  keycapLabel,
   modifierOf,
+  useKeyboardLayoutMap,
   type CaptureError,
   type CaptureResult,
 } from "./lib/keyboard";

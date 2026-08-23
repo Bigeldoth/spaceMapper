@@ -22,7 +22,9 @@ import {
   fromKeyPress,
   fromMouse,
   fromWheel,
+  keycapLabel,
   modifierOf,
+  useKeyboardLayoutMap,
   type CaptureError,
   type CaptureResult,
 } from "@spacemapper/app-core";
@@ -93,6 +95,10 @@ export default function BindingEditor({
   const activeToken = capturedToken(capture.last, devices, (d) =>
     devicePrefix(devices, d),
   );
+  // Une seule requête pour toute la vue plutôt qu'une par ligne : voir
+  // `useKeyboardLayoutMap` dans app-core pour ce qu'elle corrige (une lettre
+  // affichée en position QWERTY quand le joueur est en AZERTY).
+  const layoutMap = useKeyboardLayoutMap();
 
   async function reload() {
     try {
@@ -278,6 +284,7 @@ export default function BindingEditor({
           ambiguous={ambiguous}
           empty={visible.length === 0 && bindings.length > 0}
           filtering={filter.isFiltering(filters)}
+          layoutMap={layoutMap}
         />
 
         <DetailPane
@@ -290,6 +297,7 @@ export default function BindingEditor({
           onRevert={(key) => discardOne(key)}
           onLockedClick={(reason) => setUpsell(reason)}
           onSelect={setSelected}
+          layoutMap={layoutMap}
         />
       </div>
 
@@ -300,6 +308,7 @@ export default function BindingEditor({
           capture={capture}
           onCancel={() => setEditing(null)}
           onPick={(input) => stage(editing, input)}
+          layoutMap={layoutMap}
         />
       )}
 
@@ -516,6 +525,7 @@ function CategoryTree({
   ambiguous,
   empty,
   filtering,
+  layoutMap,
 }: {
   groups: [string, EditableBinding[]][];
   selected: string | null;
@@ -526,6 +536,7 @@ function CategoryTree({
   ambiguous: Set<string>;
   empty: boolean;
   filtering: boolean;
+  layoutMap: Map<string, string> | null;
 }) {
   const t = useT();
   const [openMap, setOpenMap] = useState<Set<string>>(new Set());
@@ -597,6 +608,7 @@ function CategoryTree({
                     conflicting={hasConflict(b, pending, conflicts)}
                     live={activeToken !== null && b.input_raw === activeToken}
                     onSelect={() => onSelect(rowKey(b))}
+                    layoutMap={layoutMap}
                   />
                 ))}
               </ul>
@@ -624,6 +636,7 @@ function CommandRow({
   conflicting,
   live,
   onSelect,
+  layoutMap,
 }: {
   binding: EditableBinding;
   selected: boolean;
@@ -633,6 +646,7 @@ function CommandRow({
   conflicting: boolean;
   live: boolean;
   onSelect: () => void;
+  layoutMap: Map<string, string> | null;
 }) {
   const t = useT();
   const assigned = binding.control !== null && binding.control !== "";
@@ -675,7 +689,7 @@ function CommandRow({
           {hasPending ? (
             <Key accent>{pending ?? t("binding.clear")}</Key>
           ) : assigned ? (
-            <TokenChips binding={binding} />
+            <TokenChips binding={binding} layoutMap={layoutMap} />
           ) : (
             <span className="text-xs italic text-[var(--text-disabled)]">
               {t("binding.unassigned")}
@@ -688,8 +702,21 @@ function CommandRow({
 }
 
 /** Représentation compacte d'un jeton : périphérique, modificateur, contrôle. */
-function TokenChips({ binding }: { binding: EditableBinding }) {
+function TokenChips({
+  binding,
+  layoutMap,
+}: {
+  binding: EditableBinding;
+  layoutMap: Map<string, string> | null;
+}) {
   const t = useT();
+  // Uniquement au clavier : un axe de manche nommé `x`/`y`/`z` ressemble à une
+  // lettre mais n'a rien à voir avec une position de touche — lui appliquer
+  // la disposition clavier confondrait un axe avec une touche du même nom.
+  const control =
+    binding.device?.startsWith("kb")
+      ? keycapLabel(binding.control ?? "", layoutMap, t)
+      : binding.control;
   return (
     <span className="technical flex items-center gap-1">
       {/* Une valeur par défaut ne porte pas d'index de périphérique : le jeu
@@ -711,7 +738,7 @@ function TokenChips({ binding }: { binding: EditableBinding }) {
           <span className="text-[var(--text-disabled)]">+</span>
         </>
       )}
-      <Key>{binding.control}</Key>
+      <Key>{control}</Key>
     </span>
   );
 }
@@ -759,6 +786,7 @@ function DetailPane({
   onRevert,
   onLockedClick,
   onSelect,
+  layoutMap,
 }: {
   binding: EditableBinding | null;
   pending: Map<string, string | null>;
@@ -769,6 +797,7 @@ function DetailPane({
   onRevert: (key: string) => void;
   onLockedClick: (reason: LockReason) => void;
   onSelect: (key: string) => void;
+  layoutMap: Map<string, string> | null;
 }) {
   const t = useT();
 
@@ -836,7 +865,7 @@ function DetailPane({
               <Key accent>{staged ?? t("binding.clear")}</Key>
             </>
           ) : assigned ? (
-            <TokenChips binding={binding} />
+            <TokenChips binding={binding} layoutMap={layoutMap} />
           ) : (
             <span className="text-sm italic text-[var(--text-disabled)]">
               {t("binding.unassigned")}
@@ -953,12 +982,14 @@ function ControlPicker({
   capture,
   onCancel,
   onPick,
+  layoutMap,
 }: {
   binding: EditableBinding;
   devices: DeviceView[];
   capture: CaptureFeed;
   onCancel: () => void;
   onPick: (input: string) => void;
+  layoutMap: Map<string, string> | null;
 }) {
   const joysticks = devices.filter((d) => d.category === "joystick");
   const gamepads = devices.filter((d) => d.category === "gamepad");
@@ -980,7 +1011,7 @@ function ControlPicker({
             {t("picker.currentAssignment")}
           </p>
           <div className="mt-1">
-            <TokenChips binding={binding} />
+            <TokenChips binding={binding} layoutMap={layoutMap} />
           </div>
           {binding.modifier && (
             <p className="mt-1.5 text-xs text-[var(--text-tertiary)]">
@@ -1014,7 +1045,7 @@ function ControlPicker({
       </div>
 
       {source === "keyboard" ? (
-        <KeyboardCapture onCancel={onCancel} onPick={onPick} />
+        <KeyboardCapture onCancel={onCancel} onPick={onPick} layoutMap={layoutMap} />
       ) : (
         <DevicePicker
           key={source}
@@ -1083,9 +1114,11 @@ function SourceTab({
 function KeyboardCapture({
   onCancel,
   onPick,
+  layoutMap,
 }: {
   onCancel: () => void;
   onPick: (input: string) => void;
+  layoutMap: Map<string, string> | null;
 }) {
   const t = useT();
   const [captured, setCaptured] = useState<CaptureResult | null>(null);
@@ -1180,7 +1213,7 @@ function KeyboardCapture({
         {captured ? (
           <>
             <p className="text-lg font-medium text-[var(--text-accent)]">
-              {describe(captured, t)}
+              {describe(captured, t, layoutMap)}
             </p>
             <p className="technical mt-1 text-[var(--text-tertiary)]">{captured.token}</p>
           </>

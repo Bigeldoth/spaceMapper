@@ -94,9 +94,44 @@ export declare function fromWheel(deltaY: number, heldModifiers: string[]): {
     ok: false;
     error: CaptureError;
 };
+/**
+ * Disposition clavier courante, position physique → caractère produit.
+ *
+ * `KeyboardEvent.code` (utilisé pour écrire dans le fichier, voir le
+ * commentaire de module) est indépendant de la disposition — c'est vital pour
+ * que le jeu relise la bonne touche, mais ça veut aussi dire qu'un joueur
+ * AZERTY qui appuie sur la touche marquée « A » voit SpaceMapper lui annoncer
+ * « Q » : la lettre à la position QWERTY de son clavier. Cette table sert
+ * uniquement à *afficher* la bonne lettre, jamais à décider quoi écrire.
+ *
+ * La `Keyboard API` (Chromium, donc disponible dans le WebView2 de Tauri) est
+ * la seule source fiable : aucune bibliothèque de dispositions clavier ne
+ * suffirait, l'utilisateur peut avoir configuré n'importe quoi. Absente ou en
+ * échec (dispositions plus anciennes, permission refusée), l'affichage
+ * retombe silencieusement sur la position QWERTY — le comportement d'avant
+ * cette fonctionnalité, jamais pire.
+ */
+export declare function useKeyboardLayoutMap(): Map<string, string> | null;
 /** Libellé lisible d'un nom de contrôle, dans la langue de l'interface. */
 export declare function controlLabel(control: string, t: Translate): string;
-/** Libellé complet d'une capture, modificateur compris. */
-export declare function describe(result: CaptureResult, t: Translate): string;
+/**
+ * Libellé d'un contrôle **clavier**, conscient de la disposition si elle est
+ * connue — voir `useKeyboardLayoutMap`. Sans elle (`layoutMap` nul), se
+ * comporte exactement comme `controlLabel`.
+ *
+ * Ne s'applique qu'aux lettres et chiffres nus : les touches nommées
+ * (`lshift`, `enter`…) ont déjà un libellé traduit et invariant, et une
+ * disposition qui produit un symbole à la place d'un chiffre (`&` pour `1` en
+ * AZERTY non maintenu) ne vaut pas mieux que le repli — la garde
+ * `[a-z0-9]` l'exclut explicitement.
+ */
+export declare function keycapLabel(control: string, layoutMap: Map<string, string> | null, t: Translate): string;
+/**
+ * Libellé complet d'une capture, modificateur compris.
+ *
+ * `layoutMap` est optionnel : les appelants qui ne l'ont pas encore adopté
+ * gardent le comportement d'avant (position QWERTY).
+ */
+export declare function describe(result: CaptureResult, t: Translate, layoutMap?: Map<string, string> | null): string;
 /** Message d'erreur destiné à l'utilisateur. */
 export declare function captureErrorMessage(error: CaptureError, t: Translate): string;

@@ -28,7 +28,7 @@ export default function FilterBar({
   const t = useT();
 
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
       <input
         type="search"
         value={filters.query}
@@ -67,7 +67,7 @@ export default function FilterBar({
         {t("filter.editableOnly")}
       </Toggle>
 
-      <span className="ml-auto whitespace-nowrap text-[length:var(--fs-caption)] text-[var(--text-tertiary)]">
+      <span className="ml-auto whitespace-nowrap rounded-[var(--radius-pill)] border border-[var(--border-subtle)] px-[var(--sp-5)] py-[var(--sp-2)] text-[length:var(--fs-caption)] text-[var(--text-tertiary)]">
         {shown === total ? `${total}` : `${shown} / ${total}`}
       </span>
 
@@ -121,7 +121,10 @@ function Toggle({
     >
       {children}
       {count !== undefined && (
-        <span className="tabular-nums text-[length:var(--fs-caption)] opacity-80">
+        // `border-current` plutôt qu'une couleur fixe : le compteur doit se
+        // détacher du libellé quel que soit l'état du Tag (actif, alerte,
+        // survolé) sans dupliquer sa palette de couleurs ici.
+        <span className="tabular-nums rounded-full border border-current/30 px-[var(--sp-3)] text-[length:var(--fs-caption)] opacity-80">
           {count}
         </span>
       )}
