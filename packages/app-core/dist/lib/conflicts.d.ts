@@ -19,8 +19,24 @@ export declare class ContextRules {
     constructor(pairs: [Context, Context][] | null);
     canCollide(a: Context, b: Context): boolean;
 }
-/** Clé stable d'une commande, indépendante de l'ordre du fichier. */
-export declare function keyOf(actionmap: string, action: string): string;
+/**
+ * Clé stable d'une ligne, indépendante de l'ordre du fichier — commande
+ * **et** assignation précise.
+ *
+ * Une action peut porter deux lignes à la fois — une au clavier, une au
+ * manche. Les confondre sous la seule paire (actionmap, action) faisait
+ * déteindre l'édition ou le signalement de conflit d'une ligne sur l'autre :
+ * modifier le manche marquait aussi le clavier comme en attente.
+ *
+ * On distingue sur `input_raw` plutôt que sur `device` : `device` vaut
+ * `null` pour toute surcharge à contrôle blanc (`jsN_ `, la forme que le jeu
+ * écrit en masse) ou illisible — précisément les lignes que ce correctif
+ * visait à distinguer. `input_raw`, lui, reste unique même dans ce cas
+ * (`"js3_ "` diffère de `"mo1_ "`), et c'est aussi la valeur que le
+ * back-end utilise pour retrouver le `<rebind>` exact à réécrire — voir
+ * `spacemapper_edit::writer::BindingEdit::original_input`.
+ */
+export declare function keyOf(binding: Pick<EditableBinding, "actionmap" | "action" | "input_raw">): string;
 /**
  * Jeton réellement en vigueur, modification en attente comprise.
  *

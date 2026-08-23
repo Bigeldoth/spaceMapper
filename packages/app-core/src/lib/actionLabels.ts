@@ -59,8 +59,8 @@ const LABELS: Record<string, string> = {
   // ── À pied : player ────────────────────────────────────────────────────
   moveforward: "Avancer",
   moveback: "Reculer",
-  moveleft: "Pas à gauche",
-  moveright: "Pas à droite",
+  moveleft: "Aller à gauche",
+  moveright: "Aller à droite",
   walk: "Marcher (au lieu de courir)",
   use: "Interagir",
   inspect: "Inspecter",

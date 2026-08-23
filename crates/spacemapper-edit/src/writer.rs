@@ -18,6 +18,24 @@ pub struct BindingEdit {
     pub action: String,
     /// Nouvelle valeur de `input`. `None` efface l'assignation.
     pub input: Option<String>,
+    /// Valeur `input` **avant** modification, quand l'action visée porte déjà
+    /// plusieurs `<rebind>` (une par famille de périphérique — clavier et
+    /// manche peuvent coexister) et qu'il faut donc préciser lequel éditer.
+    ///
+    /// Une correspondance **exacte**, pas un préfixe de famille (`js1`) : un
+    /// préfixe se serait aussi vu matcher `js10`, `js11`… — un vrai risque
+    /// pour les configurations HOSAS/multi-manche que cible ce logiciel. La
+    /// correspondance exacte a aussi une propriété plus importante encore :
+    /// dans un lot de plusieurs modifications, chaque `<rebind>` continue de
+    /// se reconnaître à sa valeur *d'avant le lot*, même après qu'une
+    /// modification précédente du même lot a réécrit un `<rebind>` voisin —
+    /// un filtrage par famille se serait fait tromper si cette réécriture
+    /// venait à produire la même famille que la cible suivante.
+    ///
+    /// `None` cible le premier `<rebind>` trouvé, comme avant l'ajout de ce
+    /// champ : c'est le seul cas courant tant qu'une action n'a qu'une
+    /// assignation.
+    pub original_input: Option<String>,
 }
 
 impl BindingEdit {
@@ -26,6 +44,7 @@ impl BindingEdit {
             actionmap: actionmap.to_string(),
             action: action.to_string(),
             input: Some(input.to_string()),
+            original_input: None,
         }
     }
 
@@ -34,7 +53,16 @@ impl BindingEdit {
             actionmap: actionmap.to_string(),
             action: action.to_string(),
             input: None,
+            original_input: None,
         }
+    }
+
+    /// Précise le `<rebind>` visé par sa valeur `input` d'avant modification,
+    /// pour une action dont plus d'un `<rebind>` coexiste. Voir
+    /// [`BindingEdit::original_input`].
+    pub fn targeting(mut self, original_input: &str) -> Self {
+        self.original_input = Some(original_input.to_string());
+        self
     }
 
     /// Valeur à écrire. Effacer revient à `input=""`, la forme que le jeu
@@ -211,10 +239,21 @@ fn is_target(
     edit: &BindingEdit,
     already_applied: bool,
 ) -> bool {
-    !already_applied
-        && element.name().as_ref() == b"rebind"
-        && current_map.as_deref() == Some(edit.actionmap.as_str())
-        && current_action.as_deref() == Some(edit.action.as_str())
+    if already_applied
+        || element.name().as_ref() != b"rebind"
+        || current_map.as_deref() != Some(edit.actionmap.as_str())
+        || current_action.as_deref() != Some(edit.action.as_str())
+    {
+        return false;
+    }
+
+    // Plusieurs `<rebind>` peuvent coexister sous la même action — clavier et
+    // manche pouvant chacun porter le leur. Sans précision, on cible le
+    // premier trouvé, exactement comme avant l'ajout de ce champ.
+    match &edit.original_input {
+        Some(original) => attribute(element, b"input").as_deref() == Some(original.as_str()),
+        None => true,
+    }
 }
 
 /// Recopie une balise en remplaçant la seule valeur de `input`.
@@ -491,6 +530,134 @@ mod tests {
         .unwrap_err();
 
         assert!(matches!(err, Error::NoInsertionPoint { .. }));
+    }
+
+    #[test]
+    fn targeting_hits_the_right_sibling_rebind() {
+        // Une action à deux surcharges (clavier + manche) : sans précision,
+        // on toucherait la première trouvée — ici le clavier — alors que
+        // c'est le manche qu'on veut changer.
+        let doc = r#"<ActionMaps><ActionProfiles>
+  <actionmap name="player">
+   <action name="moveforward">
+    <rebind input="kb1_w"/>
+    <rebind input="js3_button1"/>
+   </action>
+  </actionmap>
+ </ActionProfiles></ActionMaps>"#;
+
+        let out = apply(
+            doc,
+            &BindingEdit::set("player", "moveforward", "js3_button2").targeting("js3_button1"),
+        )
+        .unwrap();
+
+        assert!(out.contains(r#"input="js3_button2""#), "{out}");
+        assert!(out.contains(r#"input="kb1_w""#), "le clavier n'aurait pas dû bouger: {out}");
+    }
+
+    #[test]
+    fn targeting_does_not_confuse_a_short_instance_with_a_longer_one() {
+        // Un préfixe de famille (`js1`) aurait aussi matché `js10` : un vrai
+        // risque pour les configurations HOSAS/multi-manche. La
+        // correspondance exacte sur `original_input` n'a pas ce problème.
+        let doc = r#"<ActionMaps><ActionProfiles>
+  <actionmap name="player">
+   <action name="moveforward">
+    <rebind input="js1_button1"/>
+    <rebind input="js10_button1"/>
+   </action>
+  </actionmap>
+ </ActionProfiles></ActionMaps>"#;
+
+        let out = apply(
+            doc,
+            &BindingEdit::set("player", "moveforward", "js1_button9").targeting("js1_button1"),
+        )
+        .unwrap();
+
+        assert!(out.contains(r#"input="js1_button9""#), "{out}");
+        assert!(
+            out.contains(r#"input="js10_button1""#),
+            "js10 n'aurait pas dû bouger: {out}"
+        );
+    }
+
+    #[test]
+    fn targeting_survives_a_batch_that_reassigns_a_sibling_into_the_same_family() {
+        // Le cas piégeux : dans un même lot, la ligne clavier est réassignée
+        // vers le manche 3 (même famille que l'autre ligne de l'action), et
+        // la ligne manche 3 d'origine est éditée elle aussi. Un filtrage par
+        // simple préfixe de famille se serait fait tromper par la première
+        // réécriture ; `original_input` continue de désigner l'élément
+        // d'avant le lot, quel que soit l'ordre d'application.
+        let doc = r#"<ActionMaps><ActionProfiles>
+  <actionmap name="player">
+   <action name="moveforward">
+    <rebind input="kb1_w"/>
+    <rebind input="js3_button1"/>
+   </action>
+  </actionmap>
+ </ActionProfiles></ActionMaps>"#;
+
+        let edits = [
+            BindingEdit::set("player", "moveforward", "js3_button5").targeting("kb1_w"),
+            BindingEdit::set("player", "moveforward", "js3_button9").targeting("js3_button1"),
+        ];
+
+        for ordered in [edits.clone(), [edits[1].clone(), edits[0].clone()]] {
+            let out = apply_many(doc, &ordered).unwrap();
+            assert!(
+                out.contains(r#"input="js3_button5""#) && out.contains(r#"input="js3_button9""#),
+                "les deux modifications doivent aboutir, quel que soit l'ordre: {out}"
+            );
+        }
+    }
+
+    #[test]
+    fn targeting_appends_a_new_rebind_when_nothing_matches() {
+        // L'action n'a qu'une surcharge clavier : lui assigner un manche pour
+        // la première fois doit ajouter un second `<rebind>`, pas remplacer
+        // celui du clavier. C'est aussi le cas d'une ligne « défaut » jamais
+        // écrite dans le fichier : son `original_input` (ex. `kb1_w`) ne
+        // correspond à rien de réel, donc rien ne matche et une entrée est
+        // créée — le comportement voulu.
+        let doc = r#"<ActionMaps><ActionProfiles>
+  <actionmap name="player">
+   <action name="moveforward">
+    <rebind input="kb1_w"/>
+   </action>
+  </actionmap>
+ </ActionProfiles></ActionMaps>"#;
+
+        let out = apply(
+            doc,
+            &BindingEdit::set("player", "moveforward", "js3_button2").targeting("js3_ "),
+        )
+        .unwrap();
+
+        assert!(out.contains(r#"input="kb1_w""#), "{out}");
+        assert!(out.contains(r#"input="js3_button2""#), "{out}");
+        assert_eq!(out.matches("<rebind").count(), 2);
+    }
+
+    #[test]
+    fn without_targeting_the_first_rebind_is_still_hit() {
+        // Rétrocompatibilité : les appelants qui ne précisent rien (tout le
+        // code existant) doivent se comporter exactement comme avant.
+        let doc = r#"<ActionMaps><ActionProfiles>
+  <actionmap name="player">
+   <action name="moveforward">
+    <rebind input="kb1_w"/>
+    <rebind input="js3_button1"/>
+   </action>
+  </actionmap>
+ </ActionProfiles></ActionMaps>"#;
+
+        let out = apply(doc, &BindingEdit::set("player", "moveforward", "kb1_o")).unwrap();
+
+        assert!(out.contains(r#"input="kb1_o""#), "{out}");
+        assert!(out.contains(r#"input="js3_button1""#), "{out}");
     }
 
     #[test]

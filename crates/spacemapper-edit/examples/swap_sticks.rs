@@ -56,11 +56,18 @@ fn main() {
             Some(m) => format!("{m}+{}", input.control),
             None => input.control.clone(),
         };
-        edits.push(BindingEdit {
-            actionmap: map.name.clone(),
-            action: action.name.clone(),
-            input: Some(format!("{}{swapped}_{control}", input.device_kind.prefix())),
-        });
+        // Une action peut porter à la fois un js1 et un js2 : sans préciser
+        // laquelle des deux surcharges on vise, la seconde permutation de la
+        // même action toucherait la première déjà réécrite au lieu de la
+        // sienne. `targeting` fixe la cible sur la valeur d'avant permutation.
+        edits.push(
+            BindingEdit::set(
+                &map.name,
+                &action.name,
+                &format!("{}{swapped}_{control}", input.device_kind.prefix()),
+            )
+            .targeting(&input.to_string()),
+        );
     }
 
     let work = std::env::temp_dir().join("spacemapper-swap");

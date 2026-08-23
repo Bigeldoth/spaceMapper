@@ -7,6 +7,8 @@ import {
   type PendingEdit,
 } from "@spacemapper/app-core";
 import { bindingLabel, categoryLabel } from "@spacemapper/app-core";
+import { activationBadge, type ActivationBadge } from "@spacemapper/app-core";
+import { Badge, type BadgeTone } from "@spacemapper/ui";
 import {
   controlLabel,
   controlsFor,
@@ -54,7 +56,7 @@ import { useT } from "@spacemapper/app-core";
  * donnait deux lignes de même clé React, que React rendait à l'identique.
  */
 function rowKey(binding: EditableBinding): string {
-  return `${keyOf(binding.actionmap, binding.action)}/${binding.input_raw}`;
+  return keyOf(binding);
 }
 
 export default function BindingEditor({
@@ -120,7 +122,7 @@ export default function BindingEditor({
   function stage(binding: EditableBinding, input: string | null) {
     setPending((previous) => {
       const next = new Map(previous);
-      next.set(keyOf(binding.actionmap, binding.action), input);
+      next.set(keyOf(binding), input);
       return next;
     });
     setEditing(null);
@@ -140,11 +142,16 @@ export default function BindingEditor({
     setReviewing(false);
     try {
       const edits: PendingEdit[] = [...pending].map(([key, input]) => {
-        const separator = key.indexOf("/");
+        // Découpage manuel plutôt que `split("/")` : `input_raw` (le 3e
+        // segment) n'utilise jamais "/" en pratique, mais rien ne garantit
+        // qu'il ne le pourrait pas — un split naïf le couperait en morceaux.
+        const first = key.indexOf("/");
+        const second = key.indexOf("/", first + 1);
         return {
-          actionmap: key.slice(0, separator),
-          action: key.slice(separator + 1),
+          actionmap: key.slice(0, first),
+          action: key.slice(first + 1, second),
           input,
+          original_input: key.slice(second + 1) || null,
         };
       });
 
@@ -176,7 +183,7 @@ export default function BindingEditor({
     const kept = filter.apply(bindings, filters, mode, pending, conflicts);
     const shown = new Set(kept.map((b) => rowKey(b)));
     const staged = bindings.filter(
-      (b) => pending.has(keyOf(b.actionmap, b.action)) && !shown.has(rowKey(b)),
+      (b) => pending.has(keyOf(b)) && !shown.has(rowKey(b)),
     );
     return [...kept, ...staged];
   }, [bindings, filters, mode, pending, conflicts]);
@@ -400,9 +407,7 @@ function SaveDialog({
   const [showDetail, setShowDetail] = useState(false);
 
   const rows = [...pending].map(([key, input]) => {
-    const binding = bindings.find(
-      (b) => keyOf(b.actionmap, b.action) === key,
-    );
+    const binding = bindings.find((b) => keyOf(b) === key);
     return { key, input, binding };
   });
 
@@ -600,11 +605,9 @@ function CategoryTree({
                     selected={selected === rowKey(b)}
                     disambiguate={ambiguous.has(bindingLabel(b))}
                     pending={
-                      pending.has(keyOf(b.actionmap, b.action))
-                        ? pending.get(keyOf(b.actionmap, b.action))!
-                        : undefined
+                      pending.has(keyOf(b)) ? pending.get(keyOf(b))! : undefined
                     }
-                    hasPending={pending.has(keyOf(b.actionmap, b.action))}
+                    hasPending={pending.has(keyOf(b))}
                     conflicting={hasConflict(b, pending, conflicts)}
                     live={activeToken !== null && b.input_raw === activeToken}
                     onSelect={() => onSelect(rowKey(b))}
@@ -717,20 +720,25 @@ function TokenChips({
     binding.device?.startsWith("kb")
       ? keycapLabel(binding.control ?? "", layoutMap, t)
       : binding.control;
+  const badge = activationBadge(binding.activation_mode, binding.multi_tap, t);
+  const isDefault = binding.origin === "game_default";
+
   return (
-    <span className="technical flex items-center gap-1">
-      {/* Une valeur par défaut ne porte pas d'index de périphérique : le jeu
-          l'applique au premier de la famille. L'afficher comme une surcharge
-          laisserait croire qu'elle est écrite quelque part. */}
-      {binding.origin === "game_default" ? (
+    <span className="technical flex flex-wrap items-center gap-1">
+      {/* Le préfixe reste affiché même pour un défaut : savoir qu'une
+          commande répond au clavier plutôt qu'au manche est précisément ce
+          qu'on vient vérifier ici, en particulier quand la même action a
+          aussi sa propre ligne manche juste à côté. Un défaut n'est écrit
+          nulle part dans le fichier, d'où le ton atténué plutôt que le style
+          d'une vraie surcharge. */}
+      <Key muted={isDefault}>{binding.device}</Key>
+      {isDefault && (
         <span
           title={t("binding.defaultTitle")}
           className="rounded border border-[var(--border-subtle)] px-1.5 py-0.5 text-[0.6875rem] font-medium text-[var(--text-tertiary)]"
         >
           {t("binding.default")}
         </span>
-      ) : (
-        <Key>{binding.device}</Key>
       )}
       {binding.modifier && (
         <>
@@ -739,8 +747,27 @@ function TokenChips({
         </>
       )}
       <Key>{control}</Key>
+      {badge && <ActivationPill badge={badge} />}
     </span>
   );
+}
+
+/**
+ * Puce compacte pour un mode d'activation qui n'est pas une simple pression
+ * (double frappe, maintien…) — voir `activation.ts` dans `@spacemapper/app-core`.
+ * Portée par la ligne compacte aussi bien que par le détail, pour que le
+ * comportement se lise sans avoir à cliquer sur la commande. `Badge` porte
+ * déjà exactement ce langage visuel (voir son usage dans App.tsx) : pas la
+ * peine d'en récrire un second, propre à ce fichier.
+ */
+const ACTIVATION_TONE: Record<ActivationBadge["kind"], BadgeTone> = {
+  tap: "accent",
+  hold: "warning",
+  other: "neutral",
+};
+
+function ActivationPill({ badge }: { badge: ActivationBadge }) {
+  return <Badge tone={ACTIVATION_TONE[badge.kind]}>{badge.label}</Badge>;
 }
 
 /**
@@ -753,18 +780,12 @@ function TokenChips({
  */
 function ActivationModeNote({ binding }: { binding: EditableBinding }) {
   const t = useT();
+  const badge = activationBadge(binding.activation_mode, binding.multi_tap, t);
+  if (!badge) return null;
+
   return (
-    <p className="mt-1.5 text-xs text-[var(--text-tertiary)]">
-      {binding.activation_mode && (
-        <span className="technical mr-2">
-          {t("detail.activationMode")}: {binding.activation_mode}
-        </span>
-      )}
-      {binding.multi_tap && (
-        <span className="technical">
-          {t("detail.multiTap")}: {binding.multi_tap}
-        </span>
-      )}
+    <p className="mt-1.5 flex items-center gap-1.5 text-xs text-[var(--text-tertiary)]">
+      <ActivationPill badge={badge} />
     </p>
   );
 }
@@ -811,7 +832,7 @@ function DetailPane({
     );
   }
 
-  const key = keyOf(binding.actionmap, binding.action);
+  const key = keyOf(binding);
   const hasPending = pending.has(key);
   const staged = hasPending ? pending.get(key)! : undefined;
   const assigned = binding.control !== null && binding.control !== "";
@@ -1475,9 +1496,12 @@ export function Modal({
 function Key({
   children,
   accent,
+  muted,
 }: {
   children: React.ReactNode;
   accent?: boolean;
+  /** Ton atténué : une valeur qui décrit le jeu sans être écrite dans le fichier. */
+  muted?: boolean;
 }) {
   return (
     <span
@@ -1485,7 +1509,9 @@ function Key({
         "rounded border px-1.5 py-0.5 " +
         (accent
           ? "border-[var(--border-accent)] bg-[var(--accent-soft)] text-[var(--text-accent)]"
-          : "border-[var(--border-subtle)] bg-[var(--surface-2)] text-[var(--text-primary)]")
+          : muted
+            ? "border-[var(--border-subtle)] text-[var(--text-tertiary)]"
+            : "border-[var(--border-subtle)] bg-[var(--surface-2)] text-[var(--text-primary)]")
       }
     >
       {children}

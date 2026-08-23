@@ -101,6 +101,16 @@ export interface PendingEdit {
     actionmap: string;
     action: string;
     input: string | null;
+    /**
+     * Valeur `input` de la ligne éditée avant modification, quand l'action
+     * porte plusieurs lignes à la fois. C'est ce qui distingue laquelle des
+     * deux modifier — une correspondance de préfixe (`js1`) se serait aussi
+     * vue matcher `js10`, un vrai risque pour les configurations
+     * HOSAS/multi-manche. `null` cible la première assignation trouvée, comme
+     * avant l'ajout de ce champ — le seul cas courant tant qu'une action n'a
+     * qu'une ligne.
+     */
+    original_input: string | null;
 }
 /** Contrôle relevé par la session de capture, et périphérique d'origine. */
 export interface CapturedInput {

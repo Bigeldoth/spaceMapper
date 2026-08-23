@@ -31,9 +31,27 @@ export class ContextRules {
   }
 }
 
-/** Clé stable d'une commande, indépendante de l'ordre du fichier. */
-export function keyOf(actionmap: string, action: string): string {
-  return `${actionmap}/${action}`;
+/**
+ * Clé stable d'une ligne, indépendante de l'ordre du fichier — commande
+ * **et** assignation précise.
+ *
+ * Une action peut porter deux lignes à la fois — une au clavier, une au
+ * manche. Les confondre sous la seule paire (actionmap, action) faisait
+ * déteindre l'édition ou le signalement de conflit d'une ligne sur l'autre :
+ * modifier le manche marquait aussi le clavier comme en attente.
+ *
+ * On distingue sur `input_raw` plutôt que sur `device` : `device` vaut
+ * `null` pour toute surcharge à contrôle blanc (`jsN_ `, la forme que le jeu
+ * écrit en masse) ou illisible — précisément les lignes que ce correctif
+ * visait à distinguer. `input_raw`, lui, reste unique même dans ce cas
+ * (`"js3_ "` diffère de `"mo1_ "`), et c'est aussi la valeur que le
+ * back-end utilise pour retrouver le `<rebind>` exact à réécrire — voir
+ * `spacemapper_edit::writer::BindingEdit::original_input`.
+ */
+export function keyOf(
+  binding: Pick<EditableBinding, "actionmap" | "action" | "input_raw">,
+): string {
+  return `${binding.actionmap}/${binding.action}/${binding.input_raw}`;
 }
 
 /**
@@ -47,7 +65,7 @@ export function effectiveToken(
   binding: EditableBinding,
   pending: Map<string, string | null>,
 ): string | null {
-  const key = keyOf(binding.actionmap, binding.action);
+  const key = keyOf(binding);
   if (pending.has(key)) return pending.get(key) ?? null;
 
   // `control` vide correspond aux formes `js3_ ` que le jeu écrit en masse
@@ -105,7 +123,7 @@ export function indexConflicts(
           other !== binding && rules.canCollide(binding.context, other.context),
       );
       if (rivals.length > 0) {
-        flagged.add(keyOf(binding.actionmap, binding.action));
+        flagged.add(keyOf(binding));
       }
     }
   }
@@ -121,10 +139,10 @@ export function rivalsOf(
 ): EditableBinding[] {
   const token = effectiveToken(binding, pending);
   if (token === null) return [];
-  const key = keyOf(binding.actionmap, binding.action);
+  const key = keyOf(binding);
   return (conflicts.byToken.get(token) ?? []).filter(
     (other) =>
-      keyOf(other.actionmap, other.action) !== key &&
+      keyOf(other) !== key &&
       conflicts.rules.canCollide(binding.context, other.context),
   );
 }
@@ -134,5 +152,5 @@ export function hasConflict(
   _pending: Map<string, string | null>,
   conflicts: ConflictIndex,
 ): boolean {
-  return conflicts.flagged.has(keyOf(binding.actionmap, binding.action));
+  return conflicts.flagged.has(keyOf(binding));
 }

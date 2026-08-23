@@ -17,6 +17,7 @@ export default function FilterBar({
   total,
   conflictCount,
   unassignedCount,
+  showEditableFilter = true,
 }: {
   filters: Filters;
   onChange: (filters: Filters) => void;
@@ -24,6 +25,13 @@ export default function FilterBar({
   total: number;
   conflictCount: number;
   unassignedCount: number;
+  /**
+   * L'interrupteur « Modifiables seulement » n'a de sens que si une partie
+   * des commandes est verrouillée — le cas de Lite. Premium ne verrouille
+   * jamais rien : montrer un filtre qui ne distingue jamais deux états
+   * n'aide personne. `true` par défaut pour ne rien changer à Lite.
+   */
+  showEditableFilter?: boolean;
 }) {
   const t = useT();
 
@@ -58,14 +66,16 @@ export default function FilterBar({
         {t("filter.conflicts")}
       </Toggle>
 
-      <Toggle
-        active={filters.editableOnly}
-        onClick={() =>
-          onChange({ ...filters, editableOnly: !filters.editableOnly })
-        }
-      >
-        {t("filter.editableOnly")}
-      </Toggle>
+      {showEditableFilter && (
+        <Toggle
+          active={filters.editableOnly}
+          onClick={() =>
+            onChange({ ...filters, editableOnly: !filters.editableOnly })
+          }
+        >
+          {t("filter.editableOnly")}
+        </Toggle>
+      )}
 
       <span className="ml-auto whitespace-nowrap rounded-[var(--radius-pill)] border border-[var(--border-subtle)] px-[var(--sp-5)] py-[var(--sp-2)] text-[length:var(--fs-caption)] text-[var(--text-tertiary)]">
         {shown === total ? `${total}` : `${shown} / ${total}`}

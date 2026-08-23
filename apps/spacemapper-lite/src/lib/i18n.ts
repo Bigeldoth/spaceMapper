@@ -114,6 +114,19 @@ const FR = {
 
   "detail.activationMode": "Mode d'activation",
   "detail.multiTap": "Multi-appui",
+
+  // Manière dont le jeu déclenche une touche, quand ce n'est pas une simple
+  // pression — voir `activation.ts` dans `@spacemapper/app-core` pour la
+  // liste des valeurs relevées sur le profil par défaut du jeu.
+  "activation.tap": "Frappe",
+  "activation.hold": "Maintenir",
+  "activation.holdToggle": "Maintenir (bascule)",
+  "activation.doubleTap": "Double frappe",
+  "activation.multiTap": "Multi-frappe",
+  "activation.delayedPress": "Appui prolongé",
+  "activation.delayedHold": "Maintien prolongé",
+  "activation.smartToggle": "Bascule intelligente",
+
   "picker.currentAssignment": "Assignation actuelle",
   "picker.modifierHint":
     "Maintenez le même modificateur pendant la capture pour le conserver.",
@@ -414,6 +427,16 @@ const EN: Record<Key, string> = {
 
   "detail.activationMode": "Activation mode",
   "detail.multiTap": "Multi-tap",
+
+  "activation.tap": "Tap",
+  "activation.hold": "Hold",
+  "activation.holdToggle": "Hold (toggle)",
+  "activation.doubleTap": "Double-tap",
+  "activation.multiTap": "Multi-tap",
+  "activation.delayedPress": "Delayed press",
+  "activation.delayedHold": "Extended hold",
+  "activation.smartToggle": "Smart toggle",
+
   "picker.currentAssignment": "Current assignment",
   "picker.modifierHint":
     "Hold the same modifier during capture to keep it.",

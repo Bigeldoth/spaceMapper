@@ -1,6 +1,7 @@
 // Modules purs : logique partagée entre toutes les éditions.
 export * from "./lib/api";
 export * from "./lib/actionLabels";
+export * from "./lib/activation";
 export * from "./lib/conflicts";
 export * from "./lib/controls";
 export * from "./lib/filter";

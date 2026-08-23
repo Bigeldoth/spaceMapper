@@ -73,6 +73,14 @@ pub struct DefaultAction {
     /// Clé de localisation de la description — la réponse du jeu lui-même à
     /// « à quoi sert cette touche ? ».
     pub ui_description: Option<String>,
+    /// `press`, `hold`, `double_tap`, `double_tap_nonblocking`… — la manière
+    /// dont le jeu déclenche l'action quand elle n'a jamais été surchargée.
+    ///
+    /// Sans surcharge, `actionmaps.xml` ne dit rien de ce comportement : les
+    /// esquives à pied (`melee_dodgeLeft` et consorts) sont un double-appui
+    /// par défaut, sur les mêmes touches que le déplacement simple, et rien
+    /// ne le distingue tant que ce champ n'est pas lu.
+    pub activation_mode: Option<String>,
 }
 
 impl DefaultAction {
@@ -130,6 +138,7 @@ pub fn parse_str(xml: &str) -> Result<DefaultProfile> {
                             gamepad: attr(&action, "gamepad"),
                             ui_label: attr(&action, "UILabel"),
                             ui_description: attr(&action, "UIDescription"),
+                            activation_mode: attr(&action, "activationMode"),
                         })
                     })
                     .collect(),
@@ -170,6 +179,9 @@ mod tests {
   <action name="v_yaw" gamepad="thumblx" joystick="x" UILabel="@ui_CIYaw"/>
   <action name="v_roll" gamepad="thumbrx" joystick="rotz" UILabel="@ui_CIRoll"/>
   <action name="v_pitch_mouse" mouse="maxis_y"/>
+ </actionmap>
+ <actionmap name="player">
+  <action name="melee_dodgeLeft" activationMode="double_tap_nonblocking" keyboard="a" UILabel="@ui_CIFPSMoveDodgeLeft"/>
  </actionmap>
 </profile>"#;
 
@@ -245,7 +257,24 @@ mod tests {
     fn counts_only_actions_with_a_real_default() {
         // `v_pitch_up` compte grâce au clavier, `v_pitch_mouse` grâce à la
         // souris ; aucune action du fragment n'est totalement dépourvue.
-        assert_eq!(parse_str(SAMPLE).unwrap().bound_count(), 5);
+        assert_eq!(parse_str(SAMPLE).unwrap().bound_count(), 6);
+    }
+
+    #[test]
+    fn reads_the_default_activation_mode() {
+        // Sans surcharge, c'est la seule source qui dit qu'une esquive est un
+        // double-appui : `actionmaps.xml` ne le mentionne que si le joueur y
+        // a lui-même touché.
+        let profile = parse_str(SAMPLE).unwrap();
+        let dodge = profile.action("player", "melee_dodgeLeft").unwrap();
+        assert_eq!(
+            dodge.activation_mode.as_deref(),
+            Some("double_tap_nonblocking")
+        );
+
+        // Les actions sans l'attribut n'inventent rien.
+        let pitch = profile.action("spaceship_movement", "v_pitch").unwrap();
+        assert!(pitch.activation_mode.is_none());
     }
 
     #[test]

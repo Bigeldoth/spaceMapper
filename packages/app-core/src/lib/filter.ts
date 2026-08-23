@@ -90,7 +90,10 @@ export function apply(
     if (filters.conflictsOnly && !hasConflict(b, pending, conflicts)) {
       return false;
     }
-    if (filters.editableOnly && b.lock !== null) return false;
+    // Vérité plutôt que `!== null` : Premium ne renvoie jamais `lock` du
+    // tout (`undefined`), et `undefined !== null` vaut `true` — le filtre
+    // aurait traité chaque commande comme verrouillée et tout masqué.
+    if (filters.editableOnly && b.lock) return false;
     if (needle === "") return true;
 
     // On cherche dans tout ce que l'utilisateur peut avoir sous les yeux ou en

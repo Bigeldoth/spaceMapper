@@ -14,11 +14,12 @@
 use serde::{Deserialize, Serialize};
 use spacemapper_app_support::gamedata::GameData;
 use spacemapper_app_support::settings as app_settings;
-use spacemapper_core::actionmaps::{self, ActionMaps, InputBinding};
+use spacemapper_core::actionmaps::{self, ActionMaps, DeviceKind, InputBinding};
 use spacemapper_core::channel;
 use spacemapper_core::context::{self, Context};
 use spacemapper_core::defaults::DefaultProfile;
 use spacemapper_edit::{backup, scope, BindingEdit, EditAccess, EditCategory};
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 type CmdResult<T> = Result<T, String>;
@@ -98,6 +99,9 @@ pub struct PendingEdit {
     pub action: String,
     /// `None` efface l'assignation.
     pub input: Option<String>,
+    /// Valeur `input` de la ligne éditée avant modification, quand l'action
+    /// en porte plusieurs — voir [`spacemapper_edit::BindingEdit::original_input`].
+    pub original_input: Option<String>,
 }
 
 impl From<&PendingEdit> for BindingEdit {
@@ -106,6 +110,7 @@ impl From<&PendingEdit> for BindingEdit {
             actionmap: p.actionmap.clone(),
             action: p.action.clone(),
             input: p.input.clone(),
+            original_input: p.original_input.clone(),
         }
     }
 }
@@ -362,6 +367,16 @@ impl From<backup::BackupEntry> for BackupView {
 /// Une surcharge l'emporte toujours : c'est ce que le jeu fait lui-même. Les
 /// défauts qui n'ont pas été surchargés sont ajoutés ensuite, marqués comme
 /// tels, afin que la liste reflète la configuration réellement en vigueur.
+///
+/// La fusion se fait **par famille de périphérique**, pas par action entière.
+/// Une action peut porter une surcharge clavier et une surcharge manche à la
+/// fois — et inversement, surcharger le manche seul (même pour dire « rien
+/// ici », la forme `jsN_ ` que le jeu écrit en masse) ne dit rien du clavier,
+/// qui reste au défaut. Traiter « une surcharge existe » comme « le fichier
+/// fait autorité pour toute l'action » faisait disparaître des touches
+/// parfaitement actives : c'est le bug derrière l'absence
+/// d'« Avancer/Reculer/Aller à gauche/droite », dont le clavier n'a jamais
+/// été touché mais dont le manche 3 porte un `jsN_ ` vide.
 fn collect_editable(maps: &ActionMaps, defaults: Option<&DefaultProfile>) -> Vec<EditableBinding> {
     let mut bindings = collect_overrides(maps);
 
@@ -369,10 +384,25 @@ fn collect_editable(maps: &ActionMaps, defaults: Option<&DefaultProfile>) -> Vec
         return bindings;
     };
 
-    let known: std::collections::HashSet<(String, String)> = bindings
-        .iter()
-        .map(|b| (b.actionmap.clone(), b.action.clone()))
-        .collect();
+    // Familles déjà couvertes par une surcharge, par action — dérivé du
+    // document brut via `Rebind::kind()`, la même classification que le reste
+    // du crate utilise déjà pour distinguer « rien sur ce périphérique » de
+    // « illisible ». Une surcharge dont le périphérique ne se laisse pas
+    // identifier (`Unbound`/`Unparseable`) ne renseigne aucune famille : elle
+    // ne bloque donc plus les familles voisines, correctement identifiées,
+    // qui doivent quand même recevoir leur défaut.
+    let mut known_families: HashSet<(String, String, DeviceKind)> = HashSet::new();
+
+    for (map, action, rebind) in maps.rebinds() {
+        let device_kind = match rebind.kind() {
+            actionmaps::RebindKind::Bound => rebind.input.as_ref().map(|i| i.device_kind),
+            actionmaps::RebindKind::UnboundOn { device_kind, .. } => Some(device_kind),
+            actionmaps::RebindKind::Unbound | actionmaps::RebindKind::Unparseable => None,
+        };
+        if let Some(device_kind) = device_kind {
+            known_families.insert((map.name.clone(), action.name.clone(), device_kind));
+        }
+    }
 
     for map in &defaults.action_maps {
         let Some(access) = scope::access_of(&map.name) else {
@@ -386,55 +416,56 @@ fn collect_editable(maps: &ActionMaps, defaults: Option<&DefaultProfile>) -> Vec
         };
 
         for action in &map.actions {
-            if known.contains(&(map.name.clone(), action.name.clone())) {
-                continue;
+            // Le profil par défaut peut définir plusieurs familles à la fois
+            // (ex. clavier ET manche) : une ligne par famille non couverte,
+            // pas une seule pour toute l'action.
+            for device_kind in [
+                DeviceKind::Joystick,
+                DeviceKind::Keyboard,
+                DeviceKind::Mouse,
+                DeviceKind::Gamepad,
+            ] {
+                if known_families.contains(&(map.name.clone(), action.name.clone(), device_kind))
+                {
+                    continue;
+                }
+                // Le profil par défaut applique toujours la valeur au premier
+                // exemplaire de la famille — voir `default_token`/`token_for`.
+                let prefix = format!("{}1", device_kind.prefix());
+                let Some(token) = action.token_for(&prefix) else {
+                    continue;
+                };
+
+                let input = InputBinding::parse(&token);
+                let locked_reason = lock_reason(access, &action.name);
+
+                bindings.push(EditableBinding {
+                    actionmap: map.name.clone(),
+                    category,
+                    access,
+                    origin: Origin::GameDefault,
+                    context: context::context_of(&map.name),
+                    action: action.name.clone(),
+                    // Renseigné ensuite, une fois le catalogue chargé.
+                    label: None,
+                    description: None,
+                    input_raw: token.clone(),
+                    device: input
+                        .as_ref()
+                        .map(|i| format!("{}{}", i.device_kind.prefix(), i.instance)),
+                    modifier: input.as_ref().and_then(|i| i.modifier.clone()),
+                    control: input.as_ref().map(|i| i.control.clone()),
+                    // Le profil par défaut ne modélise que l'activation ;
+                    // le multi-appui n'existe que côté surcharges utilisateur.
+                    activation_mode: action.activation_mode.clone(),
+                    multi_tap: None,
+                    lock: locked_reason,
+                });
             }
-            // Le profil par défaut ne donne qu'un nom de contrôle, sans index
-            // de périphérique : le jeu l'applique au premier de la famille.
-            let Some(token) = default_token(action) else {
-                continue;
-            };
-
-            let input = InputBinding::parse(&token);
-            let locked_reason = lock_reason(access, &action.name);
-
-            bindings.push(EditableBinding {
-                actionmap: map.name.clone(),
-                category,
-                access,
-                origin: Origin::GameDefault,
-                context: context::context_of(&map.name),
-                action: action.name.clone(),
-                // Renseignés ensuite, une fois le catalogue chargé.
-                label: None,
-                description: None,
-                input_raw: token.clone(),
-                device: input
-                    .as_ref()
-                    .map(|i| format!("{}{}", i.device_kind.prefix(), i.instance)),
-                modifier: input.as_ref().and_then(|i| i.modifier.clone()),
-                control: input.as_ref().map(|i| i.control.clone()),
-                // Le profil par défaut ne modélise ni l'un ni l'autre.
-                activation_mode: None,
-                multi_tap: None,
-                lock: locked_reason,
-            });
         }
     }
 
     bindings
-}
-
-/// Jeton d'une valeur par défaut, en privilégiant le manche.
-///
-/// Le profil décrit une même action pour plusieurs familles ; on retient celle
-/// qui intéresse le plus l'utilisateur de ce logiciel, puis on retombe sur le
-/// clavier.
-fn default_token(action: &spacemapper_core::defaults::DefaultAction) -> Option<String> {
-    action
-        .token_for("js1")
-        .or_else(|| action.token_for("kb1"))
-        .or_else(|| action.token_for("gp1"))
 }
 
 /// Motif de verrouillage, commun aux deux origines.
@@ -510,6 +541,8 @@ mod tests {
   </actionmap>
   <actionmap name="player">
    <action name="moveforward"><rebind input="kb1_w"/></action>
+   <action name="moveleft"><rebind input="js3_ "/></action>
+   <action name="moveright"><rebind input="BAD TOKEN"/></action>
   </actionmap>
   <actionmap name="vehicle_driver">
    <action name="v_boost"><rebind input="js1_button2"/></action>
@@ -545,6 +578,10 @@ mod tests {
  </actionmap>
  <actionmap name="spaceship_weapons">
   <action name="v_attack1" joystick="button1"/>
+ </actionmap>
+ <actionmap name="player">
+  <action name="moveleft" activationMode="hold" keyboard="a" joystick=" "/>
+  <action name="moveright" activationMode="hold" keyboard="d" joystick=" "/>
  </actionmap>
 </profile>"#;
 
@@ -582,6 +619,56 @@ mod tests {
         assert_eq!(found.len(), 1, "action présente en double");
         assert_eq!(found[0].origin, Origin::Override);
         assert_eq!(found[0].input_raw, "js1_button5");
+    }
+
+    #[test]
+    fn a_blank_override_on_one_family_does_not_hide_the_default_on_another() {
+        // Le bug réel signalé par Patrice : `moveleft` ne porte qu'un `js3_ `
+        // vide (« rien sur ce manche ») dans son fichier. Le clavier n'a
+        // jamais été touché et reste au défaut du jeu — il doit apparaître en
+        // plus de la ligne manche vide, pas disparaître derrière elle.
+        let list = merged();
+        let rows: Vec<_> = list.iter().filter(|b| b.action == "moveleft").collect();
+        assert_eq!(
+            rows.len(),
+            2,
+            "attendu une ligne clavier (défaut) + une ligne manche (surcharge): {rows:?}"
+        );
+
+        let keyboard = rows
+            .iter()
+            .find(|b| b.origin == Origin::GameDefault)
+            .expect("ligne clavier absente");
+        assert_eq!(keyboard.input_raw, "kb1_a");
+        assert_eq!(keyboard.activation_mode.as_deref(), Some("hold"));
+
+        let joystick = rows
+            .iter()
+            .find(|b| b.origin == Origin::Override)
+            .expect("ligne manche absente");
+        assert_eq!(joystick.input_raw, "js3_ ");
+    }
+
+    #[test]
+    fn a_genuinely_corrupt_override_does_not_hide_the_default_on_another_family() {
+        // `moveright` porte une surcharge totalement illisible (« BAD TOKEN »,
+        // aucun périphérique identifiable). Avant, ça bloquait tout défaut
+        // pour l'action entière ; maintenant, seule l'information qu'on ne
+        // peut pas en tirer est absente — le défaut clavier, sur une famille
+        // que rien ne dit couverte, doit quand même apparaître.
+        let list = merged();
+        let keyboard = list
+            .iter()
+            .find(|b| b.action == "moveright" && b.origin == Origin::GameDefault)
+            .expect("le défaut clavier de moveright a disparu derrière la surcharge illisible");
+        assert_eq!(keyboard.input_raw, "kb1_d");
+
+        // La ligne illisible reste, elle, bien présente et signalée comme
+        // surcharge — on ne la fait pas disparaître, on arrête juste de la
+        // laisser décider pour les autres familles.
+        assert!(list
+            .iter()
+            .any(|b| b.action == "moveright" && b.origin == Origin::Override));
     }
 
     #[test]
