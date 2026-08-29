@@ -33,10 +33,13 @@ const FR = {
   "devices.buttons": "boutons",
   "devices.hats": "chapeaux",
 
-  "profile.title": "Profil analysé",
+  "profile.title": "Version Star Citizen",
   "profile.hint":
-    "Le fichier de Star Citizen que SpaceMapper lit et modifie. Détecté automatiquement dans la plupart des cas.",
+    "Choisissez l’installation de Star Citizen dont SpaceMapper doit lire et modifier les commandes. Toutes les versions détectées dans le dossier StarCitizen sont proposées.",
   "profile.browse": "Choisir un fichier…",
+  "profile.rescan": "Rechercher à nouveau",
+  "profile.refreshing": "Recherche…",
+  "profile.manual": "Profil choisi manuellement",
   "profile.none": "Aucune installation détectée automatiquement.",
   "profile.goToSettings": "Choisir un profil",
 
@@ -349,10 +352,13 @@ const EN: Record<Key, string> = {
   "devices.buttons": "buttons",
   "devices.hats": "hats",
 
-  "profile.title": "Profile in use",
+  "profile.title": "Star Citizen version",
   "profile.hint":
-    "The Star Citizen file SpaceMapper reads and edits. Detected automatically in most cases.",
+    "Choose the Star Citizen installation whose controls SpaceMapper should read and edit. Every version detected in the StarCitizen folder is listed.",
   "profile.browse": "Choose a file…",
+  "profile.rescan": "Scan again",
+  "profile.refreshing": "Scanning…",
+  "profile.manual": "Manually selected profile",
   "profile.none": "No installation detected automatically.",
   "profile.goToSettings": "Choose a profile",
 
