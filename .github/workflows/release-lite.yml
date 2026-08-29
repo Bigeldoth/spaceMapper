@@ -30,7 +30,8 @@ jobs:
           fetch-depth: 0
 
       # Un tag stable posé par erreur sur staging publierait du code non validé
-      # sous un numéro de version définitif. On refuse avant de compiler.
+      # sous un numéro de version définitif. On refuse avant de compiler et on
+      # vérifie toutes les sources de version visibles dans l'application.
       - name: Vérifier la provenance du tag
         if: github.ref_type == 'tag'
         shell: bash
@@ -54,10 +55,26 @@ jobs:
           version_tag="${GITHUB_REF_NAME#lite-v}"
           version_tag="${version_tag%%-rc*}"
           version_conf=$(node -p "require('./apps/spacemapper-lite/src-tauri/tauri.conf.json').version")
-          if [[ "$version_tag" != "$version_conf" ]]; then
-            echo "::error::Le tag annonce $version_tag mais tauri.conf.json est en $version_conf."
-            exit 1
-          fi
+          version_package=$(node -p "require('./apps/spacemapper-lite/package.json').version")
+          version_cargo=$(node -e '
+            const text = require("node:fs").readFileSync("Cargo.toml", "utf8");
+            const section = text.split("[workspace.package]")[1]?.split(/\r?\n\[/)[0] ?? "";
+            const match = section.match(/^version\s*=\s*"([^"]+)"/m);
+            if (!match) throw new Error("version absente de [workspace.package]");
+            console.log(match[1]);
+          ')
+          for valeur in \
+            "tauri.conf.json:$version_conf" \
+            "package.json:$version_package" \
+            "Cargo.toml:$version_cargo"
+          do
+            source_version="${valeur%%:*}"
+            numero="${valeur#*:}"
+            if [[ "$version_tag" != "$numero" ]]; then
+              echo "::error::Le tag annonce $version_tag mais $source_version est en $numero."
+              exit 1
+            fi
+          done
 
       - name: Installer la toolchain Rust
         uses: dtolnay/rust-toolchain@stable
@@ -107,20 +124,48 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Build + publication de l'installateur
+        id: build
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Une RC et un lancement manuel sont des builds hors production :
+          # le backend isole alors réglages et sauvegardes dans
+          # %APPDATA%\SpaceMapper-Staging.
+          SPACEMAPPER_CHANNEL: >-
+            ${{ (github.ref_type != 'tag' || contains(github.ref_name, '-rc'))
+                && 'staging'
+                || 'production' }}
         with:
           projectPath: apps/spacemapper-lite
-          tagName: ${{ github.ref_type == 'tag' && github.ref_name || format('lite-v{0}-dev', github.run_number) }}
+          # La configuration additionnelle donne aussi un nom et un identifiant
+          # d'installation distincts à tous les builds hors production.
+          args: >-
+            ${{ (github.ref_type != 'tag' || contains(github.ref_name, '-rc'))
+                && '--config src-tauri/tauri.staging.conf.json'
+                || '' }}
+          # Sans tagName, tauri-action construit mais ne crée aucune Release.
+          # C'est le comportement voulu pour workflow_dispatch.
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
           releaseName: >-
             ${{ github.ref_type == 'tag'
                 && format('SpaceMapper Lite {0}', github.ref_name)
-                || format('SpaceMapper Lite (build de test #{0})', github.run_number) }}
+                || '' }}
           releaseBody: ${{ steps.texte.outputs.corps }}
           # Une RC est publiée directement (les testeurs doivent pouvoir la
           # télécharger) mais marquée pre-release : elle n'apparaît jamais comme
           # « Latest ». Une version stable, elle, reste un brouillon que tu
           # publies à la main quand tu es prêt à la rendre visible aux clients.
-          releaseDraft: ${{ github.ref_type == 'tag' && !contains(github.ref_name, '-rc') }}
-          prerelease: ${{ contains(github.ref_name, '-rc') || github.ref_type != 'tag' }}
+          releaseDraft: ${{ github.ref_type != 'tag' || !contains(github.ref_name, '-rc') }}
+          prerelease: ${{ github.ref_type == 'tag' && contains(github.ref_name, '-rc') }}
+
+      # Un lancement manuel ne crée ni tag ni Release publique. L'installateur
+      # reste néanmoins un artifact d'un dépôt public : il est moins visible,
+      # pas confidentiel. Une rétention courte limite sa durée d'exposition.
+      - name: Conserver le build manuel comme artifact
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v4
+        with:
+          name: spacemapper-lite-staging-${{ github.run_number }}
+          path: target/release/bundle/nsis/*.exe
+          if-no-files-found: error
+          retention-days: 7
