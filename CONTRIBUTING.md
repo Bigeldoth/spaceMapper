@@ -4,13 +4,15 @@
 
 | Branche | Rôle |
 |---|---|
-| `main` | Reçoit le travail quotidien. Les releases de production y sont taguées (`v0.1.0`). |
-| `staging` | Pré-release détachée. Synchronisée depuis `main` avant chaque cycle de test. |
+| `feature/*`, `fix/*`, `chore/*` | Branches de chantier créées depuis `staging`. |
+| `staging` | Pré-production. Ne reçoit que des PR de branches de chantier avec CI verte. |
+| `main` | Production. Ne reçoit que des PR provenant de `staging`. |
 
-Le code source est **identique** entre les deux : ce qui change est la
-configuration de build. Une pré-release s'installe donc **à côté** de la
-production, avec son propre identifiant, son propre nom et surtout son propre
-dossier de données.
+Le chemin est toujours `branche de chantier -> staging -> main` : jamais de
+commit ou de poussée directe sur `staging` ou `main`, et jamais de PR d'une
+branche de chantier vers `main`. La configuration de build fait qu'une
+pré-release s'installe **à côté** de la production, avec son propre identifiant,
+son propre nom et surtout son propre dossier de données.
 
 ```
 %APPDATA%\SpaceMapper           ← production
@@ -21,17 +23,23 @@ Cette isolation n'est pas cosmétique : quand l'édition Premium écrira dans
 `actionmaps.xml`, un bug de pré-release ne devra en aucun cas pouvoir abîmer
 les vrais profils d'un testeur.
 
-### Préparer un cycle de test
+### Ouvrir un chantier
 
 ```bash
-git checkout staging && git merge --ff-only main && git push
+git switch staging
+git pull --ff-only
+git switch -c feature/mon-chantier
 ```
 
-### Publier une release
+Une fois le travail terminé : pousser cette branche et ouvrir une PR vers
+`staging`. Le détail des candidates et des releases stables est dans
+[`RELEASING.md`](RELEASING.md).
 
-```bash
-git checkout main && git tag -a v0.1.0 -m "Première release" && git push --tags
-```
+### Passer en production
+
+Ouvrir une PR dont la source est `staging` et la cible `main`. La protection de
+branche refuse toute autre provenance ; la release stable est ensuite créée par
+un tag `lite-vX.Y.Z` posé sur le commit de production.
 
 ---
 

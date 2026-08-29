@@ -22,6 +22,15 @@ jobs:
     # c'est ici que le code DirectInput est réellement vérifié.
     runs-on: windows-latest
     steps:
+      # `main` est la production : même une PR verte ne peut pas y arriver
+      # directement depuis une branche de chantier. Ce job est déjà un statut
+      # obligatoire de la protection de `main`, donc son échec bloque le merge.
+      - name: Vérifier le flux de branches
+        if: github.event_name == 'pull_request' && github.base_ref == 'main' && github.head_ref != 'staging'
+        run: |
+          Write-Error "Une PR vers main doit provenir de staging, pas de $env:GITHUB_HEAD_REF."
+          exit 1
+
       - uses: actions/checkout@v5
 
       - name: Installer la toolchain Rust

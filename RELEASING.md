@@ -26,18 +26,23 @@ feature/xxx  ──PR──>  staging  ──PR──>  main
 1. `git switch staging && git pull`, puis `git switch -c feature/mon-chantier`.
 2. Travailler, committer, pousser. Ouvrir une PR vers `staging`.
 3. La CI (Rust Windows + Frontend) doit passer. Fusionner.
-4. Quand `staging` mérite d'être essayée : monter la version dans
+4. Quand `staging` mérite d'être essayée : monter la même version dans
+   `Cargo.toml` (`[workspace.package]`),
    `apps/spacemapper-lite/src-tauri/tauri.conf.json` et
-   `apps/spacemapper-lite/package.json`, committer, puis :
+   `apps/spacemapper-lite/package.json`. Régénérer ensuite les lockfiles avec
+   `cargo check --workspace` et `npm install --package-lock-only`, puis
+   committer et pousser cette branche de version par une PR vers `staging`.
+   Une fois la PR fusionnée :
 
    ```bash
    git tag lite-v0.2.0-rc1 && git push origin lite-v0.2.0-rc1
    ```
 
-   L'Action construit l'installateur et **publie** une pre-release. Elle est
-   visible dans l'onglet Releases du dépôt public et téléchargeable par les
-   testeurs, mais n'apparaît jamais comme « Latest » : personne ne l'installe
-   par accident en cherchant la dernière version.
+   L'Action construit l'installateur avec l'identité **Staging** : nom et
+   identifiant Windows distincts, bandeau de pré-release, réglages et
+   sauvegardes sous `%APPDATA%\SpaceMapper-Staging`. Elle **publie** ensuite
+   une pre-release, visible dans l'onglet Releases et téléchargeable par les
+   testeurs, mais jamais marquée « Latest ».
 5. Retours des testeurs -> correctifs sur `staging` -> `lite-v0.2.0-rc2`, etc.
    Autant de tours que nécessaire.
 
@@ -64,16 +69,24 @@ Le workflow refuse de construire, avant même de compiler, si :
 - un tag stable (`lite-v0.2.0`) est posé sur un commit absent de `main` ;
 - un tag de candidate (`lite-v0.2.0-rc1`) est posé sur un commit absent de
   `staging` ;
-- le numéro annoncé par le tag ne correspond pas à la `version` de
-  `tauri.conf.json` — sinon un installateur estampillé 0.1.0 circulerait sous
-  le nom 0.2.0, ce qui est indétectable une fois le fichier chez un testeur.
+- le numéro annoncé par le tag ne correspond pas aux versions de `Cargo.toml`,
+  `package.json` et `tauri.conf.json` ;
+- une PR vers `main` ne provient pas de `staging` : le statut CI obligatoire
+  `Rust (Windows)` échoue avant même de récupérer le code.
 
-Un `workflow_dispatch` manuel reste possible : il produit une pre-release
-`lite-v<numéro de run>-dev`, sans contrôle de provenance.
+La protection GitHub de `staging` impose par ailleurs une PR, une branche à
+jour et les statuts `Rust (Windows)` et `Frontend` au vert.
+
+Un `workflow_dispatch` manuel reste possible sans contrôle de provenance. Il
+construit lui aussi une application isolée **Staging**, mais ne crée ni tag ni
+Release : l'installateur est conservé sept jours dans les artifacts de
+l'exécution.
 
 ## Note sur la visibilité
 
-`Bigeldoth/spaceMapper` est public. Une pre-release y est **visible de tous**,
-simplement signalée comme non stable. Si une version candidate doit rester
-strictement confidentielle, ne la tague pas : lance le workflow en
-`workflow_dispatch` et récupère l'installateur depuis l'exécution de l'Action.
+`Bigeldoth/spaceMapper` est public. Une pre-release est **visible de tous**,
+simplement signalée comme non stable. Un artifact de `workflow_dispatch` est
+moins exposé puisqu'il n'apparaît pas dans Releases et expire après sept jours,
+mais les lecteurs du dépôt public peuvent encore le télécharger. Une candidate
+strictement confidentielle doit être construite et stockée dans un espace
+privé ; le dépôt public ne peut pas fournir cette garantie.
