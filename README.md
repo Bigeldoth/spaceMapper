@@ -80,6 +80,11 @@ npm install
 npm run tauri dev
 ```
 
+Le travail se fait sur des branches de chantier fusionnées dans `staging` (la
+pré-production), jamais directement sur `main`. Le cheminement complet, du
+commit à l'installateur chez le client, est décrit dans
+[RELEASING.md](RELEASING.md).
+
 ## Licence
 
 Source disponible, **pas open source** — voir [LICENSE](LICENSE). Le code est

@@ -2,6 +2,13 @@ name: Release Lite
 
 # DirectInput est Windows-only, tauri.conf.json ne cible que nsis : un seul
 # runner suffit, pas de matrice multi-OS comme un template Tauri générique.
+#
+# Deux familles de tags, un seul workflow :
+#   lite-v0.2.0-rc1  (pose sur staging) -> pre-release PUBLIÉE, pour la boucle
+#                                          de test avant mise en production.
+#   lite-v0.2.0      (pose sur main)    -> release stable, laissée en BROUILLON :
+#                                          la publication vers les clients reste
+#                                          un geste manuel.
 on:
   push:
     tags:
@@ -16,7 +23,41 @@ jobs:
     name: Build & publish l'installateur Windows
     runs-on: windows-latest
     steps:
+      # fetch-depth: 0 — la vérification de provenance ci-dessous a besoin de
+      # l'historique complet pour situer le tag par rapport aux branches.
       - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      # Un tag stable posé par erreur sur staging publierait du code non validé
+      # sous un numéro de version définitif. On refuse avant de compiler.
+      - name: Vérifier la provenance du tag
+        if: github.ref_type == 'tag'
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF_NAME}" == *-rc* ]]; then
+            attendu=staging
+          else
+            attendu=main
+          fi
+          # checkout ne garantit pas les refs de branches quand on construit un
+          # tag : on les demande explicitement avant de comparer.
+          git fetch --quiet origin main staging
+          if git merge-base --is-ancestor "${GITHUB_SHA}" "origin/${attendu}"; then
+            echo "Tag ${GITHUB_REF_NAME} bien issu de ${attendu}."
+          else
+            echo "::error::${GITHUB_REF_NAME} doit être posé sur ${attendu}, or ce commit n'y est pas."
+            exit 1
+          fi
+          # Un tag lite-v0.2.0 qui produit un installateur estampillé 0.1.0 est
+          # indétectable une fois le fichier chez un testeur : on compare.
+          version_tag="${GITHUB_REF_NAME#lite-v}"
+          version_tag="${version_tag%%-rc*}"
+          version_conf=$(node -p "require('./apps/spacemapper-lite/src-tauri/tauri.conf.json').version")
+          if [[ "$version_tag" != "$version_conf" ]]; then
+            echo "::error::Le tag annonce $version_tag mais tauri.conf.json est en $version_conf."
+            exit 1
+          fi
 
       - name: Installer la toolchain Rust
         uses: dtolnay/rust-toolchain@stable
@@ -41,6 +82,30 @@ jobs:
       - name: Build @spacemapper/ui
         run: npm run build -w packages/ui
 
+      # Le corps de la release contient des sauts de ligne : le composer dans
+      # une expression ${{ }} n'est pas possible, on le prépare ici.
+      - name: Préparer le texte de la release
+        id: texte
+        shell: bash
+        run: |
+          commun="Édition Lite, gratuite et hors-ligne. Installateur Windows (NSIS), français et anglais."
+          depot="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}"
+          {
+            echo "corps<<FIN_DU_CORPS"
+            if [[ "${GITHUB_REF_NAME}" == *-rc* || "${GITHUB_REF_TYPE}" != "tag" ]]; then
+              echo "**Version candidate — destinée aux testeurs, pas à un usage en production.**"
+              echo
+              echo "Merci de remonter tout problème dans les [issues](${depot}/issues) avant la publication de la version stable."
+              echo
+              echo "[Journal des modifications](${depot}/commits/staging)"
+            else
+              echo "Voir le [journal des modifications](${depot}/commits/main) pour le détail des changements."
+            fi
+            echo
+            echo "$commun"
+            echo "FIN_DU_CORPS"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Build + publication de l'installateur
         uses: tauri-apps/tauri-action@v0
         env:
@@ -48,12 +113,14 @@ jobs:
         with:
           projectPath: apps/spacemapper-lite
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || format('lite-v{0}-dev', github.run_number) }}
-          releaseName: "SpaceMapper Lite ${{ github.ref_type == 'tag' && github.ref_name || format('(build de test #{0})', github.run_number) }}"
-          releaseBody: |
-            Voir le [journal des modifications](https://github.com/Bigeldoth/spaceMapper/commits/main) pour le détail des changements.
-
-            Édition Lite, gratuite et hors-ligne. Installateur Windows (NSIS), français et anglais.
-          # Brouillon : la publication reste une action manuelle depuis GitHub,
-          # cette Action ne rend jamais une release publique toute seule.
-          releaseDraft: true
-          prerelease: false
+          releaseName: >-
+            ${{ github.ref_type == 'tag'
+                && format('SpaceMapper Lite {0}', github.ref_name)
+                || format('SpaceMapper Lite (build de test #{0})', github.run_number) }}
+          releaseBody: ${{ steps.texte.outputs.corps }}
+          # Une RC est publiée directement (les testeurs doivent pouvoir la
+          # télécharger) mais marquée pre-release : elle n'apparaît jamais comme
+          # « Latest ». Une version stable, elle, reste un brouillon que tu
+          # publies à la main quand tu es prêt à la rendre visible aux clients.
+          releaseDraft: ${{ github.ref_type == 'tag' && !contains(github.ref_name, '-rc') }}
+          prerelease: ${{ contains(github.ref_name, '-rc') || github.ref_type != 'tag' }}
