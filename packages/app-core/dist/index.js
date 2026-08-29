@@ -1,54 +1,56 @@
-import { invoke as v } from "@tauri-apps/api/core";
-import { useState as f, useEffect as L, createContext as K, useContext as G, useMemo as W, useRef as Q } from "react";
+import { invoke as p } from "@tauri-apps/api/core";
+import { useState as m, useEffect as O, createContext as W, useContext as Q, useMemo as X, useRef as D, useCallback as J } from "react";
 import { jsx as n, jsxs as c, Fragment as M } from "react/jsx-runtime";
-const _ = {
-  listDevices: () => v("list_devices"),
-  locateActionmaps: () => v("locate_actionmaps"),
-  buildInfo: () => v("build_info"),
+const b = {
+  listDevices: () => p("list_devices"),
+  locateActionmaps: () => p("locate_actionmaps"),
+  buildInfo: () => p("build_info"),
   /** Confronte le profil au matériel branché. */
-  diagnoseDevices: (e) => v("diagnose_devices", { path: e }),
+  diagnoseDevices: (e) => p("diagnose_devices", { path: e }),
   /** Profils exportés présents dans `Controls\mappings`. */
-  listLayouts: (e) => v("list_layouts", { path: e }),
+  listLayouts: (e) => p("list_layouts", { path: e }),
   /** Détaille un profil exporté, sans rien y écrire. */
-  inspectLayout: (e) => v("inspect_layout", { path: e }),
+  inspectLayout: (e) => p("inspect_layout", { path: e }),
   /** Surcharges du joueur fusionnées avec les valeurs par défaut du jeu. */
-  listEditableBindings: (e) => v("list_editable_bindings", { path: e }),
+  listEditableBindings: (e) => p("list_editable_bindings", { path: e }),
   /**
    * Écrit un lot de modifications en une seule fois.
    * Renvoie le chemin du point de restauration créé, ou `null`.
    */
-  saveBindings: (e, t, r) => v("save_bindings", {
+  saveBindings: (e, t, r) => p("save_bindings", {
     path: e,
     edits: t,
     createRestorePoint: r
   }),
   /** Crée un point de restauration ; renvoie le chemin du fichier créé. */
-  createBackup: (e) => v("create_backup", { path: e }),
-  listBackups: () => v("list_backups"),
+  createBackup: (e) => p("create_backup", { path: e }),
+  listBackups: () => p("list_backups"),
   /**
    * Supprime définitivement un point de restauration.
    *
    * Le backend refuse toute cible qui n'est pas une sauvegarde de SpaceMapper :
    * il détermine lui-même le dossier autorisé et ne se fie pas à ce chemin.
    */
-  deleteBackup: (e) => v("delete_backup", { backupPath: e }),
+  deleteBackup: (e) => p("delete_backup", { backupPath: e }),
   /** Langues réellement présentes dans l'installation du joueur. */
-  listGameLanguages: (e) => v("list_game_languages", { path: e }),
-  getSettings: () => v("get_settings"),
-  setSettings: (e) => v("set_settings", { settings: e }),
+  listGameLanguages: (e) => p("list_game_languages", { path: e }),
+  getSettings: () => p("get_settings"),
+  setSettings: (e) => p("set_settings", { settings: e }),
   /**
    * Ouvre une session de lecture sur plusieurs périphériques à la fois.
    * Renvoie le numéro de session, à repasser à `stopCapture`.
    */
-  startCapture: (e) => v("start_capture", { guids: e }),
+  startCapture: (e) => p("start_capture", { guids: e }),
   /** Dernier contrôle actionné, ou `null` si rien n'a été pressé. */
-  pollCapture: () => v("poll_capture"),
+  pollCapture: () => p("poll_capture"),
+  /** Frame live de la session désignée, vide dès que tout est relâché. */
+  pollLiveCapture: (e) => p("poll_live_capture", { id: e }),
   /** Oublie le dernier relevé sans fermer la session. */
-  clearCapture: () => v("clear_capture"),
+  clearCapture: () => p("clear_capture"),
   /** N'arrête que la session désignée : voir le commentaire côté Rust. */
-  stopCapture: (e) => v("stop_capture", { id: e }),
-  restoreBackup: (e, t) => v("restore_backup", { path: e, backupPath: t })
-}, D = {
+  stopCapture: (e) => p("stop_capture", { id: e }),
+  restoreBackup: (e, t) => p("restore_backup", { path: e, backupPath: t })
+}, V = {
   // ── Pilotage : spaceship_movement ──────────────────────────────────────
   v_afterburner: "Postcombustion (boost)",
   v_autoland: "Atterrissage automatique",
@@ -190,7 +192,7 @@ const _ = {
   v_shield_reset_level: "Réinitialiser les boucliers",
   v_weapon_countermeasure_decoy_launch: "Larguer un leurre",
   v_weapon_countermeasure_noise_launch: "Brouillage (chaff)"
-}, F = {
+}, j = {
   agree: "approuver",
   angry: "colère",
   atease: "repos",
@@ -231,19 +233,19 @@ const _ = {
   wave: "faire signe",
   whistle: "siffler"
 };
-function X(e) {
-  return e.label ?? J(e.action);
+function Y(e) {
+  return e.label ?? ee(e.action);
 }
-function J(e) {
-  const t = D[e];
+function ee(e) {
+  const t = V[e];
   if (t) return t;
-  const r = e.startsWith("emote_") ? F[e.slice(6)] : void 0;
+  const r = e.startsWith("emote_") ? j[e.slice(6)] : void 0;
   return r ? `Émote — ${r}` : e;
 }
-function Le(e) {
-  return e in D || e.startsWith("emote_") && e.slice(6) in F;
+function ze(e) {
+  return e in V || e.startsWith("emote_") && e.slice(6) in j;
 }
-const Y = {
+const te = {
   default: "Général",
   lights_controller: "Éclairage",
   mapui: "Carte",
@@ -281,10 +283,10 @@ const Y = {
   view_director_mode: "Mode réalisateur",
   zero_gravity_eva: "EVA (apesanteur)"
 };
-function ee(e) {
-  return Y[e] ?? e;
+function re(e) {
+  return te[e] ?? e;
 }
-const te = {
+const ae = {
   tap: { key: "activation.tap", kind: "tap" },
   hold: { key: "activation.hold", kind: "hold" },
   hold_toggle: { key: "activation.holdToggle", kind: "hold" },
@@ -298,7 +300,7 @@ const te = {
   delayed_hold_no_retrigger: { key: "activation.delayedHold", kind: "hold" },
   smart_toggle: { key: "activation.smartToggle", kind: "other" }
 };
-function Oe(e, t, r) {
+function Me(e, t, r) {
   const a = t ? Number.parseInt(t, 10) : NaN;
   if (a > 1)
     return {
@@ -307,10 +309,10 @@ function Oe(e, t, r) {
     };
   if (!e || e === "press")
     return null;
-  const s = te[e];
+  const s = ae[e];
   return s ? { label: r(s.key), kind: s.kind } : { label: e, kind: "other" };
 }
-class Re {
+class Ee {
   pairs;
   constructor(t) {
     this.pairs = new Set(
@@ -321,17 +323,17 @@ class Re {
     return this.pairs.size === 0 ? !0 : this.pairs.has(`${t}|${r}`);
   }
 }
-function C(e) {
+function L(e) {
   return `${e.actionmap}/${e.action}/${e.input_raw}`;
 }
 function E(e, t) {
-  const r = C(e);
+  const r = L(e);
   return t.has(r) ? t.get(r) ?? null : e.control && e.control.trim() !== "" ? e.input_raw : null;
 }
-function re(e, t) {
+function ne(e, t) {
   return E(e, t) !== null;
 }
-function Te(e, t, r) {
+function qe(e, t, r) {
   const a = /* @__PURE__ */ new Map();
   for (const o of e) {
     const i = E(o, t);
@@ -343,23 +345,23 @@ function Te(e, t, r) {
   for (const [, o] of a)
     for (const i of o)
       o.filter(
-        (p) => p !== i && r.canCollide(i.context, p.context)
-      ).length > 0 && s.add(C(i));
+        (_) => _ !== i && r.canCollide(i.context, _.context)
+      ).length > 0 && s.add(L(i));
   return { byToken: a, rules: r, flagged: s };
 }
-function ze(e, t, r) {
+function Be(e, t, r) {
   const a = E(e, t);
   if (a === null) return [];
-  const s = C(e);
+  const s = L(e);
   return (r.byToken.get(a) ?? []).filter(
-    (o) => C(o) !== s && r.rules.canCollide(e.context, o.context)
+    (o) => L(o) !== s && r.rules.canCollide(e.context, o.context)
   );
 }
-function ae(e, t, r) {
-  return r.flagged.has(C(e));
+function se(e, t, r) {
+  return r.flagged.has(L(e));
 }
-const ne = ["x", "y", "z", "rotx", "roty", "rotz", "slider1", "slider2"], se = ["up", "right", "down", "left"];
-function Me(e, t) {
+const oe = ["x", "y", "z", "rotx", "roty", "rotz", "slider1", "slider2"], ie = ["up", "right", "down", "left"];
+function Fe(e, t) {
   switch (e) {
     case "buttons":
       return t("control.buttons");
@@ -369,7 +371,7 @@ function Me(e, t) {
       return t("control.hats");
   }
 }
-function Ee(e, t) {
+function De(e, t) {
   const r = [];
   for (let a = 1; a <= e.buttons; a++)
     r.push({
@@ -377,31 +379,31 @@ function Ee(e, t) {
       label: `${t("control.button")} ${a}`,
       group: "buttons"
     });
-  for (const a of ne.slice(0, e.axes))
+  for (const a of oe.slice(0, e.axes))
     r.push({
       value: a,
       label: `${t("control.axis")} ${a}`,
       group: "axes"
     });
   for (let a = 1; a <= e.povs; a++)
-    for (const s of se)
+    for (const s of ie)
       r.push({
         value: `hat${a}_${s}`,
-        label: `${t("control.hat")} ${a} — ${j(s, t)}`,
+        label: `${t("control.hat")} ${a} — ${I(s, t)}`,
         group: "hats"
       });
   return r;
 }
-function Be(e, t) {
+function Ve(e, t) {
   const r = /^button(\d+)$/.exec(e);
   if (r) return `${t("control.button")} ${r[1]}`;
   const a = /^hat(\d+)_(\w+)$/.exec(e);
   if (a)
-    return `${t("control.hat")} ${a[1]} — ${j(a[2], t)}`;
+    return `${t("control.hat")} ${a[1]} — ${I(a[2], t)}`;
   const s = /^slider(\d+)$/.exec(e);
   return s ? `${t("control.slider")} ${s[1]}` : `${t("control.axis")} ${e}`;
 }
-function j(e, t) {
+function I(e, t) {
   switch (e) {
     case "up":
       return t("control.up");
@@ -415,22 +417,22 @@ function j(e, t) {
       return e;
   }
 }
-function qe(e, t) {
+function je(e, t) {
   const a = e.filter((o) => o.category === t.category).findIndex(
     (o) => o.instance_guid === t.instance_guid
   );
   return `${t.category === "gamepad" ? "gp" : "js"}${a + 1}`;
 }
-const V = {
+const P = {
   query: "",
   unassignedOnly: !1,
   conflictsOnly: !1,
   editableOnly: !1
 };
-function I(e) {
+function H(e) {
   return e.query.trim() !== "" || e.unassignedOnly || e.conflictsOnly || e.editableOnly;
 }
-function P(e) {
+function Z(e) {
   switch (e.input_raw.slice(0, 2)) {
     case "kb":
     case "mo":
@@ -443,38 +445,38 @@ function P(e) {
       return null;
   }
 }
-function oe(e, t, r, a, s) {
+function le(e, t, r, a, s) {
   const o = B(t.query);
   return e.filter((i) => {
-    const u = re(i, a);
-    return r !== "all" && u && P(i) !== r || t.unassignedOnly && u || t.conflictsOnly && !ae(i, a, s) || t.editableOnly && i.lock ? !1 : o === "" ? !0 : [
-      X(i),
+    const u = ne(i, a);
+    return r !== "all" && u && Z(i) !== r || t.unassignedOnly && u || t.conflictsOnly && !se(i, a, s) || t.editableOnly && i.lock ? !1 : o === "" ? !0 : [
+      Y(i),
       i.action,
       i.description ?? "",
       i.input_raw,
       i.control ?? "",
-      ee(i.actionmap),
+      re(i.actionmap),
       i.actionmap
-    ].some((p) => B(p).includes(o));
+    ].some((_) => B(_).includes(o));
   });
 }
 function B(e) {
   return e.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
-const De = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+const Ie = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  NO_FILTERS: V,
-  apply: oe,
-  isFiltering: I,
-  modeOf: P
-}, Symbol.toStringTag, { value: "Module" })), ie = {
+  NO_FILTERS: P,
+  apply: le,
+  isFiltering: H,
+  modeOf: Z
+}, Symbol.toStringTag, { value: "Module" })), ce = {
   ShiftLeft: "lshift",
   ShiftRight: "rshift",
   ControlLeft: "lctrl",
   ControlRight: "rctrl",
   AltLeft: "lalt",
   AltRight: "ralt"
-}, le = {
+}, ue = {
   Space: "space",
   Enter: "enter",
   Escape: "escape",
@@ -511,51 +513,51 @@ const De = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   PrintScreen: "print",
   ScrollLock: "scrolllock",
   Pause: "pause"
-}, ce = {
+}, de = {
   0: "mouse1",
   1: "mouse3",
   2: "mouse2",
   3: "mouse4",
   4: "mouse5"
 };
-function Fe(e) {
-  return ie[e] ?? null;
+function Pe(e) {
+  return ce[e] ?? null;
 }
-function ue(e, t) {
+function pe(e, t) {
   return { token: `kb1_${e ? `${e}+${t}` : t}`, modifier: e, control: t };
 }
-function je(e, t) {
+function He(e, t) {
   if (t.length > 1)
     return { ok: !1, error: { kind: "too_many_modifiers" } };
-  const r = de(e);
-  return r ? { ok: !0, value: ue(t[0] ?? null, r) } : { ok: !1, error: { kind: "unsupported", code: e } };
+  const r = ve(e);
+  return r ? { ok: !0, value: pe(t[0] ?? null, r) } : { ok: !1, error: { kind: "unsupported", code: e } };
 }
-function Ve(e, t) {
+function Ze(e, t) {
   if (t.length > 1)
     return { ok: !1, error: { kind: "too_many_modifiers" } };
-  const r = ce[e];
-  return r ? { ok: !0, value: H(t[0] ?? null, r) } : { ok: !1, error: { kind: "unsupported", code: `mouse${e}` } };
+  const r = de[e];
+  return r ? { ok: !0, value: U(t[0] ?? null, r) } : { ok: !1, error: { kind: "unsupported", code: `mouse${e}` } };
 }
-function Ie(e, t) {
+function Ue(e, t) {
   if (t.length > 1)
     return { ok: !1, error: { kind: "too_many_modifiers" } };
   if (e === 0)
     return { ok: !1, error: { kind: "unsupported", code: "mwheel" } };
   const r = e < 0 ? "mwheel_up" : "mwheel_down";
-  return { ok: !0, value: H(t[0] ?? null, r) };
+  return { ok: !0, value: U(t[0] ?? null, r) };
 }
-function H(e, t) {
+function U(e, t) {
   return { token: `mo1_${e ? `${e}+${t}` : t}`, modifier: e, control: t };
 }
-function de(e) {
-  return /^Key[A-Z]$/.test(e) ? e.slice(3).toLowerCase() : /^Digit[0-9]$/.test(e) ? e.slice(5) : /^F([1-9]|1[0-2])$/.test(e) ? e.toLowerCase() : /^Numpad[0-9]$/.test(e) ? `np_${e.slice(6)}` : le[e] ?? null;
-}
 function ve(e) {
+  return /^Key[A-Z]$/.test(e) ? e.slice(3).toLowerCase() : /^Digit[0-9]$/.test(e) ? e.slice(5) : /^F([1-9]|1[0-2])$/.test(e) ? e.toLowerCase() : /^Numpad[0-9]$/.test(e) ? `np_${e.slice(6)}` : ue[e] ?? null;
+}
+function me(e) {
   return /^[a-z]$/.test(e) ? `Key${e.toUpperCase()}` : /^[0-9]$/.test(e) ? `Digit${e}` : null;
 }
-function Pe() {
-  const [e, t] = f(null);
-  return L(() => {
+function Ke() {
+  const [e, t] = m(null);
+  return O(() => {
     let r = !1;
     const a = navigator.keyboard;
     if (a?.getLayoutMap)
@@ -567,7 +569,7 @@ function Pe() {
       };
   }, []), e;
 }
-const pe = {
+const fe = {
   lshift: "key.lshift",
   rshift: "key.rshift",
   lctrl: "key.lctrl",
@@ -598,22 +600,22 @@ const pe = {
   mwheel_up: "key.mwheelUp",
   mwheel_down: "key.mwheelDown"
 };
-function Z(e, t) {
-  const r = pe[e];
+function K(e, t) {
+  const r = fe[e];
   return r ? t(r) : e.startsWith("np_") ? `${t("key.numpad")} ${e.slice(3)}` : e.toUpperCase();
 }
-function me(e, t, r) {
+function _e(e, t, r) {
   if (t && /^[a-z0-9]$/.test(e)) {
-    const a = ve(e), s = a ? t.get(a) : void 0;
+    const a = me(e), s = a ? t.get(a) : void 0;
     if (s && /^[a-z0-9]$/i.test(s)) return s.toUpperCase();
   }
-  return Z(e, r);
+  return K(e, r);
 }
-function He(e, t, r) {
-  const a = me(e.control, r ?? null, t);
-  return e.modifier ? `${Z(e.modifier, t)} + ${a}` : a;
+function Ge(e, t, r) {
+  const a = _e(e.control, r ?? null, t);
+  return e.modifier ? `${K(e.modifier, t)} + ${a}` : a;
 }
-function Ze(e, t) {
+function We(e, t) {
   switch (e.kind) {
     case "too_many_modifiers":
       return t("capture.tooManyModifiers");
@@ -621,61 +623,79 @@ function Ze(e, t) {
       return `${t("capture.unsupported")} (${e.code})`;
   }
 }
-const U = K((e) => e);
-function Ue({
+const G = W((e) => e);
+function Qe({
   translate: e,
   children: t
 }) {
-  const r = W(() => e, [e]);
-  return /* @__PURE__ */ n(U.Provider, { value: r, children: t });
+  const r = X(() => e, [e]);
+  return /* @__PURE__ */ n(G.Provider, { value: r, children: t });
 }
-function y() {
-  return G(U);
+function A() {
+  return Q(G);
 }
-function Ke(e, t) {
-  const [r, a] = f(null), [s, o] = f(!1), [i, u] = f(null), p = e.map((d) => d.instance_guid).join("|");
-  return L(() => {
-    if (!t || p === "") {
-      o(!1);
+const he = 32;
+function Xe(e, t) {
+  const [r, a] = m(null), [s, o] = m([]), [i, u] = m(0), [_, d] = m(!1), [k, w] = m(null), h = D(0), x = e.map((f) => f.instance_guid).join("|");
+  O(() => {
+    if (!t || x === "") {
+      d(!1), o([]);
       return;
     }
-    let d = !1;
-    u(null), o(!1);
-    const h = _.startCapture(p.split("|"));
-    h.then(
-      () => !d && o(!0),
-      (m) => !d && u(String(m))
-    );
-    const b = window.setInterval(async () => {
-      try {
-        const m = await _.pollCapture();
-        !d && m && a(m);
-      } catch (m) {
-        d || u(String(m));
-      }
-    }, 60);
-    return () => {
-      d = !0, window.clearInterval(b), h.then((m) => _.stopCapture(m)).catch(() => {
+    let f = !1, y = null, N = -1;
+    w(null), d(!1), o([]), u(0);
+    const $ = b.startCapture(x.split("|"));
+    return $.then(
+      (g) => {
+        if (f) return;
+        d(!0);
+        const C = async () => {
+          if (f) return;
+          const l = h.current;
+          try {
+            const v = await b.pollLiveCapture(g);
+            if (f || v.session_id !== g) return;
+            v.sequence > N && (N = v.sequence, o(v.inputs), u(v.sequence), l === h.current && a(
+              (q) => ge(q, v.last) ? q : v.last
+            ));
+          } catch (v) {
+            f || (w(String(v)), d(!1), o([]));
+            return;
+          }
+          f || (y = window.setTimeout(C, he));
+        };
+        C();
+      },
+      (g) => !f && w(String(g))
+    ), () => {
+      f = !0, y !== null && window.clearTimeout(y), $.then((g) => b.stopCapture(g)).catch(() => {
       });
     };
-  }, [p, t]), {
+  }, [x, t]);
+  const S = J(() => {
+    h.current += 1, a(null), b.clearCapture().catch(() => {
+    });
+  }, []);
+  return {
     last: r,
-    listening: s,
-    error: i,
+    active: s,
+    frameSequence: i,
+    listening: _,
+    error: k,
     // L'oubli doit aussi porter côté Rust : le thread garde son relevé, et le
     // sondage suivant le restaurerait aussitôt.
-    reset: () => {
-      a(null), _.clearCapture().catch(() => {
-      });
-    }
+    reset: S
   };
 }
-function Ge(e, t, r) {
+function ge(e, t) {
+  return e === t || e !== null && t !== null && e.guid === t.guid && e.control === t.control;
+}
+function Je(e, t, r) {
   if (!e) return null;
   const a = t.find((s) => s.instance_guid === e.guid);
   return a ? `${r(a)}_${e.control}` : null;
 }
-function We({
+function Ye({
   profilePath: e,
   mode: t,
   onModeChange: r,
@@ -684,29 +704,29 @@ function We({
   captureError: o,
   probe: i,
   onClearProbe: u,
-  onRestored: p
+  onRestored: _
 }) {
-  const d = y(), [h, b] = f([]), [m, k] = f(!1), [O, x] = f(!1), [w, N] = f(null);
+  const d = A(), [k, w] = m([]), [h, x] = m(!1), [S, f] = m(!1), [y, N] = m(null);
   async function $() {
     try {
-      b(await _.listBackups());
+      w(await b.listBackups());
     } catch {
     }
   }
-  L(() => {
+  O(() => {
     $();
   }, []);
-  async function A() {
-    x(!0);
+  async function g() {
+    f(!0);
     try {
-      await _.createBackup(e), N(d("backup.created")), await $();
+      await b.createBackup(e), N(d("backup.created")), await $();
     } catch (l) {
       N(String(l));
     } finally {
-      x(!1);
+      f(!1);
     }
   }
-  const S = [
+  const C = [
     { id: "all", label: "filter.mode.all" },
     { id: "desk", label: "filter.mode.desk" },
     { id: "gamepad", label: "filter.mode.gamepad" },
@@ -716,7 +736,7 @@ function We({
     /* @__PURE__ */ c("div", { className: "flex flex-wrap items-center gap-x-4 gap-y-2 rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-2)] px-3 py-2", children: [
       /* @__PURE__ */ c("div", { className: "-mx-1 flex max-w-full items-center gap-1 overflow-x-auto overflow-y-hidden px-1", children: [
         /* @__PURE__ */ n("span", { className: "mr-1 shrink-0 text-xs font-medium text-[var(--text-tertiary)]", children: d("filter.mode") }),
-        S.map((l) => /* @__PURE__ */ n(
+        C.map((l) => /* @__PURE__ */ n(
           "button",
           {
             onClick: () => r(l.id),
@@ -728,7 +748,7 @@ function We({
       ] }),
       /* @__PURE__ */ c("div", { className: "flex flex-wrap items-center gap-3 sm:ml-auto", children: [
         /* @__PURE__ */ n(
-          fe,
+          be,
           {
             listening: a,
             count: s,
@@ -743,9 +763,9 @@ function We({
               "button",
               {
                 onClick: () => {
-                  A();
+                  g();
                 },
-                disabled: O,
+                disabled: S,
                 className: "rounded-l-md px-2.5 py-1 text-xs font-medium text-[var(--text-primary)] hover:bg-[var(--surface-hover)] disabled:text-[var(--text-disabled)]",
                 children: d("backup.create")
               }
@@ -753,42 +773,42 @@ function We({
             /* @__PURE__ */ c(
               "button",
               {
-                onClick: () => k((l) => !l),
+                onClick: () => x((l) => !l),
                 className: "border-l border-[var(--border-default)] px-2 py-1 text-xs text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]",
                 title: d("backup.title"),
                 children: [
-                  h.length,
+                  k.length,
                   " ▾"
                 ]
               }
             )
           ] }),
-          m && /* @__PURE__ */ n(
-            he,
+          h && /* @__PURE__ */ n(
+            ye,
             {
               profilePath: e,
-              backups: h,
-              onClose: () => k(!1),
+              backups: k,
+              onClose: () => x(!1),
               onChanged: async () => {
-                await $(), p();
+                await $(), _();
               }
             }
           )
         ] }),
-        /* @__PURE__ */ n(_e, {})
+        /* @__PURE__ */ n(xe, {})
       ] })
     ] }),
-    w && /* @__PURE__ */ n("p", { className: "rounded-[var(--radius-control)] bg-[var(--accent-soft)] px-3 py-1.5 text-xs text-[var(--text-accent)]", children: w })
+    y && /* @__PURE__ */ n("p", { className: "rounded-[var(--radius-control)] bg-[var(--accent-soft)] px-3 py-1.5 text-xs text-[var(--text-accent)]", children: y })
   ] });
 }
-function fe({
+function be({
   listening: e,
   count: t,
   error: r,
   probe: a,
   onClear: s
 }) {
-  const o = y();
+  const o = A();
   return r ? /* @__PURE__ */ n("span", { className: "text-xs text-[var(--danger-text)]", title: r, children: o("probe.stopped") }) : a ? /* @__PURE__ */ c("span", { className: "flex items-center gap-1.5 rounded-[var(--radius-control)] bg-[var(--accent-soft)] px-2 py-1 text-xs text-[var(--text-accent)]", children: [
     /* @__PURE__ */ n("span", { className: "font-mono font-semibold", children: a.device }),
     /* @__PURE__ */ n("span", { children: a.control }),
@@ -823,8 +843,8 @@ function fe({
     }
   );
 }
-function _e() {
-  const e = y(), [t, r] = f(!1);
+function xe() {
+  const e = A(), [t, r] = m(!1);
   return /* @__PURE__ */ c("div", { className: "relative", children: [
     /* @__PURE__ */ n(
       "button",
@@ -846,19 +866,19 @@ function _e() {
     ] })
   ] });
 }
-function he({
+function ye({
   profilePath: e,
   backups: t,
   onClose: r,
   onChanged: a
 }) {
-  const s = y(), [o, i] = f(null), u = Q(null);
-  async function p() {
+  const s = A(), [o, i] = m(null), u = D(null);
+  async function _() {
     if (!o) return;
-    const { backup: d, action: h } = o;
+    const { backup: d, action: k } = o;
     i(null);
     try {
-      h === "restore" ? await _.restoreBackup(e, d.path) : await _.deleteBackup(d.path), a();
+      k === "restore" ? await b.restoreBackup(e, d.path) : await b.deleteBackup(d.path), a();
     } catch {
     }
     r();
@@ -873,7 +893,7 @@ function he({
         children: [
           /* @__PURE__ */ n("p", { className: "border-b border-[var(--border-subtle)] px-3 py-2 text-xs text-[var(--text-tertiary)]", children: s("backup.hint") }),
           t.length === 0 ? /* @__PURE__ */ n("p", { className: "px-3 py-4 text-center text-xs text-[var(--text-tertiary)]", children: s("backup.empty") }) : /* @__PURE__ */ n("ul", { className: "max-h-64 divide-y divide-[var(--border-subtle)] overflow-y-auto", children: t.map((d) => /* @__PURE__ */ c("li", { className: "px-3 py-2", children: [
-            /* @__PURE__ */ n("p", { className: "text-xs text-[var(--text-primary)]", children: q(d.timestamp) }),
+            /* @__PURE__ */ n("p", { className: "text-xs text-[var(--text-primary)]", children: F(d.timestamp) }),
             /* @__PURE__ */ c("div", { className: "mt-1 flex gap-2", children: [
               /* @__PURE__ */ n(
                 "button",
@@ -910,7 +930,7 @@ function he({
               /* @__PURE__ */ n("h3", { className: "text-sm font-semibold text-[var(--text-primary)]", children: s(
                 o.action === "delete" ? "backup.confirmDeleteTitle" : "backup.confirmTitle"
               ) }),
-              /* @__PURE__ */ n("p", { className: "mt-2 text-sm text-[var(--text-secondary)]", children: q(o.backup.timestamp) }),
+              /* @__PURE__ */ n("p", { className: "mt-2 text-sm text-[var(--text-secondary)]", children: F(o.backup.timestamp) }),
               /* @__PURE__ */ n(
                 "p",
                 {
@@ -933,7 +953,7 @@ function he({
                   "button",
                   {
                     onClick: () => {
-                      p();
+                      _();
                     },
                     className: "rounded-[var(--radius-control)] px-3 py-1.5 text-sm font-medium text-white " + (o.action === "delete" ? "bg-[var(--danger)] hover:bg-[var(--danger)]" : "bg-accent hover:bg-[var(--accent-hover)]"),
                     children: s(
@@ -949,23 +969,23 @@ function he({
     )
   ] });
 }
-function q(e) {
+function F(e) {
   const t = Number(e);
   return Number.isFinite(t) ? new Date(t).toLocaleString(void 0, {
     dateStyle: "medium",
     timeStyle: "short"
   }) : e;
 }
-const ge = {
+const ke = {
   sm: "h-[var(--h-control-sm)] px-[var(--sp-5)] text-[length:var(--fs-body-sm)]",
   md: "h-[var(--h-control)] px-[var(--sp-6)] text-[length:var(--fs-body)]",
   lg: "h-[var(--h-control-lg)] px-[var(--sp-7)] text-[length:var(--fs-body)]"
-}, be = {
+}, we = {
   primary: "border border-transparent bg-accent text-[var(--text-on-accent)] hover:bg-[var(--accent-hover)] hover:shadow-[var(--glow-soft)] active:bg-[var(--accent-press)] active:shadow-none",
   secondary: "border border-[var(--border-default)] bg-[var(--surface-2)] text-[var(--text-primary)] hover:border-[var(--border-strong)] hover:bg-[var(--surface-hover)]",
   ghost: "border border-transparent bg-transparent text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
 };
-function R({
+function T({
   variant: e = "primary",
   size: t = "md",
   className: r = "",
@@ -974,13 +994,13 @@ function R({
   return /* @__PURE__ */ n(
     "button",
     {
-      className: `inline-flex items-center justify-center gap-[var(--sp-3)] rounded-[var(--radius-control)] font-medium leading-none transition-all duration-[var(--dur-fast)] ease-[var(--ease-out)] focus-visible:shadow-[var(--ring-focus)] active:scale-[var(--press-scale)] disabled:pointer-events-none disabled:opacity-[0.42] ${ge[t]} ${be[e]} ${r}`,
+      className: `inline-flex items-center justify-center gap-[var(--sp-3)] rounded-[var(--radius-control)] font-medium leading-none transition-all duration-[var(--dur-fast)] ease-[var(--ease-out)] focus-visible:shadow-[var(--ring-focus)] active:scale-[var(--press-scale)] disabled:pointer-events-none disabled:opacity-[0.42] ${ke[t]} ${we[e]} ${r}`,
       ...a
     }
   );
 }
-const xe = "cursor-pointer transition-transform duration-[var(--dur-fast)] ease-[var(--ease-out)] hover:-translate-y-px hover:border-[var(--border-accent)]";
-function ye() {
+const Ne = "cursor-pointer transition-transform duration-[var(--dur-fast)] ease-[var(--ease-out)] hover:-translate-y-px hover:border-[var(--border-accent)]";
+function $e() {
   const e = "pointer-events-none absolute h-[10px] w-[10px] border-[var(--border-hud)]";
   return /* @__PURE__ */ c(M, { children: [
     /* @__PURE__ */ n("span", { "aria-hidden": !0, className: `${e} left-0 top-0 border-l-2 border-t-2` }),
@@ -989,21 +1009,21 @@ function ye() {
     /* @__PURE__ */ n("span", { "aria-hidden": !0, className: `${e} bottom-0 right-0 border-b-2 border-r-2` })
   ] });
 }
-function ke({
+function Ce({
   variant: e = "standard",
   interactive: t = !1,
   className: r = "",
   children: a,
   ...s
 }) {
-  const o = t ? xe : "";
+  const o = t ? Ne : "";
   return e === "hud" ? /* @__PURE__ */ c(
     "div",
     {
       className: `relative rounded-[var(--radius-xs)] border border-[var(--border-hud)] bg-[var(--surface-1)] p-[var(--pad-card)] ${o} ${r}`,
       ...s,
       children: [
-        /* @__PURE__ */ n(ye, {}),
+        /* @__PURE__ */ n($e, {}),
         a
       ]
     }
@@ -1016,7 +1036,7 @@ function ke({
     }
   );
 }
-function we({ selected: e = !1, className: t = "", ...r }) {
+function Ae({ selected: e = !1, className: t = "", ...r }) {
   return /* @__PURE__ */ n(
     "button",
     {
@@ -1027,7 +1047,7 @@ function we({ selected: e = !1, className: t = "", ...r }) {
     }
   );
 }
-function Qe({
+function et({
   filters: e,
   onChange: t,
   shown: r,
@@ -1036,20 +1056,20 @@ function Qe({
   unassignedCount: o,
   showEditableFilter: i = !0
 }) {
-  const u = y();
+  const u = A();
   return /* @__PURE__ */ c("div", { className: "flex flex-wrap items-center gap-x-4 gap-y-2", children: [
     /* @__PURE__ */ n(
       "input",
       {
         type: "search",
         value: e.query,
-        onChange: (p) => t({ ...e, query: p.target.value }),
+        onChange: (_) => t({ ...e, query: _.target.value }),
         placeholder: u("filter.placeholder"),
         className: "min-w-56 flex-1 rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-2)] px-[var(--sp-6)] py-[var(--sp-4)] text-[length:var(--fs-body-sm)] text-[var(--text-primary)] placeholder:text-[var(--text-disabled)] focus:border-[var(--border-accent)] focus-visible:shadow-[var(--ring-focus)] focus:outline-none"
       }
     ),
     /* @__PURE__ */ n(
-      T,
+      R,
       {
         active: e.unassignedOnly,
         count: o,
@@ -1058,7 +1078,7 @@ function Qe({
       }
     ),
     /* @__PURE__ */ n(
-      T,
+      R,
       {
         active: e.conflictsOnly,
         count: s,
@@ -1068,7 +1088,7 @@ function Qe({
       }
     ),
     i && /* @__PURE__ */ n(
-      T,
+      R,
       {
         active: e.editableOnly,
         onClick: () => t({ ...e, editableOnly: !e.editableOnly }),
@@ -1076,17 +1096,17 @@ function Qe({
       }
     ),
     /* @__PURE__ */ n("span", { className: "ml-auto whitespace-nowrap rounded-[var(--radius-pill)] border border-[var(--border-subtle)] px-[var(--sp-5)] py-[var(--sp-2)] text-[length:var(--fs-caption)] text-[var(--text-tertiary)]", children: r === a ? `${a}` : `${r} / ${a}` }),
-    I(e) && /* @__PURE__ */ n(
+    H(e) && /* @__PURE__ */ n(
       "button",
       {
-        onClick: () => t(V),
+        onClick: () => t(P),
         className: "whitespace-nowrap text-[length:var(--fs-caption)] font-medium text-[var(--text-accent)] hover:text-[var(--accent-hover)]",
         children: u("filter.showAll")
       }
     )
   ] });
 }
-function T({
+function R({
   active: e,
   count: t,
   warn: r,
@@ -1095,7 +1115,7 @@ function T({
 }) {
   const o = t === 0;
   return /* @__PURE__ */ c(
-    we,
+    Ae,
     {
       selected: e,
       onClick: a,
@@ -1111,7 +1131,7 @@ function T({
     }
   );
 }
-function Xe({
+function tt({
   profilePath: e,
   profiles: t,
   onSelectProfile: r,
@@ -1119,77 +1139,77 @@ function Xe({
   onRefresh: s,
   onChanged: o
 }) {
-  const i = y(), [u, p] = f(null), [d, h] = f([]), [b, m] = f(null), [k, O] = f(null), [x, w] = f(!1);
-  L(() => {
+  const i = A(), [u, _] = m(null), [d, k] = m([]), [w, h] = m(null), [x, S] = m(null), [f, y] = m(!1);
+  O(() => {
     let l = !1;
     return (async () => {
       try {
-        const g = await _.getSettings();
-        l || p(g);
-      } catch (g) {
-        l || m(String(g));
+        const v = await b.getSettings();
+        l || _(v);
+      } catch (v) {
+        l || h(String(v));
       }
       if (e)
         try {
-          const g = await _.listGameLanguages(e);
-          l || h(g);
-        } catch (g) {
-          l || m(String(g));
+          const v = await b.listGameLanguages(e);
+          l || k(v);
+        } catch (v) {
+          l || h(String(v));
         }
     })(), () => {
       l = !0;
     };
   }, [e]);
   async function N(l) {
-    p(l);
+    _(l);
     try {
-      await _.setSettings(l), O(i("settings.saved")), m(null), o();
-    } catch (g) {
-      m(String(g));
+      await b.setSettings(l), S(i("settings.saved")), h(null), o();
+    } catch (v) {
+      h(String(v));
     }
   }
   async function $() {
-    if (!(!s || x)) {
-      w(!0), m(null);
+    if (!(!s || f)) {
+      y(!0), h(null);
       try {
         await s();
       } catch (l) {
-        m(String(l));
+        h(String(l));
       } finally {
-        w(!1);
+        y(!1);
       }
     }
   }
   if (!u)
     return /* @__PURE__ */ n("p", { className: "text-[length:var(--fs-body-sm)] text-[var(--text-tertiary)]", children: i("settings.loading") });
-  const A = "min-w-0 rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-2)] px-[var(--sp-6)] py-[var(--sp-4)] text-[length:var(--fs-body-sm)] text-[var(--text-primary)] focus:border-[var(--border-accent)] focus-visible:shadow-[var(--ring-focus)] focus:outline-none", S = e !== null && !t.some((l) => l.path === e);
+  const g = "min-w-0 rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-2)] px-[var(--sp-6)] py-[var(--sp-4)] text-[length:var(--fs-body-sm)] text-[var(--text-primary)] focus:border-[var(--border-accent)] focus-visible:shadow-[var(--ring-focus)] focus:outline-none", C = e !== null && !t.some((l) => l.path === e);
   return /* @__PURE__ */ c("div", { className: "space-y-[var(--sp-6)]", children: [
     /* @__PURE__ */ c(z, { title: i("profile.title"), hint: i("profile.hint"), children: [
       /* @__PURE__ */ c("div", { className: "flex flex-wrap items-center gap-[var(--sp-4)]", children: [
-        t.length > 0 || S ? /* @__PURE__ */ c(
+        t.length > 0 || C ? /* @__PURE__ */ c(
           "select",
           {
-            className: `max-w-full flex-1 sm:flex-none ${A}`,
+            className: `max-w-full flex-1 sm:flex-none ${g}`,
             value: e ?? "",
             onChange: (l) => r(l.target.value),
             children: [
-              S && /* @__PURE__ */ n("option", { value: e, children: i("profile.manual") }),
-              t.map((l) => /* @__PURE__ */ n("option", { value: l.path, children: Ne(l) }, l.path))
+              C && /* @__PURE__ */ n("option", { value: e, children: i("profile.manual") }),
+              t.map((l) => /* @__PURE__ */ n("option", { value: l.path, children: Se(l) }, l.path))
             ]
           }
         ) : /* @__PURE__ */ n("p", { className: "text-[length:var(--fs-body-sm)] text-[var(--text-tertiary)]", children: i("profile.none") }),
-        /* @__PURE__ */ n(R, { variant: "secondary", size: "sm", onClick: a, className: "shrink-0", children: i("profile.browse") }),
+        /* @__PURE__ */ n(T, { variant: "secondary", size: "sm", onClick: a, className: "shrink-0", children: i("profile.browse") }),
         s && /* @__PURE__ */ n(
-          R,
+          T,
           {
             variant: "secondary",
             size: "sm",
             onClick: () => {
               $();
             },
-            disabled: x,
+            disabled: f,
             className: "shrink-0",
-            children: i(x ? "profile.refreshing" : "profile.rescan")
+            children: i(f ? "profile.refreshing" : "profile.rescan")
           }
         )
       ] }),
@@ -1203,7 +1223,7 @@ function Xe({
         children: d.length === 0 ? /* @__PURE__ */ n("p", { className: "text-[length:var(--fs-body-sm)] text-[var(--text-tertiary)]", children: i("settings.noLanguages") }) : /* @__PURE__ */ n(
           "select",
           {
-            className: `w-full max-w-sm ${A}`,
+            className: `w-full max-w-sm ${g}`,
             value: u.game_language,
             onChange: (l) => {
               N({ ...u, game_language: l.target.value });
@@ -1223,7 +1243,7 @@ function Xe({
             { id: "fr", label: "Français" },
             { id: "en", label: "English" }
           ].map((l) => /* @__PURE__ */ n(
-            R,
+            T,
             {
               size: "sm",
               variant: u.ui_language === l.id ? "primary" : "secondary",
@@ -1238,15 +1258,15 @@ function Xe({
         ]
       }
     ),
-    k && /* @__PURE__ */ n("p", { className: "text-[length:var(--fs-body-sm)] text-[var(--success-text)]", children: k }),
-    b && /* @__PURE__ */ n("p", { className: "text-[length:var(--fs-body-sm)] text-[var(--danger-text)]", children: b })
+    x && /* @__PURE__ */ n("p", { className: "text-[length:var(--fs-body-sm)] text-[var(--success-text)]", children: x }),
+    w && /* @__PURE__ */ n("p", { className: "text-[length:var(--fs-body-sm)] text-[var(--danger-text)]", children: w })
   ] });
 }
-function Ne(e) {
-  const t = $e(e.path) ?? e.path;
+function Se(e) {
+  const t = Le(e.path) ?? e.path;
   return `${e.channel} — ${t}`;
 }
-function $e(e) {
+function Le(e) {
   const t = /(?:^|[\\/])StarCitizen(?=[\\/]|$)/gi;
   let r = null, a;
   for (; (a = t.exec(e)) !== null; )
@@ -1258,50 +1278,50 @@ function z({
   hint: t,
   children: r
 }) {
-  return /* @__PURE__ */ c(ke, { children: [
+  return /* @__PURE__ */ c(Ce, { children: [
     /* @__PURE__ */ n("h3", { className: "text-[length:var(--fs-body)] font-semibold text-[var(--text-primary)]", children: e }),
     /* @__PURE__ */ n("p", { className: "mb-[var(--sp-4)] mt-[var(--sp-1)] text-[length:var(--fs-caption)] text-[var(--text-tertiary)]", children: t }),
     r
   ] });
 }
 export {
-  ne as AXES,
-  Re as ContextRules,
-  We as EditorToolbar,
-  Qe as FilterBar,
-  V as NO_FILTERS,
-  Xe as SettingsPanel,
-  Ue as TranslationProvider,
-  J as actionLabel,
-  Oe as activationBadge,
-  _ as api,
-  oe as apply,
-  X as bindingLabel,
-  ue as build,
-  Ze as captureErrorMessage,
-  Ge as capturedToken,
-  ee as categoryLabel,
-  Be as controlLabel,
-  Ee as controlsFor,
-  He as describe,
-  qe as devicePrefix,
+  oe as AXES,
+  Ee as ContextRules,
+  Ye as EditorToolbar,
+  et as FilterBar,
+  P as NO_FILTERS,
+  tt as SettingsPanel,
+  Qe as TranslationProvider,
+  ee as actionLabel,
+  Me as activationBadge,
+  b as api,
+  le as apply,
+  Y as bindingLabel,
+  pe as build,
+  We as captureErrorMessage,
+  Je as capturedToken,
+  re as categoryLabel,
+  Ve as controlLabel,
+  De as controlsFor,
+  Ge as describe,
+  je as devicePrefix,
   E as effectiveToken,
-  De as filters,
-  je as fromKeyPress,
-  Ve as fromMouse,
-  Ie as fromWheel,
-  Me as groupLabel,
-  ae as hasConflict,
-  Te as indexConflicts,
-  re as isAssigned,
-  I as isFiltering,
-  Le as isKnownAction,
-  C as keyOf,
-  me as keycapLabel,
-  P as modeOf,
-  Fe as modifierOf,
-  ze as rivalsOf,
-  Ke as useCapture,
-  Pe as useKeyboardLayoutMap,
-  y as useT
+  Ie as filters,
+  He as fromKeyPress,
+  Ze as fromMouse,
+  Ue as fromWheel,
+  Fe as groupLabel,
+  se as hasConflict,
+  qe as indexConflicts,
+  ne as isAssigned,
+  H as isFiltering,
+  ze as isKnownAction,
+  L as keyOf,
+  _e as keycapLabel,
+  Z as modeOf,
+  Pe as modifierOf,
+  Be as rivalsOf,
+  Xe as useCapture,
+  Ke as useKeyboardLayoutMap,
+  A as useT
 };

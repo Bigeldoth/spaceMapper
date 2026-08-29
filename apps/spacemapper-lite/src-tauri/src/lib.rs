@@ -46,6 +46,7 @@ pub fn run() {
             editing::set_settings,
             capture::start_capture,
             capture::poll_capture,
+            capture::poll_live_capture,
             capture::clear_capture,
             capture::stop_capture,
         ])

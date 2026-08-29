@@ -11,7 +11,10 @@
 //! assigner, et l'application reconnaît lequel a bougé.
 
 use serde::Serialize;
-use spacemapper_core::device::{capture::MultiCaptureSession, DeviceGuid};
+use spacemapper_core::device::{
+    capture::{CapturedControlKind, CapturedFrom, MultiCaptureSession},
+    DeviceGuid,
+};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -37,16 +40,49 @@ struct Session {
     /// périphériques en sortant.
     running: Arc<AtomicBool>,
     latest: Arc<Mutex<Option<CapturedInput>>>,
+    /// Frame live la plus récente. Contrairement à `latest`, une frame vide
+    /// remplace la précédente au relâchement d'un contrôle.
+    live: Arc<Mutex<LiveCaptureFrame>>,
     /// Panne d'ouverture ou de lecture, à remonter telle quelle.
     failure: Arc<Mutex<Option<String>>>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 pub struct CapturedInput {
     /// GUID du périphérique effectivement actionné.
     pub guid: String,
     /// Contrôle nommé comme le jeu le nomme, ex. `button5`.
     pub control: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LiveInputKind {
+    Button,
+    Hat,
+    Axis,
+}
+
+/// Un contrôle actif dans la dernière frame DirectInput.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct LiveInput {
+    pub guid: String,
+    pub control: String,
+    pub kind: LiveInputKind,
+    /// `1` pour un bouton/HAT ; valeur signée dans `[-1, 1]` pour un axe.
+    pub value: f32,
+}
+
+/// État live complet d'une session de capture.
+///
+/// `last` reste persistant pour le sélecteur d'assignation, tandis que
+/// `inputs` décrit uniquement la frame courante et devient donc vide au repos.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct LiveCaptureFrame {
+    pub session_id: u64,
+    pub sequence: u64,
+    pub inputs: Vec<LiveInput>,
+    pub last: Option<CapturedInput>,
 }
 
 /// Ouvre une session de capture sur les périphériques désignés.
@@ -102,11 +138,18 @@ pub fn start_capture(
     let id = state.next_id.fetch_add(1, Ordering::Relaxed) + 1;
     let running = Arc::new(AtomicBool::new(true));
     let latest = Arc::new(Mutex::new(None));
+    let live = Arc::new(Mutex::new(LiveCaptureFrame {
+        session_id: id,
+        sequence: 0,
+        inputs: Vec::new(),
+        last: None,
+    }));
     let failure = Arc::new(Mutex::new(None));
 
     {
         let running = Arc::clone(&running);
         let latest = Arc::clone(&latest);
+        let live = Arc::clone(&live);
         let failure = Arc::clone(&failure);
 
         std::thread::spawn(move || {
@@ -149,7 +192,9 @@ pub fn start_capture(
 
             let mut announced = false;
             while running.load(Ordering::Relaxed) {
-                if let Some(found) = session.poll() {
+                let found = session.poll_all();
+                let candidate = capture_candidate(&found);
+                if let Some(found) = candidate.as_ref() {
                     if !announced {
                         eprintln!(
                             "[capture] session {id} : premier contrôle détecté — {}",
@@ -160,8 +205,22 @@ pub fn start_capture(
                     if let Ok(mut slot) = latest.lock() {
                         *slot = Some(CapturedInput {
                             guid: found.guid.to_string(),
-                            control: found.control,
+                            control: found.control.clone(),
                         });
+                    }
+                }
+
+                let sticky = latest.lock().ok().and_then(|slot| slot.clone());
+                let inputs: Vec<LiveInput> = found.into_iter().map(live_input).collect();
+                if let Ok(mut slot) = live.lock() {
+                    // Une séquence est un changement observable, pas un simple
+                    // tick : au repos l'interface ne doit pas se rerendre 60
+                    // fois par seconde. La transition vers `inputs: []` reste
+                    // bien un changement et signale immédiatement le relâchement.
+                    if slot.inputs != inputs || slot.last != sticky {
+                        slot.sequence = slot.sequence.wrapping_add(1);
+                        slot.inputs = inputs;
+                        slot.last = sticky;
                     }
                 }
                 std::thread::sleep(POLL_INTERVAL);
@@ -175,6 +234,7 @@ pub fn start_capture(
         id,
         running,
         latest,
+        live,
         failure,
     });
     Ok(id)
@@ -222,6 +282,39 @@ pub fn poll_capture(state: tauri::State<'_, CaptureState>) -> CmdResult<Option<C
     Ok(found)
 }
 
+/// Relève la dernière frame live de la session désignée.
+///
+/// L'identifiant ferme la même course que pour [`stop_capture`] : un effet
+/// React obsolète ne doit jamais lire la session ouverte par son successeur.
+#[tauri::command]
+pub fn poll_live_capture(
+    state: tauri::State<'_, CaptureState>,
+    id: u64,
+) -> CmdResult<LiveCaptureFrame> {
+    let guard = state.inner.lock().map_err(|_| "état de capture corrompu")?;
+    let Some(session) = guard.as_ref() else {
+        return Err("aucune session de capture active".into());
+    };
+    if session.id != id {
+        return Err(format!(
+            "session de capture {id} obsolète (courante : {})",
+            session.id
+        ));
+    }
+
+    if let Ok(slot) = session.failure.lock() {
+        if let Some(message) = slot.as_ref() {
+            return Err(message.clone());
+        }
+    }
+
+    session
+        .live
+        .lock()
+        .map_err(|_| "état de capture corrompu".into())
+        .map(|frame| frame.clone())
+}
+
 /// Oublie le dernier contrôle relevé, sans fermer la session.
 ///
 /// Effacer côté interface ne suffit pas : le thread conserve son relevé, et le
@@ -233,6 +326,12 @@ pub fn clear_capture(state: tauri::State<'_, CaptureState>) -> CmdResult<()> {
     if let Some(session) = guard.as_ref() {
         if let Ok(mut slot) = session.latest.lock() {
             *slot = None;
+        }
+        if let Ok(mut frame) = session.live.lock() {
+            if frame.last.is_some() {
+                frame.sequence = frame.sequence.wrapping_add(1);
+                frame.last = None;
+            }
         }
     }
     Ok(())
@@ -263,5 +362,76 @@ pub fn stop_capture(state: tauri::State<'_, CaptureState>, id: u64) -> CmdResult
 fn stop_session(slot: &mut Option<Session>) {
     if let Some(session) = slot.take() {
         session.running.store(false, Ordering::Relaxed);
+    }
+}
+
+/// Choisit le candidat persistant sans perdre la frame multi-contrôles.
+///
+/// Un bouton est prioritaire sur un HAT, lui-même prioritaire sur un axe,
+/// même si le contrôle numérique appartient à un périphérique énuméré
+/// après celui de l'axe.
+fn capture_candidate(inputs: &[CapturedFrom]) -> Option<CapturedFrom> {
+    inputs
+        .iter()
+        .filter(|input| input.capturable)
+        .min_by_key(|input| match input.kind {
+            CapturedControlKind::Button => 0,
+            CapturedControlKind::Hat => 1,
+            CapturedControlKind::Axis => 2,
+        })
+        .cloned()
+}
+
+fn live_input(input: CapturedFrom) -> LiveInput {
+    LiveInput {
+        guid: input.guid.to_string(),
+        control: input.control,
+        kind: match input.kind {
+            CapturedControlKind::Button => LiveInputKind::Button,
+            CapturedControlKind::Hat => LiveInputKind::Hat,
+            CapturedControlKind::Axis => LiveInputKind::Axis,
+        },
+        value: input.value,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn captured(
+        control: &str,
+        kind: CapturedControlKind,
+        value: f32,
+        capturable: bool,
+    ) -> CapturedFrom {
+        CapturedFrom {
+            guid: DeviceGuid::parse("B10A044F-0000-0000-0000-504944564944").unwrap(),
+            control: control.into(),
+            kind,
+            value,
+            capturable,
+        }
+    }
+
+    #[test]
+    fn sticky_candidate_ignores_subtle_axes_and_prefers_digital_controls() {
+        let inputs = vec![
+            captured("x", CapturedControlKind::Axis, 0.08, false),
+            captured("y", CapturedControlKind::Axis, -0.7, true),
+            captured("hat1_left", CapturedControlKind::Hat, 1.0, true),
+            captured("button5", CapturedControlKind::Button, 1.0, true),
+        ];
+
+        let candidate = capture_candidate(&inputs).unwrap();
+        assert_eq!(candidate.control, "button5");
+    }
+
+    #[test]
+    fn live_conversion_preserves_axis_sign_and_kind() {
+        let input = live_input(captured("rotz", CapturedControlKind::Axis, -0.625, true));
+        assert_eq!(input.control, "rotz");
+        assert_eq!(input.kind, LiveInputKind::Axis);
+        assert_eq!(input.value, -0.625);
     }
 }

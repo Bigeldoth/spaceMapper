@@ -1,4 +1,4 @@
-import { type CapturedInput, type DeviceView } from "./lib/api";
+import { type CapturedInput, type DeviceView, type LiveInput } from "./lib/api";
 /**
  * Session de capture partagée par tout l'éditeur.
  *
@@ -13,6 +13,10 @@ import { type CapturedInput, type DeviceView } from "./lib/api";
 export interface CaptureFeed {
     /** Dernier contrôle relevé, ou `null` si rien n'a encore été actionné. */
     last: CapturedInput | null;
+    /** Contrôles actifs dans la frame courante. Vide dès le relâchement. */
+    active: readonly LiveInput[];
+    /** Numéro du dernier changement live observé dans cette session. */
+    frameSequence: number;
     /** La session est-elle ouverte ? Distingue « rien actionné » de « inactif ». */
     listening: boolean;
     error: string | null;

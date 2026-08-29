@@ -31,6 +31,21 @@ use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 /// Un seuil trop bas capterait ce bruit à la place de l'intention du joueur.
 const AXIS_THRESHOLD: i32 = 12_000;
 
+/// Écart à partir duquel le mouvement devient visible dans le retour en direct.
+///
+/// Ce seuil est volontairement plus bas que [`AXIS_THRESHOLD`] : un petit
+/// mouvement doit se voir sans pour autant devenir aussitôt le candidat que le
+/// sélecteur va assigner. Deux seuils séparés évitent donc qu'un axe un peu
+/// bruité vole une capture de bouton.
+const LIVE_AXIS_THRESHOLD: i32 = 2_000;
+
+/// Demi-étendue usuelle d'un axe DirectInput (plage 0..=65_535).
+///
+/// La valeur live exprime un **mouvement par rapport au repos adaptatif**, pas
+/// une position absolue. C'est indispensable pour une manette des gaz qui peut
+/// rester garée n'importe où sans paraître active en permanence.
+const AXIS_NORMALIZER: f32 = 32_767.0;
+
 /// Vitesse à laquelle le repos rejoint la position courante d'un axe.
 ///
 /// Un huitième de l'écart à chaque relevé : un axe immobile est rattrapé en
@@ -38,11 +53,28 @@ const AXIS_THRESHOLD: i32 = 12_000;
 /// avant que le repos n'ait le temps de suivre.
 const BASELINE_FOLLOW: i32 = 8;
 
+/// Nature d'un contrôle DirectInput relevé.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CapturedControlKind {
+    Button,
+    Hat,
+    Axis,
+}
+
 /// Un contrôle actionné, nommé comme Star Citizen le nomme.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CapturedControl {
     /// Ex. `button5`, `x`, `hat1_up`.
     pub control: String,
+    pub kind: CapturedControlKind,
+    /// Intensité signée. Les contrôles numériques valent `1`; un axe vit
+    /// dans `[-1, 1]`, dont le signe donne la direction.
+    pub value: f32,
+    /// Peut devenir le candidat persistant du sélecteur d'assignation.
+    ///
+    /// Les petits mouvements d'axe sont visibles mais ne franchissent pas le
+    /// seuil de capture ; boutons et HAT sont toujours capturables.
+    pub capturable: bool,
 }
 
 /// Capture simultanée sur plusieurs périphériques.
@@ -57,10 +89,13 @@ pub struct MultiCaptureSession {
 }
 
 /// Ce qu'a produit un périphérique identifié.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct CapturedFrom {
     pub guid: DeviceGuid,
     pub control: String,
+    pub kind: CapturedControlKind,
+    pub value: f32,
+    pub capturable: bool,
 }
 
 impl MultiCaptureSession {
@@ -87,19 +122,31 @@ impl MultiCaptureSession {
         self.sessions.is_empty()
     }
 
-    /// Premier contrôle actionné, tous périphériques confondus.
-    pub fn poll(&self) -> Option<CapturedFrom> {
+    /// Tous les contrôles actionnés, tous périphériques confondus.
+    ///
+    /// Une panne isolée ne masque pas les autres manches. L'ordre reste
+    /// déterministe : ordre des périphériques, puis boutons, HAT et axes.
+    pub fn poll_all(&self) -> Vec<CapturedFrom> {
+        let mut found = Vec::new();
         for (guid, session) in &self.sessions {
             // Un périphérique en panne ne doit pas masquer les autres : on
             // passe au suivant plutôt que d'interrompre le balayage.
-            if let Ok(Some(found)) = session.poll() {
-                return Some(CapturedFrom {
+            if let Ok(controls) = session.poll_all() {
+                found.extend(controls.into_iter().map(|control| CapturedFrom {
                     guid: guid.clone(),
-                    control: found.control,
-                });
+                    control: control.control,
+                    kind: control.kind,
+                    value: control.value,
+                    capturable: control.capturable,
+                }));
             }
         }
-        None
+        found
+    }
+
+    /// Premier candidat capturable, conservé pour compatibilité.
+    pub fn poll(&self) -> Option<CapturedFrom> {
+        self.poll_all().into_iter().find(|input| input.capturable)
     }
 }
 
@@ -143,6 +190,13 @@ struct AxisTracker {
     samples: Cell<u8>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct AxisMotion {
+    index: usize,
+    value: f32,
+    capturable: bool,
+}
+
 /// Relevés ignorés avant de commencer à interpréter les axes.
 ///
 /// Un périphérique tout juste acquis ne renvoie pas immédiatement des valeurs
@@ -153,8 +207,8 @@ struct AxisTracker {
 const WARMUP_SAMPLES: u8 = 8;
 
 impl AxisTracker {
-    /// Indice de l'axe qui vient de bouger, et mise à jour du repos.
-    fn moved(&self, axes: [i32; 8]) -> Option<usize> {
+    /// Axes qui viennent de bouger, puis mise à jour de leur repos.
+    fn movements(&self, axes: [i32; 8]) -> Vec<AxisMotion> {
         let mut baseline = self.baseline.get();
 
         // Pendant la chauffe, le repos suit exactement la position lue et rien
@@ -163,14 +217,18 @@ impl AxisTracker {
         if samples < WARMUP_SAMPLES {
             self.samples.set(samples + 1);
             self.baseline.set(axes);
-            return None;
+            return Vec::new();
         }
 
-        let mut moved = None;
+        let mut moved = Vec::new();
         for index in 0..axes.len() {
             let drift = axes[index] - baseline[index];
-            if moved.is_none() && drift.abs() >= AXIS_THRESHOLD {
-                moved = Some(index);
+            if drift.abs() >= LIVE_AXIS_THRESHOLD {
+                moved.push(AxisMotion {
+                    index,
+                    value: (drift as f32 / AXIS_NORMALIZER).clamp(-1.0, 1.0),
+                    capturable: drift.abs() >= AXIS_THRESHOLD,
+                });
             }
             // Le repos rejoint la position courante, y compris pendant un
             // mouvement : un axe maintenu finit par se taire, ce qui évite
@@ -180,6 +238,16 @@ impl AxisTracker {
 
         self.baseline.set(baseline);
         moved
+    }
+
+    /// Compatibilité avec les tests et appelants qui ne cherchent que le
+    /// premier axe assez franc pour être assigné.
+    #[cfg(test)]
+    fn moved(&self, axes: [i32; 8]) -> Option<usize> {
+        self.movements(axes)
+            .into_iter()
+            .find(|motion| motion.capturable)
+            .map(|motion| motion.index)
     }
 }
 
@@ -249,35 +317,18 @@ impl CaptureSession {
         })
     }
 
-    /// Relève le premier contrôle actionné, s'il y en a un.
-    pub fn poll(&self) -> Result<Option<CapturedControl>> {
+    /// Relève tous les contrôles actionnés dans un même état DirectInput.
+    pub fn poll_all(&self) -> Result<Vec<CapturedControl>> {
         let state = unsafe { self.read() }.map_err(|e| Error::DeviceEnumeration(e.to_string()))?;
+        Ok(controls_from_state(&state, &self.axes))
+    }
 
-        // Les boutons d'abord : c'est ce que l'utilisateur vise dans la très
-        // grande majorité des cas, et un axe légèrement bruité ne doit pas
-        // prendre la priorité sur un appui franc.
-        for (index, raw) in state.rgbButtons.iter().enumerate() {
-            if raw & 0x80 != 0 {
-                return Ok(Some(CapturedControl {
-                    control: format!("button{}", index + 1),
-                }));
-            }
-        }
-
-        for (index, angle) in state.rgdwPOV.iter().enumerate() {
-            if let Some(direction) = pov_direction(*angle) {
-                return Ok(Some(CapturedControl {
-                    control: format!("hat{}_{}", index + 1, direction),
-                }));
-            }
-        }
-
+    /// Relève le premier candidat capturable, conservé pour compatibilité.
+    pub fn poll(&self) -> Result<Option<CapturedControl>> {
         Ok(self
-            .axes
-            .moved(axes_of(&state))
-            .map(|index| CapturedControl {
-                control: AXIS_NAMES[index].to_string(),
-            }))
+            .poll_all()?
+            .into_iter()
+            .find(|control| control.capturable))
     }
 
     /// Relevé brut de l'état, pour diagnostic.
@@ -318,6 +369,59 @@ impl CaptureSession {
         )?;
         Ok(state)
     }
+}
+
+/// Interprète un relevé sans accès au matériel.
+///
+/// Cette frontière pure rend testables les appuis simultanés et surtout la
+/// frame vide de relâchement, deux comportements que l'ancienne API "premier
+/// contrôle" ne pouvait pas exprimer.
+fn controls_from_state(state: &DIJOYSTATE2, axes: &AxisTracker) -> Vec<CapturedControl> {
+    let mut controls = Vec::new();
+
+    // Les boutons d'abord : le candidat persistant garde ainsi la priorité
+    // historique, tandis que la frame live contient tout le reste aussi.
+    controls.extend(
+        state
+            .rgbButtons
+            .iter()
+            .enumerate()
+            .filter(|(_, raw)| *raw & 0x80 != 0)
+            .map(|(index, _)| CapturedControl {
+                control: format!("button{}", index + 1),
+                kind: CapturedControlKind::Button,
+                value: 1.0,
+                capturable: true,
+            }),
+    );
+
+    controls.extend(
+        state
+            .rgdwPOV
+            .iter()
+            .enumerate()
+            .filter_map(|(index, angle)| {
+                pov_direction(*angle).map(|direction| CapturedControl {
+                    control: format!("hat{}_{}", index + 1, direction),
+                    kind: CapturedControlKind::Hat,
+                    value: 1.0,
+                    capturable: true,
+                })
+            }),
+    );
+
+    controls.extend(
+        axes.movements(axes_of(state))
+            .into_iter()
+            .map(|motion| CapturedControl {
+                control: AXIS_NAMES[motion.index].to_string(),
+                kind: CapturedControlKind::Axis,
+                value: motion.value,
+                capturable: motion.capturable,
+            }),
+    );
+
+    controls
 }
 
 impl Drop for CaptureSession {
@@ -491,6 +595,19 @@ fn joystick_format() -> DIDATAFORMAT {
 mod tests {
     use super::*;
 
+    fn state_with_axes(axes: [i32; 8]) -> DIJOYSTATE2 {
+        let mut state = DIJOYSTATE2::default();
+        state.lX = axes[0];
+        state.lY = axes[1];
+        state.lZ = axes[2];
+        state.lRx = axes[3];
+        state.lRy = axes[4];
+        state.lRz = axes[5];
+        state.rglSlider = [axes[6], axes[7]];
+        state.rgdwPOV = [u32::MAX; 4];
+        state
+    }
+
     #[test]
     fn pov_rest_position_is_not_a_direction() {
         // Le repos se signale par un mot haut à 0xFFFF ; le confondre avec une
@@ -636,5 +753,93 @@ mod tests {
         // `axes_of` et `AXIS_NAMES` sont indexés ensemble : un décalage
         // nommerait un axe pour un autre.
         assert_eq!(AXIS_NAMES.len(), axes_of(&DIJOYSTATE2::default()).len());
+    }
+
+    #[test]
+    fn live_frame_reports_every_pressed_button_and_then_release() {
+        let axes = AxisTracker::default();
+        let rest = [16_000; 8];
+        warm_up(&axes, rest);
+        let mut pressed = state_with_axes(rest);
+        pressed.rgbButtons[0] = 0x80;
+        pressed.rgbButtons[4] = 0x80;
+
+        let controls = controls_from_state(&pressed, &axes);
+        assert_eq!(controls.len(), 2);
+        assert_eq!(controls[0].control, "button1");
+        assert_eq!(controls[1].control, "button5");
+        assert!(controls
+            .iter()
+            .all(|control| control.kind == CapturedControlKind::Button));
+        assert!(controls.iter().all(|control| control.capturable));
+
+        let released = controls_from_state(&state_with_axes(rest), &axes);
+        assert!(
+            released.is_empty(),
+            "le relâchement doit publier une frame vide"
+        );
+    }
+
+    #[test]
+    fn live_frame_keeps_hat_distinct_from_axes() {
+        let axes = AxisTracker::default();
+        let rest = [8_000; 8];
+        warm_up(&axes, rest);
+        let mut state = state_with_axes(rest);
+        state.rgdwPOV[0] = 9_000;
+
+        let controls = controls_from_state(&state, &axes);
+        assert_eq!(controls.len(), 1);
+        assert_eq!(controls[0].control, "hat1_right");
+        assert_eq!(controls[0].kind, CapturedControlKind::Hat);
+        assert_eq!(controls[0].value, 1.0);
+    }
+
+    #[test]
+    fn subtle_axis_motion_is_live_but_not_a_capture_candidate() {
+        let tracker = AxisTracker::default();
+        let rest = [16_000; 8];
+        warm_up(&tracker, rest);
+        let mut moved = rest;
+        moved[0] += LIVE_AXIS_THRESHOLD + 1_000;
+
+        let controls = controls_from_state(&state_with_axes(moved), &tracker);
+        assert_eq!(controls.len(), 1);
+        assert_eq!(controls[0].control, "x");
+        assert_eq!(controls[0].kind, CapturedControlKind::Axis);
+        assert!(controls[0].value > 0.0);
+        assert!(controls[0].value <= 1.0);
+        assert!(!controls[0].capturable);
+    }
+
+    #[test]
+    fn axis_live_values_preserve_direction_intensity_and_multiple_axes() {
+        let tracker = AxisTracker::default();
+        let rest = [20_000; 8];
+        warm_up(&tracker, rest);
+        let mut moved = rest;
+        moved[0] += 15_000;
+        moved[1] -= 24_000;
+
+        let controls = controls_from_state(&state_with_axes(moved), &tracker);
+        assert_eq!(controls.len(), 2);
+        assert_eq!(controls[0].control, "x");
+        assert!(controls[0].value > 0.0);
+        assert!(controls[0].capturable);
+        assert_eq!(controls[1].control, "y");
+        assert!(controls[1].value < 0.0);
+        assert!(controls[1].value.abs() > controls[0].value.abs());
+        assert!(controls[1].capturable);
+    }
+
+    #[test]
+    fn axis_noise_below_live_deadzone_does_not_enter_frame() {
+        let tracker = AxisTracker::default();
+        let rest = [16_000; 8];
+        warm_up(&tracker, rest);
+        let mut jitter = rest;
+        jitter[3] += LIVE_AXIS_THRESHOLD - 1;
+
+        assert!(controls_from_state(&state_with_axes(jitter), &tracker).is_empty());
     }
 }

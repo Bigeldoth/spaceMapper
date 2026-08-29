@@ -119,6 +119,27 @@ export interface CapturedInput {
     /** Ex. `button5`, `hat1_up`, `rotz`. */
     control: string;
 }
+export type LiveInputKind = "button" | "hat" | "axis";
+/** Contrôle actif dans la dernière frame DirectInput. */
+export interface LiveInput {
+    guid: string;
+    control: string;
+    kind: LiveInputKind;
+    /** `1` pour un contrôle numérique ; axe signé dans `[-1, 1]`. */
+    value: number;
+}
+/**
+ * Frame live complète d'une session.
+ *
+ * `inputs` devient vide au relâchement. `last` reste persistant pour le
+ * sélecteur d'assignation et peut être oublié avec `clearCapture`.
+ */
+export interface LiveCaptureFrame {
+    session_id: number;
+    sequence: number;
+    inputs: LiveInput[];
+    last: CapturedInput | null;
+}
 /**
  * Nature d'un GUID DirectInput.
  *
@@ -272,6 +293,8 @@ export declare const api: {
     startCapture: (guids: string[]) => Promise<number>;
     /** Dernier contrôle actionné, ou `null` si rien n'a été pressé. */
     pollCapture: () => Promise<CapturedInput | null>;
+    /** Frame live de la session désignée, vide dès que tout est relâché. */
+    pollLiveCapture: (id: number) => Promise<LiveCaptureFrame>;
     /** Oublie le dernier relevé sans fermer la session. */
     clearCapture: () => Promise<void>;
     /** N'arrête que la session désignée : voir le commentaire côté Rust. */
