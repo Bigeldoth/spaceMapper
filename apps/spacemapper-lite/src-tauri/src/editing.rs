@@ -99,6 +99,10 @@ pub struct PendingEdit {
     pub action: String,
     /// `None` efface l'assignation.
     pub input: Option<String>,
+    /// Facultatifs pour compatibilité avec le contrat partagé. Lite ne les
+    /// envoie pas encore : ils restent donc à `None`.
+    pub activation_mode: Option<String>,
+    pub multi_tap: Option<String>,
     /// Valeur `input` de la ligne éditée avant modification, quand l'action
     /// en porte plusieurs — voir [`spacemapper_edit::BindingEdit::original_input`].
     pub original_input: Option<String>,
@@ -110,6 +114,8 @@ impl From<&PendingEdit> for BindingEdit {
             actionmap: p.actionmap.clone(),
             action: p.action.clone(),
             input: p.input.clone(),
+            activation_mode: p.activation_mode.clone(),
+            multi_tap: p.multi_tap.clone(),
             original_input: p.original_input.clone(),
         }
     }

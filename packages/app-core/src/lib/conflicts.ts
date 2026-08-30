@@ -8,6 +8,7 @@
  */
 
 import type { Context, EditableBinding } from "./api";
+import { activationGesturesOverlap } from "./activation";
 
 /**
  * Relation « ces deux situations peuvent coexister ».
@@ -88,6 +89,9 @@ export function isAssigned(
  *
  * Construit une fois par rendu et passé aux filtres comme au détail : le
  * recalculer par ligne serait quadratique sur 451 assignations.
+ * Le regroupement reste physique (`byToken`), puis chaque paire est filtrée
+ * par contexte **et** par geste d'activation : court, long et double-appui
+ * peuvent partager un contrôle sans se disputer son déclenchement.
  */
 export interface ConflictIndex {
   /** Commandes partageant un jeton, sans distinction de situation. */
@@ -95,6 +99,26 @@ export interface ConflictIndex {
   readonly rules: ContextRules;
   /** Clés des commandes réellement en conflit, situation comprise. */
   readonly flagged: Set<string>;
+}
+
+/**
+ * Deux lignes d'une même action décrivent plusieurs façons de déclencher la
+ * même commande ; elles ne sont donc jamais rivales entre elles. Cette règle
+ * doit rester identique pour le badge calculé par l'index et le détail rendu
+ * par `rivalsOf`, même si les lignes ont des `input_raw` distincts.
+ */
+function actionsAreRivals(
+  left: EditableBinding,
+  right: EditableBinding,
+  rules: ContextRules,
+): boolean {
+  const sameAction =
+    left.actionmap === right.actionmap && left.action === right.action;
+  return (
+    !sameAction &&
+    activationGesturesOverlap(left, right) &&
+    rules.canCollide(left.context, right.context)
+  );
 }
 
 export function indexConflicts(
@@ -113,14 +137,14 @@ export function indexConflicts(
   }
 
   // Partager un bouton ne suffit pas : encore faut-il pouvoir répondre en même
-  // temps. Sans ce tri, une touche commune au siège et à la marche à pied —
-  // cas massivement courant, le jeu le fait exprès — passerait pour un défaut.
+  // temps et au même geste. Sans ce tri, une touche commune au siège et à la
+  // marche à pied — cas massivement courant, le jeu le fait exprès — ou un
+  // appui court associé à un maintien passeraient pour des défauts.
   const flagged = new Set<string>();
   for (const [, group] of byToken) {
     for (const binding of group) {
       const rivals = group.filter(
-        (other) =>
-          other !== binding && rules.canCollide(binding.context, other.context),
+        (other) => other !== binding && actionsAreRivals(binding, other, rules),
       );
       if (rivals.length > 0) {
         flagged.add(keyOf(binding));
@@ -139,11 +163,8 @@ export function rivalsOf(
 ): EditableBinding[] {
   const token = effectiveToken(binding, pending);
   if (token === null) return [];
-  const key = keyOf(binding);
   return (conflicts.byToken.get(token) ?? []).filter(
-    (other) =>
-      keyOf(other) !== key &&
-      conflicts.rules.canCollide(binding.context, other.context),
+    (other) => other !== binding && actionsAreRivals(binding, other, conflicts.rules),
   );
 }
 

@@ -21,6 +21,84 @@ export interface ActivationBadge {
   kind: ActivationKind;
 }
 
+/**
+ * Geste physique attendu par Star Citizen pour déclencher une assignation.
+ *
+ * Les variantes d'un même geste (`hold_toggle`, `hold_no_retrigger`, etc.)
+ * changent ce que fait le jeu après le déclenchement, pas ce que le joueur
+ * doit faire avec le contrôle. Elles partagent donc la même famille pour la
+ * détection des conflits.
+ *
+ * `unknown` est volontairement une valeur joker : lorsqu'un patch du jeu
+ * introduit un mode que SpaceMapper ne connaît pas encore, on conserve la
+ * fausse alerte plutôt que de masquer un vrai conflit.
+ */
+export type ActivationGesture =
+  | "short_press"
+  | "long_press"
+  | `multi_tap:${number}`
+  | "unknown";
+
+export interface ActivationSource {
+  activation_mode: string | null | undefined;
+  multi_tap: string | null | undefined;
+}
+
+const SHORT_PRESS_MODES = new Set(["", "press", "tap"]);
+const LONG_PRESS_MODES = new Set([
+  "hold",
+  "hold_toggle",
+  "hold_no_retrigger",
+  "delayed_press",
+  "delayed_press_medium",
+  "delayed_hold",
+  "delayed_hold_long",
+  "delayed_hold_no_retrigger",
+]);
+const DOUBLE_TAP_MODES = new Set(["double_tap", "double_tap_nonblocking"]);
+
+/**
+ * Normalise les deux représentations du jeu (`activationMode` et `multiTap`)
+ * en geste comparable. Un `multiTap` explicite prime, comme pour le badge.
+ */
+export function activationGestureOf(source: ActivationSource): ActivationGesture {
+  const rawMultiTap = source.multi_tap?.trim();
+  if (rawMultiTap) {
+    // `parseInt("2x")` donnerait 2, alors que le comportement d'une valeur
+    // corrompue est inconnu. Exiger un entier complet garde le diagnostic sûr.
+    if (!/^\d+$/.test(rawMultiTap)) return "unknown";
+    const taps = Number.parseInt(rawMultiTap, 10);
+    if (taps > 1) return `multi_tap:${taps}`;
+    if (taps < 1) return "unknown";
+  }
+
+  const mode = (source.activation_mode ?? "").trim().toLowerCase();
+  if (SHORT_PRESS_MODES.has(mode)) return "short_press";
+  if (LONG_PRESS_MODES.has(mode)) return "long_press";
+  if (DOUBLE_TAP_MODES.has(mode)) return "multi_tap:2";
+  return "unknown";
+}
+
+/**
+ * Deux assignations peuvent-elles répondre au même geste physique ?
+ *
+ * Un appui court, un appui long et un double-appui sont indépendants. Deux
+ * variantes appartenant à la même famille se disputent en revanche bien le
+ * contrôle. Toute valeur inconnue reste conflictuelle par prudence.
+ */
+export function activationGesturesOverlap(
+  left: ActivationSource,
+  right: ActivationSource,
+): boolean {
+  const leftGesture = activationGestureOf(left);
+  const rightGesture = activationGestureOf(right);
+  return (
+    leftGesture === "unknown" ||
+    rightGesture === "unknown" ||
+    leftGesture === rightGesture
+  );
+}
+
 /** Clé de traduction et famille visuelle, par valeur `activationMode` observée. */
 const MODES: Record<string, { key: string; kind: ActivationKind }> = {
   tap: { key: "activation.tap", kind: "tap" },

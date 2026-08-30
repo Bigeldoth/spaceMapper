@@ -135,6 +135,13 @@ export interface PendingEdit {
   action: string;
   input: string | null;
   /**
+   * Geste effectif à recopier uniquement si cette modification crée le tout
+   * premier `<rebind>` d'une assignation issue du profil par défaut du jeu.
+   * Un remplacement conserve toujours les attributs déjà présents dans le XML.
+   */
+  activation_mode?: string | null;
+  multi_tap?: string | null;
+  /**
    * Valeur `input` de la ligne éditée avant modification, quand l'action
    * porte plusieurs lignes à la fois. C'est ce qui distingue laquelle des
    * deux modifier — une correspondance de préfixe (`js1`) se serait aussi
@@ -152,6 +159,18 @@ export interface CapturedInput {
   guid: string;
   /** Ex. `button5`, `hat1_up`, `rotz`. */
   control: string;
+  /**
+   * Métadonnées du candidat persistant fournies par les backends récents.
+   *
+   * Elles restent optionnelles pour qu'un frontend rechargé à chaud au-dessus
+   * d'un ancien binaire Tauri continue de fonctionner. Sans ces garanties, le
+   * sélecteur ne doit toutefois pas utiliser `last` comme assignation : seule
+   * la frame live courante reste alors une source sûre.
+   */
+  kind?: LiveInputKind;
+  value?: number;
+  capturable?: boolean;
+  detected_sequence?: number;
 }
 
 export type LiveInputKind = "button" | "hat" | "axis";
@@ -163,6 +182,12 @@ export interface LiveInput {
   kind: LiveInputKind;
   /** `1` pour un contrôle numérique ; axe signé dans `[-1, 1]`. */
   value: number;
+  /**
+   * Assez franc pour devenir une assignation, et pas seulement un retour live.
+   * Optionnel uniquement pour tolérer un frontend rechargé à chaud au-dessus
+   * d'un ancien binaire Tauri ; les backends reconstruits le fournissent toujours.
+   */
+  capturable?: boolean;
 }
 
 /**
@@ -176,6 +201,11 @@ export interface LiveCaptureFrame {
   sequence: number;
   inputs: LiveInput[];
   last: CapturedInput | null;
+  /**
+   * Le backend a observé une frame neutre après le dernier clear.
+   * Optionnel pour la compatibilité HMR avec un ancien binaire.
+   */
+  capture_ready?: boolean;
 }
 
 /**
@@ -362,8 +392,11 @@ export const api = {
   pollLiveCapture: (id: number) =>
     invoke<LiveCaptureFrame>("poll_live_capture", { id }),
 
-  /** Oublie le dernier relevé sans fermer la session. */
-  clearCapture: () => invoke<void>("clear_capture"),
+  /**
+   * Oublie le dernier relevé et renvoie la séquence de la barrière native.
+   * Un ancien binaire renvoie `null` (`()` sérialisé), d'où le repli typé.
+   */
+  clearCapture: () => invoke<number | null>("clear_capture"),
 
   /** N'arrête que la session désignée : voir le commentaire côté Rust. */
   stopCapture: (id: number) => invoke<void>("stop_capture", { id }),

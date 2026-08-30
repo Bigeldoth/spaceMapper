@@ -1,7 +1,7 @@
 import { invoke as p } from "@tauri-apps/api/core";
-import { useState as m, useEffect as O, createContext as W, useContext as Q, useMemo as X, useRef as D, useCallback as J } from "react";
-import { jsx as n, jsxs as c, Fragment as M } from "react/jsx-runtime";
-const b = {
+import { useState as m, useEffect as O, createContext as ee, useContext as te, useMemo as re, useRef as P, useCallback as ae } from "react";
+import { jsx as n, jsxs as c, Fragment as z } from "react/jsx-runtime";
+const g = {
   listDevices: () => p("list_devices"),
   locateActionmaps: () => p("locate_actionmaps"),
   buildInfo: () => p("build_info"),
@@ -45,12 +45,15 @@ const b = {
   pollCapture: () => p("poll_capture"),
   /** Frame live de la session désignée, vide dès que tout est relâché. */
   pollLiveCapture: (e) => p("poll_live_capture", { id: e }),
-  /** Oublie le dernier relevé sans fermer la session. */
+  /**
+   * Oublie le dernier relevé et renvoie la séquence de la barrière native.
+   * Un ancien binaire renvoie `null` (`()` sérialisé), d'où le repli typé.
+   */
   clearCapture: () => p("clear_capture"),
   /** N'arrête que la session désignée : voir le commentaire côté Rust. */
   stopCapture: (e) => p("stop_capture", { id: e }),
   restoreBackup: (e, t) => p("restore_backup", { path: e, backupPath: t })
-}, V = {
+}, G = {
   // ── Pilotage : spaceship_movement ──────────────────────────────────────
   v_afterburner: "Postcombustion (boost)",
   v_autoland: "Atterrissage automatique",
@@ -192,7 +195,7 @@ const b = {
   v_shield_reset_level: "Réinitialiser les boucliers",
   v_weapon_countermeasure_decoy_launch: "Larguer un leurre",
   v_weapon_countermeasure_noise_launch: "Brouillage (chaff)"
-}, j = {
+}, H = {
   agree: "approuver",
   angry: "colère",
   atease: "repos",
@@ -233,19 +236,19 @@ const b = {
   wave: "faire signe",
   whistle: "siffler"
 };
-function Y(e) {
-  return e.label ?? ee(e.action);
+function ne(e) {
+  return e.label ?? oe(e.action);
 }
-function ee(e) {
-  const t = V[e];
+function oe(e) {
+  const t = G[e];
   if (t) return t;
-  const r = e.startsWith("emote_") ? j[e.slice(6)] : void 0;
+  const r = e.startsWith("emote_") ? H[e.slice(6)] : void 0;
   return r ? `Émote — ${r}` : e;
 }
-function ze(e) {
-  return e in V || e.startsWith("emote_") && e.slice(6) in j;
+function Ie(e) {
+  return e in G || e.startsWith("emote_") && e.slice(6) in H;
 }
-const te = {
+const se = {
   default: "Général",
   lights_controller: "Éclairage",
   mapui: "Carte",
@@ -283,10 +286,35 @@ const te = {
   view_director_mode: "Mode réalisateur",
   zero_gravity_eva: "EVA (apesanteur)"
 };
-function re(e) {
-  return te[e] ?? e;
+function ie(e) {
+  return se[e] ?? e;
 }
-const ae = {
+const le = /* @__PURE__ */ new Set(["", "press", "tap"]), ce = /* @__PURE__ */ new Set([
+  "hold",
+  "hold_toggle",
+  "hold_no_retrigger",
+  "delayed_press",
+  "delayed_press_medium",
+  "delayed_hold",
+  "delayed_hold_long",
+  "delayed_hold_no_retrigger"
+]), ue = /* @__PURE__ */ new Set(["double_tap", "double_tap_nonblocking"]);
+function V(e) {
+  const t = e.multi_tap?.trim();
+  if (t) {
+    if (!/^\d+$/.test(t)) return "unknown";
+    const a = Number.parseInt(t, 10);
+    if (a > 1) return `multi_tap:${a}`;
+    if (a < 1) return "unknown";
+  }
+  const r = (e.activation_mode ?? "").trim().toLowerCase();
+  return le.has(r) ? "short_press" : ce.has(r) ? "long_press" : ue.has(r) ? "multi_tap:2" : "unknown";
+}
+function de(e, t) {
+  const r = V(e), a = V(t);
+  return r === "unknown" || a === "unknown" || r === a;
+}
+const pe = {
   tap: { key: "activation.tap", kind: "tap" },
   hold: { key: "activation.hold", kind: "hold" },
   hold_toggle: { key: "activation.holdToggle", kind: "hold" },
@@ -300,7 +328,7 @@ const ae = {
   delayed_hold_no_retrigger: { key: "activation.delayedHold", kind: "hold" },
   smart_toggle: { key: "activation.smartToggle", kind: "other" }
 };
-function Me(e, t, r) {
+function Pe(e, t, r) {
   const a = t ? Number.parseInt(t, 10) : NaN;
   if (a > 1)
     return {
@@ -309,10 +337,10 @@ function Me(e, t, r) {
     };
   if (!e || e === "press")
     return null;
-  const s = ae[e];
-  return s ? { label: r(s.key), kind: s.kind } : { label: e, kind: "other" };
+  const o = pe[e];
+  return o ? { label: r(o.key), kind: o.kind } : { label: e, kind: "other" };
 }
-class Ee {
+class Ge {
   pairs;
   constructor(t) {
     this.pairs = new Set(
@@ -323,45 +351,46 @@ class Ee {
     return this.pairs.size === 0 ? !0 : this.pairs.has(`${t}|${r}`);
   }
 }
-function L(e) {
+function q(e) {
   return `${e.actionmap}/${e.action}/${e.input_raw}`;
 }
-function E(e, t) {
-  const r = L(e);
+function B(e, t) {
+  const r = q(e);
   return t.has(r) ? t.get(r) ?? null : e.control && e.control.trim() !== "" ? e.input_raw : null;
 }
-function ne(e, t) {
-  return E(e, t) !== null;
+function ve(e, t) {
+  return B(e, t) !== null;
 }
-function qe(e, t, r) {
+function U(e, t, r) {
+  return !(e.actionmap === t.actionmap && e.action === t.action) && de(e, t) && r.canCollide(e.context, t.context);
+}
+function He(e, t, r) {
   const a = /* @__PURE__ */ new Map();
-  for (const o of e) {
-    const i = E(o, t);
+  for (const s of e) {
+    const i = B(s, t);
     if (i === null) continue;
     const u = a.get(i);
-    u ? u.push(o) : a.set(i, [o]);
+    u ? u.push(s) : a.set(i, [s]);
   }
-  const s = /* @__PURE__ */ new Set();
-  for (const [, o] of a)
-    for (const i of o)
-      o.filter(
-        (_) => _ !== i && r.canCollide(i.context, _.context)
-      ).length > 0 && s.add(L(i));
-  return { byToken: a, rules: r, flagged: s };
+  const o = /* @__PURE__ */ new Set();
+  for (const [, s] of a)
+    for (const i of s)
+      s.filter(
+        (f) => f !== i && U(i, f, r)
+      ).length > 0 && o.add(q(i));
+  return { byToken: a, rules: r, flagged: o };
 }
-function Be(e, t, r) {
-  const a = E(e, t);
-  if (a === null) return [];
-  const s = L(e);
-  return (r.byToken.get(a) ?? []).filter(
-    (o) => L(o) !== s && r.rules.canCollide(e.context, o.context)
+function Ue(e, t, r) {
+  const a = B(e, t);
+  return a === null ? [] : (r.byToken.get(a) ?? []).filter(
+    (o) => o !== e && U(e, o, r.rules)
   );
 }
-function se(e, t, r) {
-  return r.flagged.has(L(e));
+function me(e, t, r) {
+  return r.flagged.has(q(e));
 }
-const oe = ["x", "y", "z", "rotx", "roty", "rotz", "slider1", "slider2"], ie = ["up", "right", "down", "left"];
-function Fe(e, t) {
+const _e = ["x", "y", "z", "rotx", "roty", "rotz", "slider1", "slider2"], fe = ["up", "right", "down", "left"];
+function Ze(e, t) {
   switch (e) {
     case "buttons":
       return t("control.buttons");
@@ -371,7 +400,7 @@ function Fe(e, t) {
       return t("control.hats");
   }
 }
-function De(e, t) {
+function Ke(e, t) {
   const r = [];
   for (let a = 1; a <= e.buttons; a++)
     r.push({
@@ -379,31 +408,31 @@ function De(e, t) {
       label: `${t("control.button")} ${a}`,
       group: "buttons"
     });
-  for (const a of oe.slice(0, e.axes))
+  for (const a of _e.slice(0, e.axes))
     r.push({
       value: a,
       label: `${t("control.axis")} ${a}`,
       group: "axes"
     });
   for (let a = 1; a <= e.povs; a++)
-    for (const s of ie)
+    for (const o of fe)
       r.push({
-        value: `hat${a}_${s}`,
-        label: `${t("control.hat")} ${a} — ${I(s, t)}`,
+        value: `hat${a}_${o}`,
+        label: `${t("control.hat")} ${a} — ${Z(o, t)}`,
         group: "hats"
       });
   return r;
 }
-function Ve(e, t) {
+function We(e, t) {
   const r = /^button(\d+)$/.exec(e);
   if (r) return `${t("control.button")} ${r[1]}`;
   const a = /^hat(\d+)_(\w+)$/.exec(e);
   if (a)
-    return `${t("control.hat")} ${a[1]} — ${I(a[2], t)}`;
-  const s = /^slider(\d+)$/.exec(e);
-  return s ? `${t("control.slider")} ${s[1]}` : `${t("control.axis")} ${e}`;
+    return `${t("control.hat")} ${a[1]} — ${Z(a[2], t)}`;
+  const o = /^slider(\d+)$/.exec(e);
+  return o ? `${t("control.slider")} ${o[1]}` : `${t("control.axis")} ${e}`;
 }
-function I(e, t) {
+function Z(e, t) {
   switch (e) {
     case "up":
       return t("control.up");
@@ -417,22 +446,22 @@ function I(e, t) {
       return e;
   }
 }
-function je(e, t) {
-  const a = e.filter((o) => o.category === t.category).findIndex(
-    (o) => o.instance_guid === t.instance_guid
+function Qe(e, t) {
+  const a = e.filter((s) => s.category === t.category).findIndex(
+    (s) => s.instance_guid === t.instance_guid
   );
   return `${t.category === "gamepad" ? "gp" : "js"}${a + 1}`;
 }
-const P = {
+const K = {
   query: "",
   unassignedOnly: !1,
   conflictsOnly: !1,
   editableOnly: !1
 };
-function H(e) {
+function W(e) {
   return e.query.trim() !== "" || e.unassignedOnly || e.conflictsOnly || e.editableOnly;
 }
-function Z(e) {
+function Q(e) {
   switch (e.input_raw.slice(0, 2)) {
     case "kb":
     case "mo":
@@ -445,38 +474,38 @@ function Z(e) {
       return null;
   }
 }
-function le(e, t, r, a, s) {
-  const o = B(t.query);
+function he(e, t, r, a, o) {
+  const s = j(t.query);
   return e.filter((i) => {
-    const u = ne(i, a);
-    return r !== "all" && u && Z(i) !== r || t.unassignedOnly && u || t.conflictsOnly && !se(i, a, s) || t.editableOnly && i.lock ? !1 : o === "" ? !0 : [
-      Y(i),
+    const u = ve(i, a);
+    return r !== "all" && u && Q(i) !== r || t.unassignedOnly && u || t.conflictsOnly && !me(i, a, o) || t.editableOnly && i.lock ? !1 : s === "" ? !0 : [
+      ne(i),
       i.action,
       i.description ?? "",
       i.input_raw,
       i.control ?? "",
-      re(i.actionmap),
+      ie(i.actionmap),
       i.actionmap
-    ].some((_) => B(_).includes(o));
+    ].some((f) => j(f).includes(s));
   });
 }
-function B(e) {
+function j(e) {
   return e.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
-const Ie = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+const Xe = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  NO_FILTERS: P,
-  apply: le,
-  isFiltering: H,
-  modeOf: Z
-}, Symbol.toStringTag, { value: "Module" })), ce = {
+  NO_FILTERS: K,
+  apply: he,
+  isFiltering: W,
+  modeOf: Q
+}, Symbol.toStringTag, { value: "Module" })), ge = {
   ShiftLeft: "lshift",
   ShiftRight: "rshift",
   ControlLeft: "lctrl",
   ControlRight: "rctrl",
   AltLeft: "lalt",
   AltRight: "ralt"
-}, ue = {
+}, be = {
   Space: "space",
   Enter: "enter",
   Escape: "escape",
@@ -513,63 +542,63 @@ const Ie = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   PrintScreen: "print",
   ScrollLock: "scrolllock",
   Pause: "pause"
-}, de = {
+}, xe = {
   0: "mouse1",
   1: "mouse3",
   2: "mouse2",
   3: "mouse4",
   4: "mouse5"
 };
-function Pe(e) {
-  return ce[e] ?? null;
+function Je(e) {
+  return ge[e] ?? null;
 }
-function pe(e, t) {
+function ye(e, t) {
   return { token: `kb1_${e ? `${e}+${t}` : t}`, modifier: e, control: t };
 }
-function He(e, t) {
+function Ye(e, t) {
   if (t.length > 1)
     return { ok: !1, error: { kind: "too_many_modifiers" } };
-  const r = ve(e);
-  return r ? { ok: !0, value: pe(t[0] ?? null, r) } : { ok: !1, error: { kind: "unsupported", code: e } };
+  const r = ke(e);
+  return r ? { ok: !0, value: ye(t[0] ?? null, r) } : { ok: !1, error: { kind: "unsupported", code: e } };
 }
-function Ze(e, t) {
+function et(e, t) {
   if (t.length > 1)
     return { ok: !1, error: { kind: "too_many_modifiers" } };
-  const r = de[e];
-  return r ? { ok: !0, value: U(t[0] ?? null, r) } : { ok: !1, error: { kind: "unsupported", code: `mouse${e}` } };
+  const r = xe[e];
+  return r ? { ok: !0, value: X(t[0] ?? null, r) } : { ok: !1, error: { kind: "unsupported", code: `mouse${e}` } };
 }
-function Ue(e, t) {
+function tt(e, t) {
   if (t.length > 1)
     return { ok: !1, error: { kind: "too_many_modifiers" } };
   if (e === 0)
     return { ok: !1, error: { kind: "unsupported", code: "mwheel" } };
   const r = e < 0 ? "mwheel_up" : "mwheel_down";
-  return { ok: !0, value: U(t[0] ?? null, r) };
+  return { ok: !0, value: X(t[0] ?? null, r) };
 }
-function U(e, t) {
+function X(e, t) {
   return { token: `mo1_${e ? `${e}+${t}` : t}`, modifier: e, control: t };
 }
-function ve(e) {
-  return /^Key[A-Z]$/.test(e) ? e.slice(3).toLowerCase() : /^Digit[0-9]$/.test(e) ? e.slice(5) : /^F([1-9]|1[0-2])$/.test(e) ? e.toLowerCase() : /^Numpad[0-9]$/.test(e) ? `np_${e.slice(6)}` : ue[e] ?? null;
+function ke(e) {
+  return /^Key[A-Z]$/.test(e) ? e.slice(3).toLowerCase() : /^Digit[0-9]$/.test(e) ? e.slice(5) : /^F([1-9]|1[0-2])$/.test(e) ? e.toLowerCase() : /^Numpad[0-9]$/.test(e) ? `np_${e.slice(6)}` : be[e] ?? null;
 }
-function me(e) {
+function we(e) {
   return /^[a-z]$/.test(e) ? `Key${e.toUpperCase()}` : /^[0-9]$/.test(e) ? `Digit${e}` : null;
 }
-function Ke() {
+function rt() {
   const [e, t] = m(null);
   return O(() => {
     let r = !1;
     const a = navigator.keyboard;
     if (a?.getLayoutMap)
-      return a.getLayoutMap().then((s) => {
-        r || t(s);
+      return a.getLayoutMap().then((o) => {
+        r || t(o);
       }).catch(() => {
       }), () => {
         r = !0;
       };
   }, []), e;
 }
-const fe = {
+const Ne = {
   lshift: "key.lshift",
   rshift: "key.rshift",
   lctrl: "key.lctrl",
@@ -600,22 +629,22 @@ const fe = {
   mwheel_up: "key.mwheelUp",
   mwheel_down: "key.mwheelDown"
 };
-function K(e, t) {
-  const r = fe[e];
+function J(e, t) {
+  const r = Ne[e];
   return r ? t(r) : e.startsWith("np_") ? `${t("key.numpad")} ${e.slice(3)}` : e.toUpperCase();
 }
-function _e(e, t, r) {
+function $e(e, t, r) {
   if (t && /^[a-z0-9]$/.test(e)) {
-    const a = me(e), s = a ? t.get(a) : void 0;
-    if (s && /^[a-z0-9]$/i.test(s)) return s.toUpperCase();
+    const a = we(e), o = a ? t.get(a) : void 0;
+    if (o && /^[a-z0-9]$/i.test(o)) return o.toUpperCase();
   }
-  return K(e, r);
+  return J(e, r);
 }
-function Ge(e, t, r) {
-  const a = _e(e.control, r ?? null, t);
-  return e.modifier ? `${K(e.modifier, t)} + ${a}` : a;
+function at(e, t, r) {
+  const a = $e(e.control, r ?? null, t);
+  return e.modifier ? `${J(e.modifier, t)} + ${a}` : a;
 }
-function We(e, t) {
+function nt(e, t) {
   switch (e.kind) {
     case "too_many_modifiers":
       return t("capture.tooManyModifiers");
@@ -623,110 +652,119 @@ function We(e, t) {
       return `${t("capture.unsupported")} (${e.code})`;
   }
 }
-const G = W((e) => e);
-function Qe({
+const Y = ee((e) => e);
+function ot({
   translate: e,
   children: t
 }) {
-  const r = X(() => e, [e]);
-  return /* @__PURE__ */ n(G.Provider, { value: r, children: t });
+  const r = re(() => e, [e]);
+  return /* @__PURE__ */ n(Y.Provider, { value: r, children: t });
 }
-function A() {
-  return Q(G);
+function L() {
+  return te(Y);
 }
-const he = 32;
-function Xe(e, t) {
-  const [r, a] = m(null), [s, o] = m([]), [i, u] = m(0), [_, d] = m(!1), [k, w] = m(null), h = D(0), x = e.map((f) => f.instance_guid).join("|");
+const Ce = 32;
+function st(e, t) {
+  const [r, a] = m(null), [o, s] = m([]), [i, u] = m(0), [f, d] = m(void 0), [$, w] = m(!1), [b, x] = m(null), N = P(0), y = e.map((v) => v.instance_guid).join("|");
   O(() => {
-    if (!t || x === "") {
-      d(!1), o([]);
+    if (!t || y === "") {
+      w(!1), s([]), d(void 0);
       return;
     }
-    let f = !1, y = null, N = -1;
-    w(null), d(!1), o([]), u(0);
-    const $ = b.startCapture(x.split("|"));
-    return $.then(
-      (g) => {
-        if (f) return;
-        d(!0);
-        const C = async () => {
-          if (f) return;
-          const l = h.current;
+    let v = !1, h = null, C = -1, A = N.current;
+    x(null), w(!1), s([]), u(0), d(void 0);
+    const l = g.startCapture(y.split("|"));
+    return l.then(
+      (_) => {
+        if (v) return;
+        w(!0);
+        const D = async () => {
+          if (v) return;
+          const R = N.current;
           try {
-            const v = await b.pollLiveCapture(g);
-            if (f || v.session_id !== g) return;
-            v.sequence > N && (N = v.sequence, o(v.inputs), u(v.sequence), l === h.current && a(
-              (q) => ge(q, v.last) ? q : v.last
-            ));
-          } catch (v) {
-            f || (w(String(v)), d(!1), o([]));
+            const k = await g.pollLiveCapture(_);
+            if (v || k.session_id !== _) return;
+            R === N.current && (A !== R && (A = R, C = -1), k.sequence > C && (C = k.sequence, s(k.inputs), u(k.sequence), d(k.capture_ready), a(
+              (F) => Se(F, k.last) ? F : k.last
+            )));
+          } catch (k) {
+            v || (x(String(k)), w(!1), s([]), d(void 0));
             return;
           }
-          f || (y = window.setTimeout(C, he));
+          v || (h = window.setTimeout(D, Ce));
         };
-        C();
+        D();
       },
-      (g) => !f && w(String(g))
+      (_) => !v && x(String(_))
     ), () => {
-      f = !0, y !== null && window.clearTimeout(y), $.then((g) => b.stopCapture(g)).catch(() => {
+      v = !0, h !== null && window.clearTimeout(h), l.then((_) => g.stopCapture(_)).catch(() => {
       });
     };
-  }, [x, t]);
-  const S = J(() => {
-    h.current += 1, a(null), b.clearCapture().catch(() => {
-    });
+  }, [y, t]);
+  const S = ae(async () => {
+    N.current += 1, a(null), s([]), d(void 0);
+    let v = null;
+    try {
+      v = await g.clearCapture();
+    } catch (h) {
+      x(String(h));
+    } finally {
+      N.current += 1, a(null), s([]), d(void 0);
+    }
+    return v;
   }, []);
   return {
     last: r,
-    active: s,
+    active: o,
     frameSequence: i,
-    listening: _,
-    error: k,
+    captureReady: f,
+    listening: $,
+    error: b,
     // L'oubli doit aussi porter côté Rust : le thread garde son relevé, et le
     // sondage suivant le restaurerait aussitôt.
     reset: S
   };
 }
-function ge(e, t) {
-  return e === t || e !== null && t !== null && e.guid === t.guid && e.control === t.control;
+function Se(e, t) {
+  return e === t || e !== null && t !== null && e.guid === t.guid && e.control === t.control && e.detected_sequence === t.detected_sequence;
 }
-function Je(e, t, r) {
+function it(e, t, r) {
   if (!e) return null;
-  const a = t.find((s) => s.instance_guid === e.guid);
+  const a = t.find((o) => o.instance_guid === e.guid);
   return a ? `${r(a)}_${e.control}` : null;
 }
-function Ye({
+function lt({
   profilePath: e,
   mode: t,
   onModeChange: r,
   listening: a,
-  deviceCount: s,
-  captureError: o,
+  deviceCount: o,
+  captureError: s,
   probe: i,
   onClearProbe: u,
-  onRestored: _
+  onRestored: f
 }) {
-  const d = A(), [k, w] = m([]), [h, x] = m(!1), [S, f] = m(!1), [y, N] = m(null);
-  async function $() {
+  const d = L(), [$, w] = m([]), [b, x] = m(!1), [N, y] = m(!1), [S, v] = m(null);
+  async function h() {
     try {
-      w(await b.listBackups());
+      w(await g.listBackups());
     } catch {
     }
   }
   O(() => {
-    $();
+    h();
   }, []);
-  async function g() {
-    f(!0);
+  async function C() {
+    y(!0);
     try {
-      await b.createBackup(e), N(d("backup.created")), await $();
+      await g.createBackup(e), v(d("backup.created")), await h();
     } catch (l) {
-      N(String(l));
+      v(String(l));
     } finally {
-      f(!1);
+      y(!1);
     }
   }
-  const C = [
+  const A = [
     { id: "all", label: "filter.mode.all" },
     { id: "desk", label: "filter.mode.desk" },
     { id: "gamepad", label: "filter.mode.gamepad" },
@@ -736,7 +774,7 @@ function Ye({
     /* @__PURE__ */ c("div", { className: "flex flex-wrap items-center gap-x-4 gap-y-2 rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-2)] px-3 py-2", children: [
       /* @__PURE__ */ c("div", { className: "-mx-1 flex max-w-full items-center gap-1 overflow-x-auto overflow-y-hidden px-1", children: [
         /* @__PURE__ */ n("span", { className: "mr-1 shrink-0 text-xs font-medium text-[var(--text-tertiary)]", children: d("filter.mode") }),
-        C.map((l) => /* @__PURE__ */ n(
+        A.map((l) => /* @__PURE__ */ n(
           "button",
           {
             onClick: () => r(l.id),
@@ -748,11 +786,11 @@ function Ye({
       ] }),
       /* @__PURE__ */ c("div", { className: "flex flex-wrap items-center gap-3 sm:ml-auto", children: [
         /* @__PURE__ */ n(
-          be,
+          Ae,
           {
             listening: a,
-            count: s,
-            error: o,
+            count: o,
+            error: s,
             probe: i,
             onClear: u
           }
@@ -763,9 +801,9 @@ function Ye({
               "button",
               {
                 onClick: () => {
-                  g();
+                  C();
                 },
-                disabled: S,
+                disabled: N,
                 className: "rounded-l-md px-2.5 py-1 text-xs font-medium text-[var(--text-primary)] hover:bg-[var(--surface-hover)] disabled:text-[var(--text-disabled)]",
                 children: d("backup.create")
               }
@@ -777,58 +815,58 @@ function Ye({
                 className: "border-l border-[var(--border-default)] px-2 py-1 text-xs text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]",
                 title: d("backup.title"),
                 children: [
-                  k.length,
+                  $.length,
                   " ▾"
                 ]
               }
             )
           ] }),
-          h && /* @__PURE__ */ n(
-            ye,
+          b && /* @__PURE__ */ n(
+            Oe,
             {
               profilePath: e,
-              backups: k,
+              backups: $,
               onClose: () => x(!1),
               onChanged: async () => {
-                await $(), _();
+                await h(), f();
               }
             }
           )
         ] }),
-        /* @__PURE__ */ n(xe, {})
+        /* @__PURE__ */ n(Le, {})
       ] })
     ] }),
-    y && /* @__PURE__ */ n("p", { className: "rounded-[var(--radius-control)] bg-[var(--accent-soft)] px-3 py-1.5 text-xs text-[var(--text-accent)]", children: y })
+    S && /* @__PURE__ */ n("p", { className: "rounded-[var(--radius-control)] bg-[var(--accent-soft)] px-3 py-1.5 text-xs text-[var(--text-accent)]", children: S })
   ] });
 }
-function be({
+function Ae({
   listening: e,
   count: t,
   error: r,
   probe: a,
-  onClear: s
+  onClear: o
 }) {
-  const o = A();
-  return r ? /* @__PURE__ */ n("span", { className: "text-xs text-[var(--danger-text)]", title: r, children: o("probe.stopped") }) : a ? /* @__PURE__ */ c("span", { className: "flex items-center gap-1.5 rounded-[var(--radius-control)] bg-[var(--accent-soft)] px-2 py-1 text-xs text-[var(--text-accent)]", children: [
+  const s = L();
+  return r ? /* @__PURE__ */ n("span", { className: "text-xs text-[var(--danger-text)]", title: r, children: s("probe.stopped") }) : a ? /* @__PURE__ */ c("span", { className: "flex items-center gap-1.5 rounded-[var(--radius-control)] bg-[var(--accent-soft)] px-2 py-1 text-xs text-[var(--text-accent)]", children: [
     /* @__PURE__ */ n("span", { className: "font-mono font-semibold", children: a.device }),
     /* @__PURE__ */ n("span", { children: a.control }),
     /* @__PURE__ */ n("span", { className: "text-[var(--text-accent)]", children: "·" }),
-    /* @__PURE__ */ n("span", { children: a.matches === 0 ? o("probe.noMatch") : `${a.matches} ${o(
+    /* @__PURE__ */ n("span", { children: a.matches === 0 ? s("probe.noMatch") : `${a.matches} ${s(
       a.matches > 1 ? "probe.matchMany" : "probe.matchOne"
     )}` }),
     /* @__PURE__ */ n(
       "button",
       {
-        onClick: s,
+        onClick: o,
         className: "ml-1 text-[var(--text-accent)] hover:text-[var(--accent-hover)]",
-        children: o("probe.clear")
+        children: s("probe.clear")
       }
     )
   ] }) : /* @__PURE__ */ c(
     "span",
     {
       className: "flex items-center gap-1.5 text-xs text-[var(--text-tertiary)]",
-      title: o("probe.idle"),
+      title: s("probe.idle"),
       children: [
         /* @__PURE__ */ n(
           "span",
@@ -838,13 +876,13 @@ function be({
         ),
         t,
         " ",
-        o(t > 1 ? "probe.deviceMany" : "probe.deviceOne")
+        s(t > 1 ? "probe.deviceMany" : "probe.deviceOne")
       ]
     }
   );
 }
-function xe() {
-  const e = A(), [t, r] = m(!1);
+function Le() {
+  const e = L(), [t, r] = m(!1);
   return /* @__PURE__ */ c("div", { className: "relative", children: [
     /* @__PURE__ */ n(
       "button",
@@ -855,7 +893,7 @@ function xe() {
         children: "?"
       }
     ),
-    t && /* @__PURE__ */ c(M, { children: [
+    t && /* @__PURE__ */ c(z, { children: [
       /* @__PURE__ */ n("div", { className: "fixed inset-0 z-10", onClick: () => r(!1) }),
       /* @__PURE__ */ c("div", { className: "absolute right-0 z-20 mt-2 w-80 rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-2)] p-3 shadow-[var(--shadow-2)]", children: [
         /* @__PURE__ */ n("h4", { className: "text-xs font-semibold text-[var(--text-primary)]", children: e("scope.title") }),
@@ -866,24 +904,24 @@ function xe() {
     ] })
   ] });
 }
-function ye({
+function Oe({
   profilePath: e,
   backups: t,
   onClose: r,
   onChanged: a
 }) {
-  const s = A(), [o, i] = m(null), u = D(null);
-  async function _() {
-    if (!o) return;
-    const { backup: d, action: k } = o;
+  const o = L(), [s, i] = m(null), u = P(null);
+  async function f() {
+    if (!s) return;
+    const { backup: d, action: $ } = s;
     i(null);
     try {
-      k === "restore" ? await b.restoreBackup(e, d.path) : await b.deleteBackup(d.path), a();
+      $ === "restore" ? await g.restoreBackup(e, d.path) : await g.deleteBackup(d.path), a();
     } catch {
     }
     r();
   }
-  return /* @__PURE__ */ c(M, { children: [
+  return /* @__PURE__ */ c(z, { children: [
     /* @__PURE__ */ n("div", { className: "fixed inset-0 z-10", onClick: r }),
     /* @__PURE__ */ c(
       "div",
@@ -891,16 +929,16 @@ function ye({
         ref: u,
         className: "absolute right-0 z-20 mt-1 w-72 overflow-hidden rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-2)] shadow-[var(--shadow-2)]",
         children: [
-          /* @__PURE__ */ n("p", { className: "border-b border-[var(--border-subtle)] px-3 py-2 text-xs text-[var(--text-tertiary)]", children: s("backup.hint") }),
-          t.length === 0 ? /* @__PURE__ */ n("p", { className: "px-3 py-4 text-center text-xs text-[var(--text-tertiary)]", children: s("backup.empty") }) : /* @__PURE__ */ n("ul", { className: "max-h-64 divide-y divide-[var(--border-subtle)] overflow-y-auto", children: t.map((d) => /* @__PURE__ */ c("li", { className: "px-3 py-2", children: [
-            /* @__PURE__ */ n("p", { className: "text-xs text-[var(--text-primary)]", children: F(d.timestamp) }),
+          /* @__PURE__ */ n("p", { className: "border-b border-[var(--border-subtle)] px-3 py-2 text-xs text-[var(--text-tertiary)]", children: o("backup.hint") }),
+          t.length === 0 ? /* @__PURE__ */ n("p", { className: "px-3 py-4 text-center text-xs text-[var(--text-tertiary)]", children: o("backup.empty") }) : /* @__PURE__ */ n("ul", { className: "max-h-64 divide-y divide-[var(--border-subtle)] overflow-y-auto", children: t.map((d) => /* @__PURE__ */ c("li", { className: "px-3 py-2", children: [
+            /* @__PURE__ */ n("p", { className: "text-xs text-[var(--text-primary)]", children: I(d.timestamp) }),
             /* @__PURE__ */ c("div", { className: "mt-1 flex gap-2", children: [
               /* @__PURE__ */ n(
                 "button",
                 {
                   onClick: () => i({ backup: d, action: "restore" }),
                   className: "text-xs font-medium text-[var(--text-accent)] hover:text-[var(--accent-hover)]",
-                  children: s("backup.restore")
+                  children: o("backup.restore")
                 }
               ),
               /* @__PURE__ */ n(
@@ -908,7 +946,7 @@ function ye({
                 {
                   onClick: () => i({ backup: d, action: "delete" }),
                   className: "text-xs text-[var(--text-tertiary)] hover:text-[var(--danger-text)]",
-                  children: s("backup.delete")
+                  children: o("backup.delete")
                 }
               )
             ] })
@@ -916,7 +954,7 @@ function ye({
         ]
       }
     ),
-    o && /* @__PURE__ */ n(
+    s && /* @__PURE__ */ n(
       "div",
       {
         className: "fixed inset-0 z-30 flex items-center justify-center overflow-y-auto bg-[var(--scrim)] p-4 sm:p-8",
@@ -927,16 +965,16 @@ function ye({
             className: "w-full max-w-md rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-2)] p-5 shadow-[var(--shadow-2)]",
             onClick: (d) => d.stopPropagation(),
             children: [
-              /* @__PURE__ */ n("h3", { className: "text-sm font-semibold text-[var(--text-primary)]", children: s(
-                o.action === "delete" ? "backup.confirmDeleteTitle" : "backup.confirmTitle"
+              /* @__PURE__ */ n("h3", { className: "text-sm font-semibold text-[var(--text-primary)]", children: o(
+                s.action === "delete" ? "backup.confirmDeleteTitle" : "backup.confirmTitle"
               ) }),
-              /* @__PURE__ */ n("p", { className: "mt-2 text-sm text-[var(--text-secondary)]", children: F(o.backup.timestamp) }),
+              /* @__PURE__ */ n("p", { className: "mt-2 text-sm text-[var(--text-secondary)]", children: I(s.backup.timestamp) }),
               /* @__PURE__ */ n(
                 "p",
                 {
-                  className: "mt-2 text-sm " + (o.action === "delete" ? "text-[var(--danger-text)]" : "text-[var(--text-tertiary)]"),
-                  children: s(
-                    o.action === "delete" ? "backup.confirmDeleteBody" : "backup.confirmKept"
+                  className: "mt-2 text-sm " + (s.action === "delete" ? "text-[var(--danger-text)]" : "text-[var(--text-tertiary)]"),
+                  children: o(
+                    s.action === "delete" ? "backup.confirmDeleteBody" : "backup.confirmKept"
                   )
                 }
               ),
@@ -946,18 +984,18 @@ function ye({
                   {
                     onClick: () => i(null),
                     className: "rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-2)] px-3 py-1.5 text-sm text-[var(--text-primary)] hover:bg-[var(--surface-hover)]",
-                    children: s("save.cancel")
+                    children: o("save.cancel")
                   }
                 ),
                 /* @__PURE__ */ n(
                   "button",
                   {
                     onClick: () => {
-                      _();
+                      f();
                     },
-                    className: "rounded-[var(--radius-control)] px-3 py-1.5 text-sm font-medium text-white " + (o.action === "delete" ? "bg-[var(--danger)] hover:bg-[var(--danger)]" : "bg-accent hover:bg-[var(--accent-hover)]"),
-                    children: s(
-                      o.action === "delete" ? "backup.delete" : "backup.restore"
+                    className: "rounded-[var(--radius-control)] px-3 py-1.5 text-sm font-medium text-white " + (s.action === "delete" ? "bg-[var(--danger)] hover:bg-[var(--danger)]" : "bg-accent hover:bg-[var(--accent-hover)]"),
+                    children: o(
+                      s.action === "delete" ? "backup.delete" : "backup.restore"
                     )
                   }
                 )
@@ -969,18 +1007,18 @@ function ye({
     )
   ] });
 }
-function F(e) {
+function I(e) {
   const t = Number(e);
   return Number.isFinite(t) ? new Date(t).toLocaleString(void 0, {
     dateStyle: "medium",
     timeStyle: "short"
   }) : e;
 }
-const ke = {
+const Re = {
   sm: "h-[var(--h-control-sm)] px-[var(--sp-5)] text-[length:var(--fs-body-sm)]",
   md: "h-[var(--h-control)] px-[var(--sp-6)] text-[length:var(--fs-body)]",
   lg: "h-[var(--h-control-lg)] px-[var(--sp-7)] text-[length:var(--fs-body)]"
-}, we = {
+}, Te = {
   primary: "border border-transparent bg-accent text-[var(--text-on-accent)] hover:bg-[var(--accent-hover)] hover:shadow-[var(--glow-soft)] active:bg-[var(--accent-press)] active:shadow-none",
   secondary: "border border-[var(--border-default)] bg-[var(--surface-2)] text-[var(--text-primary)] hover:border-[var(--border-strong)] hover:bg-[var(--surface-hover)]",
   ghost: "border border-transparent bg-transparent text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
@@ -994,49 +1032,49 @@ function T({
   return /* @__PURE__ */ n(
     "button",
     {
-      className: `inline-flex items-center justify-center gap-[var(--sp-3)] rounded-[var(--radius-control)] font-medium leading-none transition-all duration-[var(--dur-fast)] ease-[var(--ease-out)] focus-visible:shadow-[var(--ring-focus)] active:scale-[var(--press-scale)] disabled:pointer-events-none disabled:opacity-[0.42] ${ke[t]} ${we[e]} ${r}`,
+      className: `inline-flex items-center justify-center gap-[var(--sp-3)] rounded-[var(--radius-control)] font-medium leading-none transition-all duration-[var(--dur-fast)] ease-[var(--ease-out)] focus-visible:shadow-[var(--ring-focus)] active:scale-[var(--press-scale)] disabled:pointer-events-none disabled:opacity-[0.42] ${Re[t]} ${Te[e]} ${r}`,
       ...a
     }
   );
 }
-const Ne = "cursor-pointer transition-transform duration-[var(--dur-fast)] ease-[var(--ease-out)] hover:-translate-y-px hover:border-[var(--border-accent)]";
-function $e() {
+const Ee = "cursor-pointer transition-transform duration-[var(--dur-fast)] ease-[var(--ease-out)] hover:-translate-y-px hover:border-[var(--border-accent)]";
+function Me() {
   const e = "pointer-events-none absolute h-[10px] w-[10px] border-[var(--border-hud)]";
-  return /* @__PURE__ */ c(M, { children: [
+  return /* @__PURE__ */ c(z, { children: [
     /* @__PURE__ */ n("span", { "aria-hidden": !0, className: `${e} left-0 top-0 border-l-2 border-t-2` }),
     /* @__PURE__ */ n("span", { "aria-hidden": !0, className: `${e} right-0 top-0 border-r-2 border-t-2` }),
     /* @__PURE__ */ n("span", { "aria-hidden": !0, className: `${e} bottom-0 left-0 border-b-2 border-l-2` }),
     /* @__PURE__ */ n("span", { "aria-hidden": !0, className: `${e} bottom-0 right-0 border-b-2 border-r-2` })
   ] });
 }
-function Ce({
+function ze({
   variant: e = "standard",
   interactive: t = !1,
   className: r = "",
   children: a,
-  ...s
+  ...o
 }) {
-  const o = t ? Ne : "";
+  const s = t ? Ee : "";
   return e === "hud" ? /* @__PURE__ */ c(
     "div",
     {
-      className: `relative rounded-[var(--radius-xs)] border border-[var(--border-hud)] bg-[var(--surface-1)] p-[var(--pad-card)] ${o} ${r}`,
-      ...s,
+      className: `relative rounded-[var(--radius-xs)] border border-[var(--border-hud)] bg-[var(--surface-1)] p-[var(--pad-card)] ${s} ${r}`,
+      ...o,
       children: [
-        /* @__PURE__ */ n($e, {}),
+        /* @__PURE__ */ n(Me, {}),
         a
       ]
     }
   ) : /* @__PURE__ */ n(
     "div",
     {
-      className: `rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--surface-1)] p-[var(--pad-card)] shadow-[var(--shadow-1)] ${o} ${r}`,
-      ...s,
+      className: `rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--surface-1)] p-[var(--pad-card)] shadow-[var(--shadow-1)] ${s} ${r}`,
+      ...o,
       children: a
     }
   );
 }
-function Ae({ selected: e = !1, className: t = "", ...r }) {
+function qe({ selected: e = !1, className: t = "", ...r }) {
   return /* @__PURE__ */ n(
     "button",
     {
@@ -1047,48 +1085,48 @@ function Ae({ selected: e = !1, className: t = "", ...r }) {
     }
   );
 }
-function et({
+function ct({
   filters: e,
   onChange: t,
   shown: r,
   total: a,
-  conflictCount: s,
-  unassignedCount: o,
+  conflictCount: o,
+  unassignedCount: s,
   showEditableFilter: i = !0
 }) {
-  const u = A();
+  const u = L();
   return /* @__PURE__ */ c("div", { className: "flex flex-wrap items-center gap-x-4 gap-y-2", children: [
     /* @__PURE__ */ n(
       "input",
       {
         type: "search",
         value: e.query,
-        onChange: (_) => t({ ...e, query: _.target.value }),
+        onChange: (f) => t({ ...e, query: f.target.value }),
         placeholder: u("filter.placeholder"),
         className: "min-w-56 flex-1 rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-2)] px-[var(--sp-6)] py-[var(--sp-4)] text-[length:var(--fs-body-sm)] text-[var(--text-primary)] placeholder:text-[var(--text-disabled)] focus:border-[var(--border-accent)] focus-visible:shadow-[var(--ring-focus)] focus:outline-none"
       }
     ),
     /* @__PURE__ */ n(
-      R,
+      E,
       {
         active: e.unassignedOnly,
-        count: o,
+        count: s,
         onClick: () => t({ ...e, unassignedOnly: !e.unassignedOnly }),
         children: u("filter.unassigned")
       }
     ),
     /* @__PURE__ */ n(
-      R,
+      E,
       {
         active: e.conflictsOnly,
-        count: s,
+        count: o,
         warn: !0,
         onClick: () => t({ ...e, conflictsOnly: !e.conflictsOnly }),
         children: u("filter.conflicts")
       }
     ),
     i && /* @__PURE__ */ n(
-      R,
+      E,
       {
         active: e.editableOnly,
         onClick: () => t({ ...e, editableOnly: !e.editableOnly }),
@@ -1096,33 +1134,33 @@ function et({
       }
     ),
     /* @__PURE__ */ n("span", { className: "ml-auto whitespace-nowrap rounded-[var(--radius-pill)] border border-[var(--border-subtle)] px-[var(--sp-5)] py-[var(--sp-2)] text-[length:var(--fs-caption)] text-[var(--text-tertiary)]", children: r === a ? `${a}` : `${r} / ${a}` }),
-    H(e) && /* @__PURE__ */ n(
+    W(e) && /* @__PURE__ */ n(
       "button",
       {
-        onClick: () => t(P),
+        onClick: () => t(K),
         className: "whitespace-nowrap text-[length:var(--fs-caption)] font-medium text-[var(--text-accent)] hover:text-[var(--accent-hover)]",
         children: u("filter.showAll")
       }
     )
   ] });
 }
-function R({
+function E({
   active: e,
   count: t,
   warn: r,
   onClick: a,
-  children: s
+  children: o
 }) {
-  const o = t === 0;
+  const s = t === 0;
   return /* @__PURE__ */ c(
-    Ae,
+    qe,
     {
       selected: e,
       onClick: a,
-      disabled: o && !e,
-      className: `${o && !e ? "opacity-[0.42]" : ""} ${r && e ? "!border-[var(--danger)] !bg-[var(--danger-soft)] !text-[var(--danger-text)]" : ""}`,
+      disabled: s && !e,
+      className: `${s && !e ? "opacity-[0.42]" : ""} ${r && e ? "!border-[var(--danger)] !bg-[var(--danger-soft)] !text-[var(--danger-text)]" : ""}`,
       children: [
-        s,
+        o,
         t !== void 0 && // `border-current` plutôt qu'une couleur fixe : le compteur doit se
         // détacher du libellé quel que soit l'état du Tag (actif, alerte,
         // survolé) sans dupliquer sa palette de couleurs ici.
@@ -1131,102 +1169,102 @@ function R({
     }
   );
 }
-function tt({
+function ut({
   profilePath: e,
   profiles: t,
   onSelectProfile: r,
   onBrowse: a,
-  onRefresh: s,
-  onChanged: o
+  onRefresh: o,
+  onChanged: s
 }) {
-  const i = A(), [u, _] = m(null), [d, k] = m([]), [w, h] = m(null), [x, S] = m(null), [f, y] = m(!1);
+  const i = L(), [u, f] = m(null), [d, $] = m([]), [w, b] = m(null), [x, N] = m(null), [y, S] = m(!1);
   O(() => {
     let l = !1;
     return (async () => {
       try {
-        const v = await b.getSettings();
-        l || _(v);
-      } catch (v) {
-        l || h(String(v));
+        const _ = await g.getSettings();
+        l || f(_);
+      } catch (_) {
+        l || b(String(_));
       }
       if (e)
         try {
-          const v = await b.listGameLanguages(e);
-          l || k(v);
-        } catch (v) {
-          l || h(String(v));
+          const _ = await g.listGameLanguages(e);
+          l || $(_);
+        } catch (_) {
+          l || b(String(_));
         }
     })(), () => {
       l = !0;
     };
   }, [e]);
-  async function N(l) {
-    _(l);
+  async function v(l) {
+    f(l);
     try {
-      await b.setSettings(l), S(i("settings.saved")), h(null), o();
-    } catch (v) {
-      h(String(v));
+      await g.setSettings(l), N(i("settings.saved")), b(null), s();
+    } catch (_) {
+      b(String(_));
     }
   }
-  async function $() {
-    if (!(!s || f)) {
-      y(!0), h(null);
+  async function h() {
+    if (!(!o || y)) {
+      S(!0), b(null);
       try {
-        await s();
+        await o();
       } catch (l) {
-        h(String(l));
+        b(String(l));
       } finally {
-        y(!1);
+        S(!1);
       }
     }
   }
   if (!u)
     return /* @__PURE__ */ n("p", { className: "text-[length:var(--fs-body-sm)] text-[var(--text-tertiary)]", children: i("settings.loading") });
-  const g = "min-w-0 rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-2)] px-[var(--sp-6)] py-[var(--sp-4)] text-[length:var(--fs-body-sm)] text-[var(--text-primary)] focus:border-[var(--border-accent)] focus-visible:shadow-[var(--ring-focus)] focus:outline-none", C = e !== null && !t.some((l) => l.path === e);
+  const C = "min-w-0 rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-2)] px-[var(--sp-6)] py-[var(--sp-4)] text-[length:var(--fs-body-sm)] text-[var(--text-primary)] focus:border-[var(--border-accent)] focus-visible:shadow-[var(--ring-focus)] focus:outline-none", A = e !== null && !t.some((l) => l.path === e);
   return /* @__PURE__ */ c("div", { className: "space-y-[var(--sp-6)]", children: [
-    /* @__PURE__ */ c(z, { title: i("profile.title"), hint: i("profile.hint"), children: [
+    /* @__PURE__ */ c(M, { title: i("profile.title"), hint: i("profile.hint"), children: [
       /* @__PURE__ */ c("div", { className: "flex flex-wrap items-center gap-[var(--sp-4)]", children: [
-        t.length > 0 || C ? /* @__PURE__ */ c(
+        t.length > 0 || A ? /* @__PURE__ */ c(
           "select",
           {
-            className: `max-w-full flex-1 sm:flex-none ${g}`,
+            className: `max-w-full flex-1 sm:flex-none ${C}`,
             value: e ?? "",
             onChange: (l) => r(l.target.value),
             children: [
-              C && /* @__PURE__ */ n("option", { value: e, children: i("profile.manual") }),
-              t.map((l) => /* @__PURE__ */ n("option", { value: l.path, children: Se(l) }, l.path))
+              A && /* @__PURE__ */ n("option", { value: e, children: i("profile.manual") }),
+              t.map((l) => /* @__PURE__ */ n("option", { value: l.path, children: Be(l) }, l.path))
             ]
           }
         ) : /* @__PURE__ */ n("p", { className: "text-[length:var(--fs-body-sm)] text-[var(--text-tertiary)]", children: i("profile.none") }),
         /* @__PURE__ */ n(T, { variant: "secondary", size: "sm", onClick: a, className: "shrink-0", children: i("profile.browse") }),
-        s && /* @__PURE__ */ n(
+        o && /* @__PURE__ */ n(
           T,
           {
             variant: "secondary",
             size: "sm",
             onClick: () => {
-              $();
+              h();
             },
-            disabled: f,
+            disabled: y,
             className: "shrink-0",
-            children: i(f ? "profile.refreshing" : "profile.rescan")
+            children: i(y ? "profile.refreshing" : "profile.rescan")
           }
         )
       ] }),
       e && /* @__PURE__ */ n("p", { className: "technical mt-[var(--sp-4)] break-all text-[var(--text-disabled)]", children: e })
     ] }),
     /* @__PURE__ */ n(
-      z,
+      M,
       {
         title: i("settings.gameLanguage"),
         hint: i("settings.gameLanguageHint"),
         children: d.length === 0 ? /* @__PURE__ */ n("p", { className: "text-[length:var(--fs-body-sm)] text-[var(--text-tertiary)]", children: i("settings.noLanguages") }) : /* @__PURE__ */ n(
           "select",
           {
-            className: `w-full max-w-sm ${g}`,
+            className: `w-full max-w-sm ${C}`,
             value: u.game_language,
             onChange: (l) => {
-              N({ ...u, game_language: l.target.value });
+              v({ ...u, game_language: l.target.value });
             },
             children: d.map((l) => /* @__PURE__ */ n("option", { value: l.id, children: l.label }, l.id))
           }
@@ -1234,7 +1272,7 @@ function tt({
       }
     ),
     /* @__PURE__ */ c(
-      z,
+      M,
       {
         title: i("settings.uiLanguage"),
         hint: i("settings.uiLanguageHint"),
@@ -1248,7 +1286,7 @@ function tt({
               size: "sm",
               variant: u.ui_language === l.id ? "primary" : "secondary",
               onClick: () => {
-                N({ ...u, ui_language: l.id });
+                v({ ...u, ui_language: l.id });
               },
               children: l.label
             },
@@ -1262,66 +1300,68 @@ function tt({
     w && /* @__PURE__ */ n("p", { className: "text-[length:var(--fs-body-sm)] text-[var(--danger-text)]", children: w })
   ] });
 }
-function Se(e) {
-  const t = Le(e.path) ?? e.path;
+function Be(e) {
+  const t = De(e.path) ?? e.path;
   return `${e.channel} — ${t}`;
 }
-function Le(e) {
+function De(e) {
   const t = /(?:^|[\\/])StarCitizen(?=[\\/]|$)/gi;
   let r = null, a;
   for (; (a = t.exec(e)) !== null; )
     r = a;
   return r ? e.slice(0, r.index + r[0].length) : null;
 }
-function z({
+function M({
   title: e,
   hint: t,
   children: r
 }) {
-  return /* @__PURE__ */ c(Ce, { children: [
+  return /* @__PURE__ */ c(ze, { children: [
     /* @__PURE__ */ n("h3", { className: "text-[length:var(--fs-body)] font-semibold text-[var(--text-primary)]", children: e }),
     /* @__PURE__ */ n("p", { className: "mb-[var(--sp-4)] mt-[var(--sp-1)] text-[length:var(--fs-caption)] text-[var(--text-tertiary)]", children: t }),
     r
   ] });
 }
 export {
-  oe as AXES,
-  Ee as ContextRules,
-  Ye as EditorToolbar,
-  et as FilterBar,
-  P as NO_FILTERS,
-  tt as SettingsPanel,
-  Qe as TranslationProvider,
-  ee as actionLabel,
-  Me as activationBadge,
-  b as api,
-  le as apply,
-  Y as bindingLabel,
-  pe as build,
-  We as captureErrorMessage,
-  Je as capturedToken,
-  re as categoryLabel,
-  Ve as controlLabel,
-  De as controlsFor,
-  Ge as describe,
-  je as devicePrefix,
-  E as effectiveToken,
-  Ie as filters,
-  He as fromKeyPress,
-  Ze as fromMouse,
-  Ue as fromWheel,
-  Fe as groupLabel,
-  se as hasConflict,
-  qe as indexConflicts,
-  ne as isAssigned,
-  H as isFiltering,
-  ze as isKnownAction,
-  L as keyOf,
-  _e as keycapLabel,
-  Z as modeOf,
-  Pe as modifierOf,
-  Be as rivalsOf,
-  Xe as useCapture,
-  Ke as useKeyboardLayoutMap,
-  A as useT
+  _e as AXES,
+  Ge as ContextRules,
+  lt as EditorToolbar,
+  ct as FilterBar,
+  K as NO_FILTERS,
+  ut as SettingsPanel,
+  ot as TranslationProvider,
+  oe as actionLabel,
+  Pe as activationBadge,
+  V as activationGestureOf,
+  de as activationGesturesOverlap,
+  g as api,
+  he as apply,
+  ne as bindingLabel,
+  ye as build,
+  nt as captureErrorMessage,
+  it as capturedToken,
+  ie as categoryLabel,
+  We as controlLabel,
+  Ke as controlsFor,
+  at as describe,
+  Qe as devicePrefix,
+  B as effectiveToken,
+  Xe as filters,
+  Ye as fromKeyPress,
+  et as fromMouse,
+  tt as fromWheel,
+  Ze as groupLabel,
+  me as hasConflict,
+  He as indexConflicts,
+  ve as isAssigned,
+  W as isFiltering,
+  Ie as isKnownAction,
+  q as keyOf,
+  $e as keycapLabel,
+  Q as modeOf,
+  Je as modifierOf,
+  Ue as rivalsOf,
+  st as useCapture,
+  rt as useKeyboardLayoutMap,
+  L as useT
 };

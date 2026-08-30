@@ -46,12 +46,17 @@ const LIVE_AXIS_THRESHOLD: i32 = 2_000;
 /// rester garée n'importe où sans paraître active en permanence.
 const AXIS_NORMALIZER: f32 = 32_767.0;
 
-/// Vitesse à laquelle le repos rejoint la position courante d'un axe.
+/// Étendue maximale d'une fenêtre de relevés pour considérer qu'un axe est posé.
 ///
-/// Un huitième de l'écart à chaque relevé : un axe immobile est rattrapé en
-/// une fraction de seconde, tandis qu'un mouvement franc dépasse le seuil bien
-/// avant que le repos n'ait le temps de suivre.
-const BASELINE_FOLLOW: i32 = 8;
+/// La stabilité est mesurée par rapport au début de la fenêtre, pas seulement
+/// entre deux frames : une course continue de 100 unités par frame reste lente
+/// localement, mais quitte rapidement cette fenêtre et ne peut donc pas être
+/// prise pour une nouvelle position de repos.
+const PARKED_DELTA_THRESHOLD: i32 = 256;
+
+/// Nombre de frames stables avant d'adopter une nouvelle position de repos.
+/// À 60 Hz, douze frames représentent environ 200 ms.
+const PARKED_SAMPLES: u8 = 12;
 
 /// Nature d'un contrôle DirectInput relevé.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -186,6 +191,10 @@ pub struct CaptureSession {
 #[derive(Debug, Default)]
 struct AxisTracker {
     baseline: Cell<[i32; 8]>,
+    /// Première position de la fenêtre de stabilité en cours, axe par axe.
+    parked_origin: Cell<[i32; 8]>,
+    /// Nombre de frames stables consécutives, axe par axe.
+    parked_samples: Cell<[u8; 8]>,
     /// Nombre de relevés déjà vus, pour la période de chauffe.
     samples: Cell<u8>,
 }
@@ -210,6 +219,8 @@ impl AxisTracker {
     /// Axes qui viennent de bouger, puis mise à jour de leur repos.
     fn movements(&self, axes: [i32; 8]) -> Vec<AxisMotion> {
         let mut baseline = self.baseline.get();
+        let mut parked_origin = self.parked_origin.get();
+        let mut parked_samples = self.parked_samples.get();
 
         // Pendant la chauffe, le repos suit exactement la position lue et rien
         // n'est interprété.
@@ -217,12 +228,32 @@ impl AxisTracker {
         if samples < WARMUP_SAMPLES {
             self.samples.set(samples + 1);
             self.baseline.set(axes);
+            self.parked_origin.set(axes);
+            self.parked_samples.set([0; 8]);
             return Vec::new();
         }
 
         let mut moved = Vec::new();
         for index in 0..axes.len() {
             let drift = axes[index] - baseline[index];
+            if parked_samples[index] == 0
+                || (axes[index] - parked_origin[index]).abs() > PARKED_DELTA_THRESHOLD
+            {
+                parked_origin[index] = axes[index];
+                parked_samples[index] = 1;
+            } else {
+                parked_samples[index] = parked_samples[index].saturating_add(1);
+            }
+
+            // Le repos ne rejoint une position qu'après une vraie fenêtre
+            // stable. Il reste donc figé pendant toute course continue, même
+            // très lente, puis adopte une manette des gaz réellement garée.
+            if parked_samples[index] >= PARKED_SAMPLES {
+                baseline[index] = axes[index];
+                parked_samples[index] = 0;
+                continue;
+            }
+
             if drift.abs() >= LIVE_AXIS_THRESHOLD {
                 moved.push(AxisMotion {
                     index,
@@ -230,13 +261,11 @@ impl AxisTracker {
                     capturable: drift.abs() >= AXIS_THRESHOLD,
                 });
             }
-            // Le repos rejoint la position courante, y compris pendant un
-            // mouvement : un axe maintenu finit par se taire, ce qui évite
-            // qu'il masque indéfiniment les appuis de boutons.
-            baseline[index] += drift / BASELINE_FOLLOW;
         }
 
         self.baseline.set(baseline);
+        self.parked_origin.set(parked_origin);
+        self.parked_samples.set(parked_samples);
         moved
     }
 
@@ -735,6 +764,34 @@ mod tests {
         let mut pushed = rest;
         pushed[0] += AXIS_THRESHOLD; // axe X poussé franchement
         assert_eq!(tracker.moved(pushed), Some(0));
+    }
+
+    #[test]
+    fn a_progressive_movement_is_not_absorbed_before_capture() {
+        // Avec une baseline qui suivait même pendant le geste, une course
+        // régulière mais lente plafonnait sous le seuil relatif et l'axe
+        // n'était jamais assignable, malgré un grand déplacement total. Cent
+        // unités par frame représentent environ deux secondes pour atteindre
+        // le seuil de capture à 60 Hz.
+        let tracker = AxisTracker::default();
+        let rest = [16_000; 8];
+        warm_up(&tracker, rest);
+
+        let mut captured = false;
+        let mut moved = rest;
+        for step in 1..=130 {
+            moved[0] = rest[0] + step * 100;
+            captured |= tracker.moved(moved) == Some(0);
+        }
+
+        assert!(captured, "le déplacement progressif lent a été absorbé");
+
+        // Une fois la course terminée, la nouvelle position doit malgré tout
+        // redevenir silencieuse, comme une manette des gaz laissée en place.
+        for _ in 0..(PARKED_SAMPLES + 2) {
+            tracker.moved(moved);
+        }
+        assert_eq!(tracker.moved(moved), None, "l'axe garé reste actif");
     }
 
     #[test]

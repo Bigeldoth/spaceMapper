@@ -19,6 +19,36 @@ export interface ActivationBadge {
     kind: ActivationKind;
 }
 /**
+ * Geste physique attendu par Star Citizen pour déclencher une assignation.
+ *
+ * Les variantes d'un même geste (`hold_toggle`, `hold_no_retrigger`, etc.)
+ * changent ce que fait le jeu après le déclenchement, pas ce que le joueur
+ * doit faire avec le contrôle. Elles partagent donc la même famille pour la
+ * détection des conflits.
+ *
+ * `unknown` est volontairement une valeur joker : lorsqu'un patch du jeu
+ * introduit un mode que SpaceMapper ne connaît pas encore, on conserve la
+ * fausse alerte plutôt que de masquer un vrai conflit.
+ */
+export type ActivationGesture = "short_press" | "long_press" | `multi_tap:${number}` | "unknown";
+export interface ActivationSource {
+    activation_mode: string | null | undefined;
+    multi_tap: string | null | undefined;
+}
+/**
+ * Normalise les deux représentations du jeu (`activationMode` et `multiTap`)
+ * en geste comparable. Un `multiTap` explicite prime, comme pour le badge.
+ */
+export declare function activationGestureOf(source: ActivationSource): ActivationGesture;
+/**
+ * Deux assignations peuvent-elles répondre au même geste physique ?
+ *
+ * Un appui court, un appui long et un double-appui sont indépendants. Deux
+ * variantes appartenant à la même famille se disputent en revanche bien le
+ * contrôle. Toute valeur inconnue reste conflictuelle par prudence.
+ */
+export declare function activationGesturesOverlap(left: ActivationSource, right: ActivationSource): boolean;
+/**
  * Badge à afficher pour une assignation, ou `null` si rien ne mérite de
  * l'être — `press` (l'absence de l'attribut y compris) est la manière
  * normale d'actionner une touche, la signaler partout noierait les cas qui

@@ -1,11 +1,14 @@
 //! Réécriture chirurgicale d'une assignation.
 //!
 //! On repasse le document en flux d'événements et on recopie tout à
-//! l'identique, sauf l'attribut `input` de la balise visée. Le client Star
-//! Citizen est pointilleux sur ce fichier : moins on y touche, mieux on se
-//! porte. Une réécriture complète depuis un modèle typé perdrait l'ordre des
-//! attributs, l'indentation et les éléments qu'on ne modélise pas — et
-//! introduirait des régressions invisibles jusqu'au lancement du jeu.
+//! l'identique, sauf l'attribut `input` de la balise visée. Lors de la création
+//! du tout premier `<rebind>`, `activationMode`/`multiTap` peuvent aussi être
+//! matérialisés pour préserver le geste d'une valeur par défaut ; ils ne sont
+//! jamais appliqués à une balise existante. Le client Star Citizen est
+//! pointilleux sur ce fichier : moins on y touche, mieux on se porte. Une
+//! réécriture complète depuis un modèle typé perdrait l'ordre des attributs,
+//! l'indentation et les éléments qu'on ne modélise pas — et introduirait des
+//! régressions invisibles jusqu'au lancement du jeu.
 
 use crate::{Error, Result};
 use quick_xml::events::{BytesEnd, BytesStart, Event};
@@ -18,6 +21,11 @@ pub struct BindingEdit {
     pub action: String,
     /// Nouvelle valeur de `input`. `None` efface l'assignation.
     pub input: Option<String>,
+    /// Métadonnées à recopier uniquement lors de l'insertion d'un nouveau
+    /// `<rebind>`. Si une balise existante est remplacée, ses attributs voisins
+    /// restent la source de vérité et ne sont jamais écrasés par ces champs.
+    pub activation_mode: Option<String>,
+    pub multi_tap: Option<String>,
     /// Valeur `input` **avant** modification, quand l'action visée porte déjà
     /// plusieurs `<rebind>` (une par famille de périphérique — clavier et
     /// manche peuvent coexister) et qu'il faut donc préciser lequel éditer.
@@ -44,6 +52,8 @@ impl BindingEdit {
             actionmap: actionmap.to_string(),
             action: action.to_string(),
             input: Some(input.to_string()),
+            activation_mode: None,
+            multi_tap: None,
             original_input: None,
         }
     }
@@ -53,6 +63,8 @@ impl BindingEdit {
             actionmap: actionmap.to_string(),
             action: action.to_string(),
             input: None,
+            activation_mode: None,
+            multi_tap: None,
             original_input: None,
         }
     }
@@ -122,7 +134,7 @@ pub fn apply(xml: &str, edit: &BindingEdit) -> Result<String> {
                     && current_action.as_deref() == Some(edit.action.as_str()) =>
             {
                 write_raw(&mut writer, &format!("{indent}  "))?;
-                write_rebind(&mut writer, edit.value())?;
+                write_rebind(&mut writer, edit)?;
                 write_raw(&mut writer, &indent)?;
                 write(&mut writer, &event)?;
                 current_action = None;
@@ -304,9 +316,15 @@ fn write_raw(writer: &mut Writer<Vec<u8>>, text: &str) -> Result<()> {
         .map_err(|e| Error::Xml(e.to_string()))
 }
 
-fn write_rebind(writer: &mut Writer<Vec<u8>>, input: &str) -> Result<()> {
+fn write_rebind(writer: &mut Writer<Vec<u8>>, edit: &BindingEdit) -> Result<()> {
     let mut element = BytesStart::new("rebind");
-    element.push_attribute(("input", input));
+    element.push_attribute(("input", edit.value()));
+    if let Some(activation_mode) = &edit.activation_mode {
+        element.push_attribute(("activationMode", activation_mode.as_str()));
+    }
+    if let Some(multi_tap) = &edit.multi_tap {
+        element.push_attribute(("multiTap", multi_tap.as_str()));
+    }
     write(writer, &Event::Empty(element))
 }
 
@@ -315,7 +333,7 @@ fn write_action(writer: &mut Writer<Vec<u8>>, edit: &BindingEdit) -> Result<()> 
     let mut element = BytesStart::new("action");
     element.push_attribute(("name", edit.action.as_str()));
     write(writer, &Event::Start(element))?;
-    write_rebind(writer, edit.value())?;
+    write_rebind(writer, edit)?;
     write(writer, &Event::End(BytesEnd::new("action")))
 }
 
@@ -351,6 +369,16 @@ mod tests {
 </ActionMaps>
 "#;
 
+    fn with_gesture(
+        mut edit: BindingEdit,
+        activation_mode: Option<&str>,
+        multi_tap: Option<&str>,
+    ) -> BindingEdit {
+        edit.activation_mode = activation_mode.map(str::to_string);
+        edit.multi_tap = multi_tap.map(str::to_string);
+        edit
+    }
+
     #[test]
     fn replaces_only_the_targeted_binding() {
         let out = apply(
@@ -376,6 +404,35 @@ mod tests {
             out.contains(r#"<rebind input="js1_x" activationMode="press"/>"#),
             "activationMode perdu: {out}"
         );
+    }
+
+    #[test]
+    fn replacing_never_overwrites_existing_gesture_attributes() {
+        let doc = r#"<ActionMaps><ActionProfiles>
+  <actionmap name="player">
+   <action name="v_use">
+    <rebind input="kb1_f" activationMode="tap" multiTap="2" custom="kept"/>
+   </action>
+  </actionmap>
+ </ActionProfiles></ActionMaps>"#;
+        // Ces métadonnées accompagnent la modification parce que le frontend
+        // ne sait pas à l'avance si le writer devra insérer ou remplacer. Sur
+        // une ligne existante, elles ne doivent jamais supplanter le XML.
+        let edit = with_gesture(
+            BindingEdit::set("player", "v_use", "kb1_e"),
+            Some("hold"),
+            Some("3"),
+        );
+        let out = apply(doc, &edit).unwrap();
+
+        assert!(
+            out.contains(
+                r#"<rebind input="kb1_e" activationMode="tap" multiTap="2" custom="kept"/>"#
+            ),
+            "les attributs voisins ont été écrasés: {out}"
+        );
+        assert!(!out.contains(r#"activationMode="hold""#), "{out}");
+        assert!(!out.contains(r#"multiTap="3""#), "{out}");
     }
 
     #[test]
@@ -435,6 +492,70 @@ mod tests {
             reparse(&out, "spaceship_movement", "v_boost").as_deref(),
             Some("js1_button5")
         );
+    }
+
+    #[test]
+    fn a_first_override_keeps_the_default_gesture_on_insertion() {
+        // Une assignation `game_default` n'a encore aucune balise dans
+        // actionmaps.xml. Sa première surcharge doit matérialiser le geste
+        // effectif, sinon un double-appui devient silencieusement un appui
+        // simple dès que l'utilisateur change seulement sa touche.
+        let edit = with_gesture(
+            BindingEdit::set("spaceship_movement", "v_pitch", "js1_button7"),
+            Some("double_tap_nonblocking"),
+            Some("2"),
+        );
+        let out = apply(DOC, &edit).unwrap();
+        let maps = spacemapper_core::actionmaps::parse_str(&out).unwrap();
+        let inserted = maps
+            .rebinds()
+            .find(|(map, action, _)| {
+                map.name == "spaceship_movement" && action.name == "v_pitch"
+            })
+            .map(|(_, _, rebind)| rebind)
+            .expect("première surcharge absente");
+
+        assert_eq!(inserted.input_raw, "js1_button7");
+        assert_eq!(
+            inserted.activation_mode.as_deref(),
+            Some("double_tap_nonblocking")
+        );
+        assert_eq!(inserted.multi_tap.as_deref(), Some("2"));
+    }
+
+    #[test]
+    fn a_first_override_on_a_second_device_family_keeps_its_gesture() {
+        // L'action existe déjà à cause d'une surcharge clavier, mais son défaut
+        // joystick n'a encore aucune balise. Le ciblage ne trouve donc pas
+        // `js1_y` et doit ajouter un frère sans modifier le clavier.
+        let doc = r#"<ActionMaps><ActionProfiles>
+  <actionmap name="spaceship_movement">
+   <action name="v_pitch"><rebind input="kb1_up"/></action>
+  </actionmap>
+ </ActionProfiles></ActionMaps>"#;
+        let edit = with_gesture(
+            BindingEdit::set("spaceship_movement", "v_pitch", "js2_y").targeting("js1_y"),
+            Some("hold"),
+            None,
+        );
+        let out = apply(doc, &edit).unwrap();
+        let maps = spacemapper_core::actionmaps::parse_str(&out).unwrap();
+        let rows: Vec<_> = maps
+            .rebinds()
+            .filter(|(map, action, _)| {
+                map.name == "spaceship_movement" && action.name == "v_pitch"
+            })
+            .map(|(_, _, rebind)| rebind)
+            .collect();
+
+        assert_eq!(rows.len(), 2, "le défaut aurait remplacé le clavier: {out}");
+        assert!(rows.iter().any(|row| row.input_raw == "kb1_up"));
+        let joystick = rows
+            .iter()
+            .find(|row| row.input_raw == "js2_y")
+            .expect("surcharge joystick absente");
+        assert_eq!(joystick.activation_mode.as_deref(), Some("hold"));
+        assert!(joystick.multi_tap.is_none());
     }
 
     #[test]

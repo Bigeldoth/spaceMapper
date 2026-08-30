@@ -52,6 +52,9 @@ export declare function isAssigned(binding: EditableBinding, pending: Map<string
  *
  * Construit une fois par rendu et passé aux filtres comme au détail : le
  * recalculer par ligne serait quadratique sur 451 assignations.
+ * Le regroupement reste physique (`byToken`), puis chaque paire est filtrée
+ * par contexte **et** par geste d'activation : court, long et double-appui
+ * peuvent partager un contrôle sans se disputer son déclenchement.
  */
 export interface ConflictIndex {
     /** Commandes partageant un jeton, sans distinction de situation. */

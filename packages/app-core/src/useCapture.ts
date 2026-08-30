@@ -27,17 +27,23 @@ export interface CaptureFeed {
   active: readonly LiveInput[];
   /** Numéro du dernier changement live observé dans cette session. */
   frameSequence: number;
+  /** Barrière native de neutralité franchie, si le backend la fournit. */
+  captureReady: boolean | undefined;
   /** La session est-elle ouverte ? Distingue « rien actionné » de « inactif ». */
   listening: boolean;
   error: string | null;
-  /** Oublie le dernier relevé, pour repartir d'une capture propre. */
-  reset: () => void;
+  /**
+   * Vide le dernier relevé et la frame active, puis attend le clear natif.
+   * Renvoie la séquence exacte de la barrière quand le backend la fournit.
+   */
+  reset: () => Promise<number | null>;
 }
 
 export function useCapture(devices: DeviceView[], enabled: boolean): CaptureFeed {
   const [last, setLast] = useState<CapturedInput | null>(null);
   const [active, setActive] = useState<readonly LiveInput[]>([]);
   const [frameSequence, setFrameSequence] = useState(0);
+  const [captureReady, setCaptureReady] = useState<boolean | undefined>(undefined);
   const [listening, setListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Empêche une réponse déjà en vol de restaurer `last` juste après un
@@ -52,16 +58,19 @@ export function useCapture(devices: DeviceView[], enabled: boolean): CaptureFeed
     if (!enabled || guids === "") {
       setListening(false);
       setActive([]);
+      setCaptureReady(undefined);
       return;
     }
 
     let cancelled = false;
     let timer: number | null = null;
     let acceptedSequence = -1;
+    let acceptedGeneration = resetGeneration.current;
     setError(null);
     setListening(false);
     setActive([]);
     setFrameSequence(0);
+    setCaptureReady(undefined);
 
     // On conserve la promesse de démarrage pour n'arrêter qu'une session
     // réellement ouverte. React réexécute les effets en développement, et un
@@ -78,11 +87,20 @@ export function useCapture(devices: DeviceView[], enabled: boolean): CaptureFeed
           try {
             const frame = await api.pollLiveCapture(id);
             if (cancelled || frame.session_id !== id) return;
-            if (frame.sequence > acceptedSequence) {
-              acceptedSequence = frame.sequence;
-              setActive(frame.inputs);
-              setFrameSequence(frame.sequence);
-              if (generationAtRequest === resetGeneration.current) {
+            if (generationAtRequest === resetGeneration.current) {
+              // Chaque reset ouvre une nouvelle fenêtre d'acceptation. Une
+              // réponse reçue pendant le clear a pu porter la même séquence que
+              // la prochaine lecture ; elle ne doit pas empêcher cette dernière
+              // de republier la barrière (et son éventuel tap persistant).
+              if (acceptedGeneration !== generationAtRequest) {
+                acceptedGeneration = generationAtRequest;
+                acceptedSequence = -1;
+              }
+              if (frame.sequence > acceptedSequence) {
+                acceptedSequence = frame.sequence;
+                setActive(frame.inputs);
+                setFrameSequence(frame.sequence);
+                setCaptureReady(frame.capture_ready);
                 setLast((current) =>
                   sameCapturedInput(current, frame.last) ? current : frame.last,
                 );
@@ -93,6 +111,7 @@ export function useCapture(devices: DeviceView[], enabled: boolean): CaptureFeed
               setError(String(e));
               setListening(false);
               setActive([]);
+              setCaptureReady(undefined);
             }
             return;
           }
@@ -116,16 +135,39 @@ export function useCapture(devices: DeviceView[], enabled: boolean): CaptureFeed
     };
   }, [guids, enabled]);
 
-  const reset = useCallback(() => {
+  const reset = useCallback(async (): Promise<number | null> => {
     resetGeneration.current += 1;
     setLast(null);
-    void api.clearCapture().catch(() => {});
+    setActive([]);
+    setCaptureReady(undefined);
+    let barrierSequence: number | null = null;
+    try {
+      // Le composant de capture peut attendre ce nettoyage avant de s'armer :
+      // un geste commencé pendant l'effacement ne devient ainsi pas le choix
+      // involontaire affiché à l'ouverture de la fenêtre.
+      barrierSequence = await api.clearCapture();
+    } catch (e) {
+      // Conserve le comportement non bloquant historique pour les appelants
+      // qui ignorent la promesse, tout en rendant la panne visible.
+      setError(String(e));
+    } finally {
+      // Une lecture lancée pendant l'appel natif a pu publier une frame entre
+      // les deux `await`. Une seconde génération l'invalide et ce dernier
+      // nettoyage garantit que la promesse ne se résout jamais avec un ancien
+      // contrôle encore affiché.
+      resetGeneration.current += 1;
+      setLast(null);
+      setActive([]);
+      setCaptureReady(undefined);
+    }
+    return barrierSequence;
   }, []);
 
   return {
     last,
     active,
     frameSequence,
+    captureReady,
     listening,
     error,
     // L'oubli doit aussi porter côté Rust : le thread garde son relevé, et le
@@ -143,7 +185,8 @@ function sameCapturedInput(
     (left !== null &&
       right !== null &&
       left.guid === right.guid &&
-      left.control === right.control)
+      left.control === right.control &&
+      left.detected_sequence === right.detected_sequence)
   );
 }
 
