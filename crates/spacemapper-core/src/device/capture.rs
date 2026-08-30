@@ -31,6 +31,15 @@ use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 /// Un seuil trop bas capterait ce bruit à la place de l'intention du joueur.
 const AXIS_THRESHOLD: i32 = 12_000;
 
+/// Avance minimale du mouvement dominant sur les autres axes pour l'assigner.
+///
+/// Quand on pousse un manche sur Y, la mécanique entraîne souvent légèrement X
+/// (et inversement). Sans cette marge, le premier axe dans le format
+/// DirectInput gagnait simplement par son ordre, même si ce n'était que la
+/// dérive latérale du geste. La marge porte sur le déplacement cumulé depuis le
+/// repos : elle filtre l'ambiguïté sans pénaliser un mouvement volontaire lent.
+const AXIS_CAPTURE_DOMINANCE_MARGIN: i32 = 4_000;
+
 /// Écart à partir duquel le mouvement devient visible dans le retour en direct.
 ///
 /// Ce seuil est volontairement plus bas que [`AXIS_THRESHOLD`] : un petit
@@ -202,6 +211,9 @@ struct AxisTracker {
 #[derive(Debug, Clone, Copy, PartialEq)]
 struct AxisMotion {
     index: usize,
+    /// Déplacement brut depuis le repos, utilisé avant normalisation pour ne
+    /// pas perdre la dominance lorsque la valeur live est saturée à `1`.
+    magnitude: i32,
     value: f32,
     capturable: bool,
 }
@@ -257,9 +269,36 @@ impl AxisTracker {
             if drift.abs() >= LIVE_AXIS_THRESHOLD {
                 moved.push(AxisMotion {
                     index,
+                    magnitude: drift.abs(),
                     value: (drift as f32 / AXIS_NORMALIZER).clamp(-1.0, 1.0),
-                    capturable: drift.abs() >= AXIS_THRESHOLD,
+                    // Le verdict est posé après avoir comparé tous les axes de
+                    // cette même frame. Ils restent néanmoins tous visibles.
+                    capturable: false,
                 });
+            }
+        }
+
+        // Un seul axe peut devenir candidat dans une frame. S'il est trop
+        // proche de son concurrent, le geste reste ambigu et la capture attend
+        // qu'une direction se détache au lieu de choisir X par simple ordre.
+        if let Some((winner, strongest)) = moved
+            .iter()
+            .enumerate()
+            .max_by_key(|(_, motion)| motion.magnitude)
+            .map(|(index, motion)| (index, motion.magnitude))
+        {
+            let runner_up = moved
+                .iter()
+                .enumerate()
+                .filter(|(index, _)| *index != winner)
+                .map(|(_, motion)| motion.magnitude)
+                .max()
+                .unwrap_or(0);
+
+            if strongest >= AXIS_THRESHOLD
+                && strongest.saturating_sub(runner_up) >= AXIS_CAPTURE_DOMINANCE_MARGIN
+            {
+                moved[winner].capturable = true;
             }
         }
 
@@ -870,7 +909,7 @@ mod tests {
     }
 
     #[test]
-    fn axis_live_values_preserve_direction_intensity_and_multiple_axes() {
+    fn axis_live_values_preserve_direction_and_only_capture_the_dominant_axis() {
         let tracker = AxisTracker::default();
         let rest = [20_000; 8];
         warm_up(&tracker, rest);
@@ -882,11 +921,71 @@ mod tests {
         assert_eq!(controls.len(), 2);
         assert_eq!(controls[0].control, "x");
         assert!(controls[0].value > 0.0);
-        assert!(controls[0].capturable);
+        assert!(
+            !controls[0].capturable,
+            "la dérive X ne doit pas voler le mouvement Y plus ample"
+        );
         assert_eq!(controls[1].control, "y");
         assert!(controls[1].value < 0.0);
         assert!(controls[1].value.abs() > controls[0].value.abs());
         assert!(controls[1].capturable);
+    }
+
+    #[test]
+    fn close_simultaneous_axes_wait_until_one_clearly_dominates() {
+        let tracker = AxisTracker::default();
+        let rest = [16_000; 8];
+        warm_up(&tracker, rest);
+
+        // X arrive en premier dans DIJOYSTATE2 et dépasse déjà le seuil, mais
+        // Y est presque aussi déplacé : choisir maintenant serait arbitraire.
+        let mut ambiguous = rest;
+        ambiguous[0] += AXIS_THRESHOLD + 2_000;
+        ambiguous[1] += AXIS_THRESHOLD + 1_000;
+        let controls = controls_from_state(&state_with_axes(ambiguous), &tracker);
+        assert_eq!(controls.len(), 2);
+        assert!(
+            controls.iter().all(|control| !control.capturable),
+            "un geste encore diagonal ne doit assigner aucun axe"
+        );
+
+        // Quand Y devient franchement dominant, X reste présent pour le retour
+        // live mais seul Y devient assignable.
+        ambiguous[1] += AXIS_CAPTURE_DOMINANCE_MARGIN + 4_000;
+        let controls = controls_from_state(&state_with_axes(ambiguous), &tracker);
+        assert_eq!(controls.len(), 2);
+        assert_eq!(controls[0].control, "x");
+        assert!(!controls[0].capturable);
+        assert_eq!(controls[1].control, "y");
+        assert!(controls[1].capturable);
+    }
+
+    #[test]
+    fn slow_intentional_axis_survives_simultaneous_orthogonal_drift() {
+        let tracker = AxisTracker::default();
+        let rest = [16_000; 8];
+        warm_up(&tracker, rest);
+
+        // Y progresse lentement pendant environ deux secondes. X dérive aussi,
+        // mais moins vite : la sélection repose sur les courses cumulées, pas
+        // sur la vitesse instantanée du geste.
+        let mut first_capture = None;
+        let mut moved = rest;
+        for step in 1..=130 {
+            moved[0] = rest[0] + step * 40;
+            moved[1] = rest[1] + step * 100;
+            if first_capture.is_none() {
+                first_capture = tracker.moved(moved);
+            } else {
+                tracker.moved(moved);
+            }
+        }
+
+        assert_eq!(
+            first_capture,
+            Some(1),
+            "la dérive X a masqué le mouvement Y progressif"
+        );
     }
 
     #[test]

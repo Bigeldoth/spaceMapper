@@ -25,6 +25,14 @@ type CmdResult<T> = Result<T, String>;
 /// manquer un appui, sans occuper un cœur pour rien.
 const POLL_INTERVAL: Duration = Duration::from_millis(16);
 
+/// Marge normalisée qui départage des axes capturables de plusieurs manches.
+///
+/// Le suivi de chaque périphérique applique déjà la même marge en unités
+/// DirectInput. Cette seconde comparaison est nécessaire en HOSAS : une petite
+/// dérive du manche au repos ne doit pas gagner uniquement parce que ce manche
+/// a été énuméré avant celui que l'utilisateur actionne volontairement.
+const AXIS_CAPTURE_DOMINANCE_MARGIN: f32 = 4_000.0 / 32_767.0;
+
 #[derive(Default)]
 pub struct CaptureState {
     inner: Mutex<Option<Session>>,
@@ -402,15 +410,46 @@ fn stop_session(slot: &mut Option<Session>) {
 /// même si le contrôle numérique appartient à un périphérique énuméré
 /// après celui de l'axe.
 fn capture_candidate(inputs: &[CapturedFrom]) -> Option<CapturedFrom> {
-    inputs
+    // Les contrôles numériques gardent leur priorité historique, quel que soit
+    // leur périphérique ou l'amplitude simultanée des axes.
+    for kind in [CapturedControlKind::Button, CapturedControlKind::Hat] {
+        if let Some(input) = inputs
+            .iter()
+            .find(|input| input.capturable && input.kind == kind)
+        {
+            return Some(input.clone());
+        }
+    }
+
+    let mut strongest: Option<(usize, &CapturedFrom)> = None;
+    for (index, input) in inputs
         .iter()
-        .filter(|input| input.capturable)
-        .min_by_key(|input| match input.kind {
-            CapturedControlKind::Button => 0,
-            CapturedControlKind::Hat => 1,
-            CapturedControlKind::Axis => 2,
+        .enumerate()
+        .filter(|(_, input)| input.capturable && input.kind == CapturedControlKind::Axis)
+    {
+        let magnitude = input.value.abs();
+        match strongest {
+            Some((_, current)) if magnitude > current.value.abs() => {
+                strongest = Some((index, input));
+            }
+            Some(_) => {}
+            None => strongest = Some((index, input)),
+        }
+    }
+
+    let (strongest_index, strongest) = strongest?;
+    // Un axe live mais pas encore capturable reste un concurrent pertinent :
+    // l'ignorer ferait valider un autre manche à 38 % face à une dérive à 36 %.
+    let runner_up = inputs
+        .iter()
+        .enumerate()
+        .filter(|(index, input)| {
+            *index != strongest_index && input.kind == CapturedControlKind::Axis
         })
-        .cloned()
+        .map(|(_, input)| input.value.abs())
+        .fold(0.0_f32, f32::max);
+
+    (strongest.value.abs() - runner_up >= AXIS_CAPTURE_DOMINANCE_MARGIN).then(|| strongest.clone())
 }
 
 /// Publie une frame et date précisément le début du candidat persistant.
@@ -525,8 +564,24 @@ mod tests {
         value: f32,
         capturable: bool,
     ) -> CapturedFrom {
+        captured_on(
+            "B10A044F-0000-0000-0000-504944564944",
+            control,
+            kind,
+            value,
+            capturable,
+        )
+    }
+
+    fn captured_on(
+        guid: &str,
+        control: &str,
+        kind: CapturedControlKind,
+        value: f32,
+        capturable: bool,
+    ) -> CapturedFrom {
         CapturedFrom {
-            guid: DeviceGuid::parse("B10A044F-0000-0000-0000-504944564944").unwrap(),
+            guid: DeviceGuid::parse(guid).unwrap(),
             control: control.into(),
             kind,
             value,
@@ -589,6 +644,55 @@ mod tests {
 
         let candidate = capture_candidate(&inputs).unwrap();
         assert_eq!(candidate.control, "button5");
+    }
+
+    #[test]
+    fn axis_candidate_uses_amplitude_instead_of_directinput_order() {
+        let inputs = vec![
+            captured_on(
+                "B10A044F-0000-0000-0000-504944564944",
+                "x",
+                CapturedControlKind::Axis,
+                0.44,
+                true,
+            ),
+            captured_on(
+                "A36D044F-0000-0000-0000-504944564944",
+                "y",
+                CapturedControlKind::Axis,
+                -0.76,
+                true,
+            ),
+        ];
+
+        let candidate = capture_candidate(&inputs).unwrap();
+        assert_eq!(candidate.control, "y");
+        assert_eq!(candidate.value, -0.76);
+    }
+
+    #[test]
+    fn close_axis_candidates_from_different_devices_remain_ambiguous() {
+        let inputs = vec![
+            captured_on(
+                "B10A044F-0000-0000-0000-504944564944",
+                "x",
+                CapturedControlKind::Axis,
+                0.50,
+                true,
+            ),
+            captured_on(
+                "A36D044F-0000-0000-0000-504944564944",
+                "y",
+                CapturedControlKind::Axis,
+                -0.45,
+                false,
+            ),
+        ];
+
+        assert!(
+            capture_candidate(&inputs).is_none(),
+            "l'ordre d'énumération a départagé deux axes trop proches"
+        );
     }
 
     #[test]
