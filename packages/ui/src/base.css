@@ -43,6 +43,14 @@ a:active {
   outline: none;
   box-shadow: var(--ring-focus);
 }
+
+@media (forced-colors: active) {
+  :focus-visible {
+    outline: 2px solid CanvasText;
+    outline-offset: 2px;
+    box-shadow: none;
+  }
+}
 ::selection {
   background: var(--accent-soft-hover);
   color: var(--text-primary);

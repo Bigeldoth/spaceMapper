@@ -1,6 +1,9 @@
 {
   "name": "spacemapper",
   "private": true,
+  "scripts": {
+    "check:editions": "node tools/check-lite-boundary.mjs"
+  },
   "workspaces": [
     "apps/spacemapper-lite",
     "packages/ui",

@@ -36,10 +36,12 @@ jobs:
 
       - name: Clippy
         # `-D warnings` : un avertissement laissé passer devient la norme.
-        run: cargo clippy --workspace --all-targets -- -D warnings
+        # Ce job vérifie le Rust sans frontend construit. L'artefact de release
+        # utilise custom-protocol après le build Vite dans release-lite.yml.
+        run: cargo clippy --workspace --all-targets --no-default-features -- -D warnings
 
       - name: Tests
-        run: cargo test --workspace
+        run: cargo test --workspace --no-default-features
 
   frontend:
     name: Frontend
@@ -64,6 +66,9 @@ jobs:
           npm run build -w packages/ui
           npm run build -w packages/app-core
 
+      - name: Vérifier la séparation Lite/Premium
+        run: node tools/check-lite-boundary.mjs
+
       # packages/ui/dist est commité, parce que le dépôt privé Premium le
       # consomme par submodule git sans reconstruire ce workspace. Un dist
       # commité peut donc diverger de src/ sans que rien ne le signale : Lite
@@ -84,4 +89,4 @@ jobs:
 
       - name: Build
         working-directory: apps/spacemapper-lite
-        run: npx vite build
+        run: npm run build

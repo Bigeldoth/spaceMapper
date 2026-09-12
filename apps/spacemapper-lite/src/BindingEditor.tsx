@@ -1,8 +1,10 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   api,
   type DeviceView,
   type EditableBinding,
+  type ConflictReview,
   type LockReason,
   type PendingEdit,
 } from "@spacemapper/app-core";
@@ -76,6 +78,8 @@ export default function BindingEditor({
   const [upsell, setUpsell] = useState<LockReason | null>(null);
   /** Les valeurs par défaut du jeu n'ont pas pu être lues. */
   const [defaultsError, setDefaultsError] = useState<string | null>(null);
+  const [reviews, setReviews] = useState<ConflictReview[]>([]);
+  const [reviewsError, setReviewsError] = useState<string | null>(null);
   /** Règles de coexistence des situations, fournies par le backend. */
   const [rules, setRules] = useState<ContextRules>(() => new ContextRules(null));
   const [filters, setFilters] = useState<filter.Filters>(filter.NO_FILTERS);
@@ -108,6 +112,8 @@ export default function BindingEditor({
       setBindings(merged.bindings);
       setDefaultsError(merged.defaults_error);
       setRules(new ContextRules(merged.colliding_contexts));
+      setReviews(merged.conflict_reviews ?? []);
+      setReviewsError(merged.conflict_reviews_error ?? null);
       setError(null);
     } catch (e) {
       setError(String(e));
@@ -172,8 +178,8 @@ export default function BindingEditor({
   }
 
   const conflicts = useMemo(
-    () => indexConflicts(bindings, pending, rules),
-    [bindings, pending, rules],
+    () => indexConflicts(bindings, pending, rules, reviews),
+    [bindings, pending, rules, reviews],
   );
 
   // Les modifications en attente restent visibles quoi qu'affichent les
@@ -267,6 +273,7 @@ export default function BindingEditor({
       )}
       {status && <Notice tone="accent">{status}</Notice>}
       {error && <Notice tone="warn">{error}</Notice>}
+      {reviewsError && <Notice tone="warn">{reviewsError}</Notice>}
 
       <FilterBar
         filters={filters}
@@ -1123,9 +1130,8 @@ function SourceTab({
 /**
  * Capture d'un appui clavier.
  *
- * L'écoute est posée sur `window` en phase de capture et bloque la propagation :
- * sans cela, Tab déplacerait le focus et Échap fermerait la fenêtre avant
- * qu'on ait pu lire la touche.
+ * Seule la zone focalisée capte les touches assignables. Tab permet de rejoindre
+ * les commandes du dialogue ; Tab et Échap s'assignent dans la liste explicite.
  *
  * Un modificateur ne se décide qu'au **relâchement**. Tant qu'il est maintenu,
  * on ne peut pas savoir si l'utilisateur assigne « Maj » seul ou s'apprête à
@@ -1143,14 +1149,29 @@ function KeyboardCapture({
 }) {
   const t = useT();
   const [captured, setCaptured] = useState<CaptureResult | null>(null);
+  const captureZone = useRef<HTMLDivElement>(null);
+  const [specialKey, setSpecialKey] = useState("");
+  const [specialModifier, setSpecialModifier] = useState("");
   const [hint, setHint] = useState<string | null>(null);
   /** Modificateurs physiquement enfoncés, dans l'ordre d'appui. */
   const held = useRef<string[]>([]);
   /** Une touche principale a-t-elle été frappée pendant ce maintien ? */
   const composed = useRef(false);
+  const cancelRef = useRef(onCancel);
+  cancelRef.current = onCancel;
 
   useEffect(() => {
     function onKeyDown(event: KeyboardEvent) {
+      // Tab reste réservé à la navigation dans le dialogue. L'intercepter ici
+      // enfermerait les utilisateurs clavier dans la zone de capture.
+      if (event.key === "Tab") return;
+      if (document.activeElement !== captureZone.current) return;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        cancelRef.current();
+        return;
+      }
       event.preventDefault();
       event.stopPropagation();
       if (event.repeat) return;
@@ -1161,6 +1182,7 @@ function KeyboardCapture({
         return;
       }
 
+      setSpecialKey("");
       const result = fromKeyPress(event.code, held.current);
       composed.current = true;
       if (result.ok) {
@@ -1174,6 +1196,7 @@ function KeyboardCapture({
 
 
     function onKeyUp(event: KeyboardEvent) {
+      if (document.activeElement !== captureZone.current) return;
       const modifier = modifierOf(event.code);
       if (!modifier) return;
       event.preventDefault();
@@ -1182,6 +1205,7 @@ function KeyboardCapture({
       // Relâché sans qu'aucune touche principale n'ait été frappée : c'est
       // bien le modificateur seul que l'utilisateur veut assigner.
       if (!composed.current && held.current.length === 1) {
+        setSpecialKey("");
         setCaptured(build(null, modifier));
         setHint(null);
       }
@@ -1192,7 +1216,9 @@ function KeyboardCapture({
 
     window.addEventListener("keydown", onKeyDown, true);
     window.addEventListener("keyup", onKeyUp, true);
+    const focusFrame = requestAnimationFrame(() => captureZone.current?.focus());
     return () => {
+      cancelAnimationFrame(focusFrame);
       window.removeEventListener("keydown", onKeyDown, true);
       window.removeEventListener("keyup", onKeyUp, true);
     };
@@ -1203,6 +1229,7 @@ function KeyboardCapture({
       | { ok: true; value: CaptureResult }
       | { ok: false; error: CaptureError },
   ) {
+    setSpecialKey("");
     if (result.ok) {
       setCaptured(result.value);
       setHint(null);
@@ -1210,6 +1237,12 @@ function KeyboardCapture({
       setCaptured(null);
       setHint(captureErrorMessage(result.error, t));
     }
+  }
+
+  function chooseSpecial(code: string, modifier: string) {
+    const result = fromKeyPress(code, modifier ? [modifier] : []);
+    apply(result);
+    setSpecialKey(code);
   }
 
   return (
@@ -1220,8 +1253,14 @@ function KeyboardCapture({
       <div
         onMouseDown={(e) => {
           e.preventDefault();
+          captureZone.current?.focus();
           apply(fromMouse(e.button, held.current));
         }}
+        ref={captureZone}
+        tabIndex={0}
+        role="button"
+        aria-label={t("picker.pressKey")}
+        onBlur={() => { held.current = []; composed.current = false; }}
         onWheel={(e) => apply(fromWheel(e.deltaY, held.current))}
         onContextMenu={(e) => e.preventDefault()}
         className={
@@ -1244,6 +1283,43 @@ function KeyboardCapture({
           </p>
         )}
       </div>
+
+      <fieldset className="space-y-2">
+        <legend className="text-xs font-medium text-[var(--text-secondary)]">
+          {t("picker.specialKeys")}
+        </legend>
+        <p className="text-xs text-[var(--text-tertiary)]">{t("picker.specialKeysHint")}</p>
+        <div className="flex flex-wrap gap-2">
+          <label className="min-w-0 flex-1 text-xs text-[var(--text-secondary)]">
+            {t("picker.specialModifier")}
+            <select
+              className="mt-1 w-full rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-2)] px-3 py-1.5 text-sm"
+              value={specialModifier}
+              onChange={(event) => {
+                setSpecialModifier(event.target.value);
+                if (specialKey) chooseSpecial(specialKey, event.target.value);
+              }}
+            >
+              <option value="">{t("picker.noModifier")}</option>
+              {["lshift", "rshift", "lctrl", "rctrl", "lalt", "ralt"].map((modifier) => (
+                <option key={modifier} value={modifier}>{keycapLabel(modifier, layoutMap, t)}</option>
+              ))}
+            </select>
+          </label>
+          <label className="min-w-0 flex-1 text-xs text-[var(--text-secondary)]">
+            {t("picker.specialKey")}
+            <select
+              className="mt-1 w-full rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-2)] px-3 py-1.5 text-sm"
+              value={specialKey}
+              onChange={(event) => chooseSpecial(event.target.value, specialModifier)}
+            >
+              <option value="" disabled>{t("picker.choose")}</option>
+              <option value="Tab">{t("key.tab")}</option>
+              <option value="Escape">{t("key.escape")}</option>
+            </select>
+          </label>
+        </div>
+      </fieldset>
 
       {hint && <p className="text-sm text-[var(--danger-text)]">{hint}</p>}
 
@@ -1477,19 +1553,85 @@ export function Modal({
   children: React.ReactNode;
   onCancel: () => void;
 }) {
-  return (
+  const titleId = useId();
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const cancelRef = useRef(onCancel);
+  cancelRef.current = onCancel;
+
+  useEffect(() => {
+    const previouslyFocused =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    const activeDialog = dialogRef.current;
+    if (!activeDialog) return;
+
+    const focusable = () =>
+      Array.from(
+        activeDialog.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((element) => element.getAttribute("aria-hidden") !== "true");
+
+    (focusable()[0] ?? activeDialog).focus();
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        cancelRef.current();
+        return;
+      }
+      if (event.key !== "Tab") return;
+
+      const elements = focusable();
+      if (elements.length === 0) {
+        event.preventDefault();
+        activeDialog!.focus();
+        return;
+      }
+
+      const first = elements[0]!;
+      const last = elements[elements.length - 1]!;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      previouslyFocused?.focus();
+    };
+  }, []);
+
+  return createPortal(
     <div
-      className="fixed inset-0 z-10 flex items-center justify-center overflow-y-auto bg-[var(--scrim)] p-4 sm:p-8"
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[var(--scrim)] p-4 sm:p-8"
       onClick={onCancel}
     >
       <div
-        className="w-full max-w-md rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-2)] p-5 shadow-[var(--shadow-2)]"
+        ref={dialogRef}
+        tabIndex={-1}
+        className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-h-[calc(100dvh-4rem)] w-full max-w-md rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-2)] p-5 shadow-[var(--shadow-2)]"
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
       >
-        <h3 className="mb-4 text-sm font-semibold text-[var(--text-primary)]">{title}</h3>
+        <h3
+          id={titleId}
+          className="mb-4 text-sm font-semibold text-[var(--text-primary)]"
+        >
+          {title}
+        </h3>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

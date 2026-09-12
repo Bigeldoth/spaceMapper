@@ -12,6 +12,7 @@
 //! diverger.
 
 use crate::{Error, Result};
+use std::borrow::Cow;
 
 const SIGNATURE: &[u8] = b"CryXmlB";
 /// Signature (8 octets) puis neuf entiers 32 bits.
@@ -30,9 +31,9 @@ pub fn is_cryxml(data: &[u8]) -> bool {
 }
 
 /// Un nœud décodé, avec sa descendance reconstruite.
-struct Node {
-    name: String,
-    content: String,
+struct Node<'a> {
+    name: Cow<'a, str>,
+    content: Cow<'a, str>,
     first_attr: usize,
     attr_count: usize,
     parent: i32,
@@ -64,16 +65,29 @@ pub fn to_xml(data: &[u8]) -> Result<String> {
     let attr_count = word(4);
     let string_offset = word(7);
 
-    let read_string = |offset: usize| -> String {
+    // Valider les longueurs avant les allocations, car les compteurs sont
+    // fournis par l'archive et peuvent être incohérents avec son contenu.
+    for (offset, count, width, label) in [
+        (node_offset, node_count, NODE_LEN, "nœuds"),
+        (attr_offset, attr_count, ATTR_LEN, "attributs"),
+    ] {
+        if offset > data.len() || count > (data.len() - offset) / width {
+            return Err(Error::Schema(format!("table de {label} tronquée")));
+        }
+    }
+
+    let read_string = |offset: usize| -> Cow<'_, str> {
         let start = string_offset.saturating_add(offset);
         if start >= data.len() {
-            return String::new();
+            return Cow::Borrowed("");
         }
         let end = data[start..]
             .iter()
             .position(|b| *b == 0)
             .map_or(data.len(), |n| start + n);
-        String::from_utf8_lossy(&data[start..end]).into_owned()
+        // Les clés et valeurs UTF-8 empruntent la table de chaînes, au lieu
+        // de recopier chaque attribut pendant la reconstruction du XML.
+        String::from_utf8_lossy(&data[start..end])
     };
 
     // Table des attributs, lue d'un bloc : les nœuds y pointent par plage.
@@ -137,7 +151,7 @@ fn write_node(
     out: &mut String,
     nodes: &[Node],
     index: usize,
-    attributes: &[(String, String)],
+    attributes: &[(Cow<'_, str>, Cow<'_, str>)],
     depth: usize,
 ) {
     let node = &nodes[index];
@@ -228,5 +242,47 @@ mod tests {
         let mut out = String::new();
         escape_into(&mut out, r#"a & b < c > d " e ' f"#);
         assert_eq!(out, "a &amp; b &lt; c &gt; d &quot; e &apos; f");
+    }
+
+    #[test]
+    fn impossible_table_counts_are_rejected_before_allocation() {
+        for count_word in [2, 4] {
+            let mut data = vec![0; HEADER_LEN];
+            data[..SIGNATURE.len()].copy_from_slice(SIGNATURE);
+            let at = 8 + count_word * 4;
+            data[at..at + 4].copy_from_slice(&u32::MAX.to_le_bytes());
+            assert!(to_xml(&data).is_err());
+        }
+    }
+
+    #[test]
+    fn binary_strings_are_preserved_and_escaped() {
+        let strings = b"\0profile\0version\0a&b\0";
+        let string_offset = HEADER_LEN + NODE_LEN + ATTR_LEN;
+        let mut data = vec![0u8; string_offset];
+        data[..SIGNATURE.len()].copy_from_slice(SIGNATURE);
+        for (word, value) in [
+            (1, HEADER_LEN),
+            (2, 1),
+            (3, HEADER_LEN + NODE_LEN),
+            (4, 1),
+            (7, string_offset),
+        ] {
+            let at = 8 + word * 4;
+            data[at..at + 4].copy_from_slice(&(value as u32).to_le_bytes());
+        }
+        data[HEADER_LEN..HEADER_LEN + 4].copy_from_slice(&1u32.to_le_bytes());
+        data[HEADER_LEN + 8..HEADER_LEN + 10].copy_from_slice(&1u16.to_le_bytes());
+        data[HEADER_LEN + 12..HEADER_LEN + 16].copy_from_slice(&(-1i32).to_le_bytes());
+        let attr = HEADER_LEN + NODE_LEN;
+        data[attr..attr + 4].copy_from_slice(&9u32.to_le_bytes());
+        data[attr + 4..attr + 8].copy_from_slice(&17u32.to_le_bytes());
+        data.extend_from_slice(strings);
+        let xml = to_xml(&data).unwrap();
+        assert!(xml.contains("<profile version=\"a&amp;b\"/>"));
+        assert_eq!(
+            crate::defaults::parse_str(&xml).unwrap().version.as_deref(),
+            Some("a&b")
+        );
     }
 }

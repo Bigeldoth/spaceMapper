@@ -1,54 +1,63 @@
-import { invoke as p } from "@tauri-apps/api/core";
-import { useState as m, useEffect as C, createContext as U, useContext as K, useMemo as G, useRef as W } from "react";
-import { jsx as n, jsxs as c, Fragment as O } from "react/jsx-runtime";
-const h = {
-  listDevices: () => p("list_devices"),
-  locateActionmaps: () => p("locate_actionmaps"),
-  buildInfo: () => p("build_info"),
+import { invoke as b } from "@tauri-apps/api/core";
+import { useState as N, useEffect as z, createContext as oe, useContext as se, useMemo as ie, useRef as j, useCallback as le, useId as A } from "react";
+import { jsx as s, jsxs as _, Fragment as F } from "react/jsx-runtime";
+import { createPortal as ce } from "react-dom";
+function ue() {
+  let e = Promise.resolve();
+  return function(r) {
+    const a = e.then(r);
+    return e = a.catch(() => {
+    }), a;
+  };
+}
+const G = ue(), $ = {
+  listDevices: () => b("list_devices"),
+  locateActionmaps: () => b("locate_actionmaps"),
+  buildInfo: () => b("build_info"),
   /** Confronte le profil au matériel branché. */
-  diagnoseDevices: (e) => p("diagnose_devices", { path: e }),
+  diagnoseDevices: (e) => b("diagnose_devices", { path: e }),
   /** Profils exportés présents dans `Controls\mappings`. */
-  listLayouts: (e) => p("list_layouts", { path: e }),
+  listLayouts: (e) => b("list_layouts", { path: e }),
   /** Détaille un profil exporté, sans rien y écrire. */
-  inspectLayout: (e) => p("inspect_layout", { path: e }),
+  inspectLayout: (e) => b("inspect_layout", { path: e }),
   /** Surcharges du joueur fusionnées avec les valeurs par défaut du jeu. */
-  listEditableBindings: (e) => p("list_editable_bindings", { path: e }),
+  listEditableBindings: (e) => b("list_editable_bindings", { path: e }),
   /**
    * Écrit un lot de modifications en une seule fois.
    * Renvoie le chemin du point de restauration créé, ou `null`.
    */
-  saveBindings: (e, t, r) => p("save_bindings", {
+  saveBindings: (e, t, r) => b("save_bindings", {
     path: e,
     edits: t,
     createRestorePoint: r
   }),
   /** Crée un point de restauration ; renvoie le chemin du fichier créé. */
-  createBackup: (e) => p("create_backup", { path: e }),
-  listBackups: () => p("list_backups"),
+  createBackup: (e) => b("create_backup", { path: e }),
+  listBackups: () => b("list_backups"),
   /**
    * Supprime définitivement un point de restauration.
    *
    * Le backend refuse toute cible qui n'est pas une sauvegarde de SpaceMapper :
    * il détermine lui-même le dossier autorisé et ne se fie pas à ce chemin.
    */
-  deleteBackup: (e) => p("delete_backup", { backupPath: e }),
+  deleteBackup: (e) => b("delete_backup", { backupPath: e }),
   /** Langues réellement présentes dans l'installation du joueur. */
-  listGameLanguages: (e) => p("list_game_languages", { path: e }),
-  getSettings: () => p("get_settings"),
-  setSettings: (e) => p("set_settings", { settings: e }),
+  listGameLanguages: (e) => b("list_game_languages", { path: e }),
+  getSettings: () => b("get_settings"),
+  setSettings: (e) => b("set_settings", { settings: e }),
   /**
    * Ouvre une session de lecture sur plusieurs périphériques à la fois.
    * Renvoie le numéro de session, à repasser à `stopCapture`.
    */
-  startCapture: (e) => p("start_capture", { guids: e }),
+  startCapture: (e) => G(() => b("start_capture", { guids: e })),
   /** Dernier contrôle actionné, ou `null` si rien n'a été pressé. */
-  pollCapture: () => p("poll_capture"),
+  pollCapture: () => b("poll_capture"),
   /** Oublie le dernier relevé sans fermer la session. */
-  clearCapture: () => p("clear_capture"),
+  clearCapture: () => b("clear_capture"),
   /** N'arrête que la session désignée : voir le commentaire côté Rust. */
-  stopCapture: (e) => p("stop_capture", { id: e }),
-  restoreBackup: (e, t) => p("restore_backup", { path: e, backupPath: t })
-}, E = {
+  stopCapture: (e) => G(() => b("stop_capture", { id: e })),
+  restoreBackup: (e, t) => b("restore_backup", { path: e, backupPath: t })
+}, Q = {
   // ── Pilotage : spaceship_movement ──────────────────────────────────────
   v_afterburner: "Postcombustion (boost)",
   v_autoland: "Atterrissage automatique",
@@ -190,7 +199,7 @@ const h = {
   v_shield_reset_level: "Réinitialiser les boucliers",
   v_weapon_countermeasure_decoy_launch: "Larguer un leurre",
   v_weapon_countermeasure_noise_launch: "Brouillage (chaff)"
-}, B = {
+}, W = {
   agree: "approuver",
   angry: "colère",
   atease: "repos",
@@ -231,19 +240,19 @@ const h = {
   wave: "faire signe",
   whistle: "siffler"
 };
-function Q(e) {
-  return e.label ?? X(e.action);
+function de(e) {
+  return e.label ?? pe(e.action);
 }
-function X(e) {
-  const t = E[e];
+function pe(e) {
+  const t = Q[e];
   if (t) return t;
-  const r = e.startsWith("emote_") ? B[e.slice(6)] : void 0;
+  const r = e.startsWith("emote_") ? W[e.slice(6)] : void 0;
   return r ? `Émote — ${r}` : e;
 }
-function Ce(e) {
-  return e in E || e.startsWith("emote_") && e.slice(6) in B;
+function We(e) {
+  return e in Q || e.startsWith("emote_") && e.slice(6) in W;
 }
-const J = {
+const ve = {
   default: "Général",
   lights_controller: "Éclairage",
   mapui: "Carte",
@@ -281,10 +290,84 @@ const J = {
   view_director_mode: "Mode réalisateur",
   zero_gravity_eva: "EVA (apesanteur)"
 };
-function Y(e) {
-  return J[e] ?? e;
+function me(e) {
+  return ve[e] ?? e;
 }
-const ee = {
+const fe = /* @__PURE__ */ new Set(["x", "y", "z", "rotx", "roty", "rotz", "slider", "slider1", "slider2"]), O = ["onpress", "onhold", "onrelease"], q = {
+  multitap: 1,
+  presstriggerthreshold: -1,
+  releasetriggerthreshold: -1,
+  holdtriggerdelay: 0,
+  releasetriggerdelay: 0
+};
+function V(e) {
+  if (typeof e == "string" && !/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:e[+-]?\d+)?$/i.test(e.trim())) return null;
+  const t = Number(e);
+  return Number.isFinite(t) ? t : null;
+}
+function D(e, t) {
+  const r = Object.fromEntries(Object.entries(e.trigger_attributes ?? {}).map(([c, d]) => [c.toLowerCase(), d]));
+  e.multi_tap !== null && e.multi_tap !== void 0 && (r.multitap = e.multi_tap);
+  const a = (t === void 0 ? e.input_raw ?? `${e.device ?? ""}_${e.control ?? ""}` : t ?? "").trim().toLowerCase(), n = /^(js|gp)\d+_(.+)$/.exec(a), o = n?.[2]?.split("+").at(-1)?.trim();
+  if (n && o && fe.has(o))
+    return ["0", "false"].includes(String(r.useanalogcompare ?? "0").trim().toLowerCase()) ? { kind: "continuous_axis" } : null;
+  if (!O.some((c) => c in r)) return null;
+  const i = {};
+  for (const c of O) {
+    const d = String(r[c] ?? "0").trim().toLowerCase();
+    if (["true", "false"].includes(d)) i[c] = d === "true";
+    else {
+      const m = V(d);
+      if (m !== 0 && m !== 1) return null;
+      i[c] = m === 1;
+    }
+  }
+  if (!O.some((c) => i[c])) return null;
+  const l = {};
+  for (const [c, d] of Object.entries(q)) {
+    const m = V(r[c] ?? d);
+    if (m === null) return null;
+    l[c] = m;
+  }
+  return { kind: "button", ...i, ...l };
+}
+function M(e) {
+  if (typeof e != "object" || e === null) return null;
+  const t = e;
+  return t.kind === "continuous_axis" ? "continuous_axis" : t.kind !== "button" || O.some((r) => typeof t[r] != "boolean") || !O.some((r) => t[r]) || Object.keys(q).some((r) => typeof t[r] != "number" || !Number.isFinite(t[r])) ? null : JSON.stringify(["button", ...O.map((r) => t[r]), ...Object.keys(q).map((r) => t[r])]);
+}
+const _e = /* @__PURE__ */ new Set(["tap", "tap_quicker"]), ge = /* @__PURE__ */ new Set(["", "press", "press_quicker", "hold", "hold_toggle", "hold_no_retrigger", "all", "smart_toggle"]), he = /* @__PURE__ */ new Set([
+  "delayed_press",
+  "delayed_press_quicker",
+  "delayed_press_medium",
+  "delayed_press_long",
+  "delayed_hold",
+  "delayed_hold_long",
+  "delayed_hold_no_retrigger"
+]), be = /* @__PURE__ */ new Set(["double_tap", "double_tap_nonblocking"]);
+function ye(e) {
+  const t = e.multi_tap?.trim();
+  if (t) {
+    if (!/^\d+$/.test(t)) return "unknown";
+    const a = Number.parseInt(t, 10);
+    if (a > 1) return `multi_tap:${a}`;
+    if (a < 1) return "unknown";
+  }
+  const r = (e.activation_mode ?? "").trim().toLowerCase();
+  return ge.has(r) ? "immediate" : _e.has(r) ? "short_press" : he.has(r) ? "long_press" : be.has(r) ? "multi_tap:2" : "unknown";
+}
+function Je(e, t) {
+  if (e.trigger_attributes !== void 0 || t.trigger_attributes !== void 0) {
+    const o = M(D(e)), i = M(D(t));
+    return o === null || i === null || o === i;
+  }
+  const r = (o) => {
+    const i = ye(o);
+    return i === "immediate" ? "short_press" : i;
+  }, a = r(e), n = r(t);
+  return a === "unknown" || n === "unknown" || a === n;
+}
+const xe = {
   tap: { key: "activation.tap", kind: "tap" },
   hold: { key: "activation.hold", kind: "hold" },
   hold_toggle: { key: "activation.holdToggle", kind: "hold" },
@@ -298,7 +381,7 @@ const ee = {
   delayed_hold_no_retrigger: { key: "activation.delayedHold", kind: "hold" },
   smart_toggle: { key: "activation.smartToggle", kind: "other" }
 };
-function Ae(e, t, r) {
+function Xe(e, t, r) {
   const a = t ? Number.parseInt(t, 10) : NaN;
   if (a > 1)
     return {
@@ -307,59 +390,116 @@ function Ae(e, t, r) {
     };
   if (!e || e === "press")
     return null;
-  const s = ee[e];
-  return s ? { label: r(s.key), kind: s.kind } : { label: e, kind: "other" };
+  const n = xe[e];
+  return n ? { label: r(n.key), kind: n.kind } : { label: e, kind: "other" };
 }
-class Se {
+class Ye {
   pairs;
+  loaded;
   constructor(t) {
-    this.pairs = new Set(
+    this.loaded = t !== null, this.pairs = new Set(
       (t ?? []).flatMap(([r, a]) => [`${r}|${a}`, `${a}|${r}`])
     );
   }
   canCollide(t, r) {
-    return this.pairs.size === 0 ? !0 : this.pairs.has(`${t}|${r}`);
+    return this.loaded ? this.pairs.has(`${t}|${r}`) : !0;
   }
 }
-function w(e) {
+function S(e) {
   return `${e.actionmap}/${e.action}/${e.input_raw}`;
 }
-function R(e, t) {
-  const r = w(e);
+function L(e, t) {
+  const r = S(e);
   return t.has(r) ? t.get(r) ?? null : e.control && e.control.trim() !== "" ? e.input_raw : null;
 }
-function te(e, t) {
-  return R(e, t) !== null;
+function ke(e, t) {
+  return L(e, t) !== null;
 }
-function Le(e, t, r) {
-  const a = /* @__PURE__ */ new Map();
-  for (const o of e) {
-    const i = R(o, t);
-    if (i === null) continue;
-    const d = a.get(i);
-    d ? d.push(o) : a.set(i, [o]);
+function R(e) {
+  const t = e.trim().toLowerCase(), r = /^((?:js|gp|kb|mo)\d+)_(.*)$/.exec(t);
+  if (!r) return t;
+  const a = r[2].split("+").map((o) => o.trim()), n = a.pop() ?? "";
+  return `${r[1]}_${[...a.sort(), n].join("+")}`;
+}
+function J(e, t) {
+  if (t.length !== 2) return null;
+  const r = t.map((a) => {
+    const n = M(a.trigger_signature);
+    return n === null ? null : JSON.stringify([a.actionmap, a.action, n]);
+  });
+  return r.some((a) => a === null) ? null : JSON.stringify([R(e), ...r.sort()]);
+}
+const H = /* @__PURE__ */ new WeakMap();
+function we(e) {
+  const t = H.get(e);
+  if (t) return t;
+  const r = /* @__PURE__ */ new Map();
+  for (const a of e) {
+    if (a.verdict !== "false_alarm" && a.verdict !== "real_conflict") continue;
+    const n = J(a.control, a.actions);
+    n !== null && r.set(n, a);
   }
-  const s = /* @__PURE__ */ new Set();
-  for (const [, o] of a)
-    for (const i of o)
-      o.filter(
-        (v) => v !== i && r.canCollide(i.context, v.context)
-      ).length > 0 && s.add(w(i));
-  return { byToken: a, rules: r, flagged: s };
+  return H.set(e, r), r;
 }
-function Oe(e, t, r) {
-  const a = R(e, t);
-  if (a === null) return [];
-  const s = w(e);
-  return (r.byToken.get(a) ?? []).filter(
-    (o) => w(o) !== s && r.rules.canCollide(e.context, o.context)
+function Ne(e, t, r, a, n = []) {
+  const o = L(e, r), i = L(t, r);
+  if (o === null || i === null || R(o) !== R(i)) return { level: "none", reason: "different_controls" };
+  if (e.actionmap === t.actionmap && e.action === t.action) return { level: "none", reason: "same_action" };
+  const l = D(e, o), c = D(t, i), d = J(o, [
+    { actionmap: e.actionmap, action: e.action, trigger_signature: l },
+    { actionmap: t.actionmap, action: t.action, trigger_signature: c }
+  ]);
+  if (d !== null) {
+    const m = we(n).get(d);
+    if (m) return m.verdict === "real_conflict" ? { level: "probable", reason: "review_real_conflict" } : { level: "none", reason: "review_false_alarm" };
+  }
+  return l !== null && c !== null && M(l) !== M(c) ? { level: "none", reason: "different_triggers" } : a.canCollide(e.context, t.context) ? l === null || c === null ? { level: "uncertain", reason: "unknown_trigger" } : e.origin === "game_default" && t.origin === "game_default" && !r.has(S(e)) && !r.has(S(t)) ? { level: "uncertain", reason: "preexisting_default" } : { level: "probable", reason: "same_usage" } : { level: "none", reason: "separate_contexts" };
+}
+function P(e, t, r, a, n = []) {
+  return Ne(e, t, r, a, n).level;
+}
+function et(e, t, r, a = []) {
+  const n = /* @__PURE__ */ new Map();
+  for (const m of e) {
+    const u = L(m, t);
+    if (u === null) continue;
+    const g = R(u), p = n.get(g);
+    p ? p.push(m) : n.set(g, [m]);
+  }
+  const o = /* @__PURE__ */ new Set(), i = /* @__PURE__ */ new Set(), l = /* @__PURE__ */ new Map(), c = /* @__PURE__ */ new Map(), d = (m, u, g) => {
+    const p = S(u), f = m.get(p) ?? [];
+    f.push(g), m.set(p, f);
+  };
+  for (const [, m] of n)
+    for (let u = 0; u < m.length; u++)
+      for (let g = u + 1; g < m.length; g++) {
+        const p = m[u], f = m[g], h = P(p, f, t, r, a);
+        if (h === "none") continue;
+        const y = h === "probable" ? o : i, x = h === "probable" ? l : c;
+        y.add(S(p)), y.add(S(f)), d(x, p, f), d(x, f, p);
+      }
+  return { byToken: n, rules: r, flagged: o, uncertain: i, reviews: a, probableRivals: l, uncertainRivals: c };
+}
+function tt(e, t, r) {
+  const a = L(e, t);
+  return a === null ? [] : (r.byToken.get(R(a)) ?? []).filter(
+    (n) => n !== e && P(e, n, t, r.rules, r.reviews) === "probable"
   );
 }
-function re(e, t, r) {
-  return r.flagged.has(w(e));
+function rt(e, t, r) {
+  const a = L(e, t);
+  return a === null ? [] : (r.byToken.get(R(a)) ?? []).filter(
+    (n) => n !== e && P(e, n, t, r.rules, r.reviews) === "uncertain"
+  );
 }
-const ae = ["x", "y", "z", "rotx", "roty", "rotz", "slider1", "slider2"], ne = ["up", "right", "down", "left"];
-function Re(e, t) {
+function at(e, t, r) {
+  return r.uncertain.has(S(e));
+}
+function $e(e, t, r) {
+  return r.flagged.has(S(e));
+}
+const Ce = ["x", "y", "z", "rotx", "roty", "rotz", "slider1", "slider2"], Se = ["up", "right", "down", "left"];
+function nt(e, t) {
   switch (e) {
     case "buttons":
       return t("control.buttons");
@@ -369,7 +509,7 @@ function Re(e, t) {
       return t("control.hats");
   }
 }
-function Te(e, t) {
+function ot(e, t) {
   const r = [];
   for (let a = 1; a <= e.buttons; a++)
     r.push({
@@ -377,31 +517,31 @@ function Te(e, t) {
       label: `${t("control.button")} ${a}`,
       group: "buttons"
     });
-  for (const a of ae.slice(0, e.axes))
+  for (const a of Ce.slice(0, e.axes))
     r.push({
       value: a,
       label: `${t("control.axis")} ${a}`,
       group: "axes"
     });
   for (let a = 1; a <= e.povs; a++)
-    for (const s of ne)
+    for (const n of Se)
       r.push({
-        value: `hat${a}_${s}`,
-        label: `${t("control.hat")} ${a} — ${q(s, t)}`,
+        value: `hat${a}_${n}`,
+        label: `${t("control.hat")} ${a} — ${X(n, t)}`,
         group: "hats"
       });
   return r;
 }
-function ze(e, t) {
+function st(e, t) {
   const r = /^button(\d+)$/.exec(e);
   if (r) return `${t("control.button")} ${r[1]}`;
   const a = /^hat(\d+)_(\w+)$/.exec(e);
   if (a)
-    return `${t("control.hat")} ${a[1]} — ${q(a[2], t)}`;
-  const s = /^slider(\d+)$/.exec(e);
-  return s ? `${t("control.slider")} ${s[1]}` : `${t("control.axis")} ${e}`;
+    return `${t("control.hat")} ${a[1]} — ${X(a[2], t)}`;
+  const n = /^slider(\d+)$/.exec(e);
+  return n ? `${t("control.slider")} ${n[1]}` : `${t("control.axis")} ${e}`;
 }
-function q(e, t) {
+function X(e, t) {
   switch (e) {
     case "up":
       return t("control.up");
@@ -415,22 +555,22 @@ function q(e, t) {
       return e;
   }
 }
-function Me(e, t) {
+function it(e, t) {
   const a = e.filter((o) => o.category === t.category).findIndex(
     (o) => o.instance_guid === t.instance_guid
   );
   return `${t.category === "gamepad" ? "gp" : "js"}${a + 1}`;
 }
-const D = {
+const Y = {
   query: "",
   unassignedOnly: !1,
   conflictsOnly: !1,
   editableOnly: !1
 };
-function F(e) {
+function ee(e) {
   return e.query.trim() !== "" || e.unassignedOnly || e.conflictsOnly || e.editableOnly;
 }
-function j(e) {
+function te(e) {
   switch (e.input_raw.slice(0, 2)) {
     case "kb":
     case "mo":
@@ -443,38 +583,38 @@ function j(e) {
       return null;
   }
 }
-function oe(e, t, r, a, s) {
-  const o = T(t.query);
+function Ae(e, t, r, a, n) {
+  const o = K(t.query);
   return e.filter((i) => {
-    const d = te(i, a);
-    return r !== "all" && d && j(i) !== r || t.unassignedOnly && d || t.conflictsOnly && !re(i, a, s) || t.editableOnly && i.lock ? !1 : o === "" ? !0 : [
-      Q(i),
+    const l = ke(i, a);
+    return r !== "all" && l && te(i) !== r || t.unassignedOnly && l || t.conflictsOnly && !$e(i, a, n) || t.editableOnly && i.lock ? !1 : o === "" ? !0 : [
+      de(i),
       i.action,
       i.description ?? "",
       i.input_raw,
       i.control ?? "",
-      Y(i.actionmap),
+      me(i.actionmap),
       i.actionmap
-    ].some((v) => T(v).includes(o));
+    ].some((c) => K(c).includes(o));
   });
 }
-function T(e) {
+function K(e) {
   return e.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
-const Ee = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
+const lt = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   __proto__: null,
-  NO_FILTERS: D,
-  apply: oe,
-  isFiltering: F,
-  modeOf: j
-}, Symbol.toStringTag, { value: "Module" })), se = {
+  NO_FILTERS: Y,
+  apply: Ae,
+  isFiltering: ee,
+  modeOf: te
+}, Symbol.toStringTag, { value: "Module" })), Oe = {
   ShiftLeft: "lshift",
   ShiftRight: "rshift",
   ControlLeft: "lctrl",
   ControlRight: "rctrl",
   AltLeft: "lalt",
   AltRight: "ralt"
-}, ie = {
+}, Le = {
   Space: "space",
   Enter: "enter",
   Escape: "escape",
@@ -511,63 +651,63 @@ const Ee = /* @__PURE__ */ Object.freeze(/* @__PURE__ */ Object.defineProperty({
   PrintScreen: "print",
   ScrollLock: "scrolllock",
   Pause: "pause"
-}, le = {
+}, Re = {
   0: "mouse1",
   1: "mouse3",
   2: "mouse2",
   3: "mouse4",
   4: "mouse5"
 };
-function Be(e) {
-  return se[e] ?? null;
+function ct(e) {
+  return Oe[e] ?? null;
 }
-function ce(e, t) {
+function Te(e, t) {
   return { token: `kb1_${e ? `${e}+${t}` : t}`, modifier: e, control: t };
 }
-function qe(e, t) {
+function ut(e, t) {
   if (t.length > 1)
     return { ok: !1, error: { kind: "too_many_modifiers" } };
-  const r = ue(e);
-  return r ? { ok: !0, value: ce(t[0] ?? null, r) } : { ok: !1, error: { kind: "unsupported", code: e } };
+  const r = Ee(e);
+  return r ? { ok: !0, value: Te(t[0] ?? null, r) } : { ok: !1, error: { kind: "unsupported", code: e } };
 }
-function De(e, t) {
+function dt(e, t) {
   if (t.length > 1)
     return { ok: !1, error: { kind: "too_many_modifiers" } };
-  const r = le[e];
-  return r ? { ok: !0, value: V(t[0] ?? null, r) } : { ok: !1, error: { kind: "unsupported", code: `mouse${e}` } };
+  const r = Re[e];
+  return r ? { ok: !0, value: re(t[0] ?? null, r) } : { ok: !1, error: { kind: "unsupported", code: `mouse${e}` } };
 }
-function Fe(e, t) {
+function pt(e, t) {
   if (t.length > 1)
     return { ok: !1, error: { kind: "too_many_modifiers" } };
   if (e === 0)
     return { ok: !1, error: { kind: "unsupported", code: "mwheel" } };
   const r = e < 0 ? "mwheel_up" : "mwheel_down";
-  return { ok: !0, value: V(t[0] ?? null, r) };
+  return { ok: !0, value: re(t[0] ?? null, r) };
 }
-function V(e, t) {
+function re(e, t) {
   return { token: `mo1_${e ? `${e}+${t}` : t}`, modifier: e, control: t };
 }
-function ue(e) {
-  return /^Key[A-Z]$/.test(e) ? e.slice(3).toLowerCase() : /^Digit[0-9]$/.test(e) ? e.slice(5) : /^F([1-9]|1[0-2])$/.test(e) ? e.toLowerCase() : /^Numpad[0-9]$/.test(e) ? `np_${e.slice(6)}` : ie[e] ?? null;
+function Ee(e) {
+  return /^Key[A-Z]$/.test(e) ? e.slice(3).toLowerCase() : /^Digit[0-9]$/.test(e) ? e.slice(5) : /^F([1-9]|1[0-2])$/.test(e) ? e.toLowerCase() : /^Numpad[0-9]$/.test(e) ? `np_${e.slice(6)}` : Le[e] ?? null;
 }
-function de(e) {
+function Me(e) {
   return /^[a-z]$/.test(e) ? `Key${e.toUpperCase()}` : /^[0-9]$/.test(e) ? `Digit${e}` : null;
 }
-function je() {
-  const [e, t] = m(null);
-  return C(() => {
+function vt() {
+  const [e, t] = N(null);
+  return z(() => {
     let r = !1;
     const a = navigator.keyboard;
     if (a?.getLayoutMap)
-      return a.getLayoutMap().then((s) => {
-        r || t(s);
+      return a.getLayoutMap().then((n) => {
+        r || t(n);
       }).catch(() => {
       }), () => {
         r = !0;
       };
   }, []), e;
 }
-const pe = {
+const ze = {
   lshift: "key.lshift",
   rshift: "key.rshift",
   lctrl: "key.lctrl",
@@ -598,22 +738,22 @@ const pe = {
   mwheel_up: "key.mwheelUp",
   mwheel_down: "key.mwheelDown"
 };
-function I(e, t) {
-  const r = pe[e];
+function ae(e, t) {
+  const r = ze[e];
   return r ? t(r) : e.startsWith("np_") ? `${t("key.numpad")} ${e.slice(3)}` : e.toUpperCase();
 }
-function ve(e, t, r) {
+function De(e, t, r) {
   if (t && /^[a-z0-9]$/.test(e)) {
-    const a = de(e), s = a ? t.get(a) : void 0;
-    if (s && /^[a-z0-9]$/i.test(s)) return s.toUpperCase();
+    const a = Me(e), n = a ? t.get(a) : void 0;
+    if (n && /^[a-z0-9]$/i.test(n)) return n.toUpperCase();
   }
-  return I(e, r);
+  return ae(e, r);
 }
-function Ve(e, t, r) {
-  const a = ve(e.control, r ?? null, t);
-  return e.modifier ? `${I(e.modifier, t)} + ${a}` : a;
+function mt(e, t, r) {
+  const a = De(e.control, r ?? null, t);
+  return e.modifier ? `${ae(e.modifier, t)} + ${a}` : a;
 }
-function Ie(e, t) {
+function ft(e, t) {
   switch (e.kind) {
     case "too_many_modifiers":
       return t("capture.tooManyModifiers");
@@ -621,199 +761,236 @@ function Ie(e, t) {
       return `${t("capture.unsupported")} (${e.code})`;
   }
 }
-const P = U((e) => e);
-function Pe({
+const ne = oe((e) => e);
+function _t({
   translate: e,
   children: t
 }) {
-  const r = G(() => e, [e]);
-  return /* @__PURE__ */ n(P.Provider, { value: r, children: t });
+  const r = ie(() => e, [e]);
+  return /* @__PURE__ */ s(ne.Provider, { value: r, children: t });
 }
-function y() {
-  return K(P);
+function T() {
+  return se(ne);
 }
-function He(e, t) {
-  const [r, a] = m(null), [s, o] = m(!1), [i, d] = m(null), v = e.map((u) => u.instance_guid).join("|");
-  return C(() => {
-    if (!t || v === "") {
-      o(!1);
+function gt(e, t) {
+  const [r, a] = N(null), [n, o] = N(!1), [i, l] = N(null), c = j(null), d = e.map((u) => u.instance_guid).join("|");
+  z(() => {
+    if (a(null), o(!1), l(null), !t || d === "")
       return;
-    }
-    let u = !1;
-    d(null), o(!1);
-    const g = h.startCapture(v.split("|"));
-    g.then(
-      () => !u && o(!0),
-      (f) => !u && d(String(f))
-    );
-    const b = window.setInterval(async () => {
-      try {
-        const f = await h.pollCapture();
-        !u && f && a(f);
-      } catch (f) {
-        u || d(String(f));
-      }
-    }, 60);
-    return () => {
-      u = !0, window.clearInterval(b), g.then((f) => h.stopCapture(f)).catch(() => {
+    let u = null;
+    const g = $.startCapture(d.split("|")), p = {
+      cancelled: !1,
+      resetGeneration: 0,
+      pendingResets: 0,
+      started: g,
+      resetQueue: Promise.resolve()
+    };
+    c.current = p;
+    const f = async () => {
+      if (p.cancelled) return;
+      const h = p.resetGeneration;
+      if (p.pendingResets === 0)
+        try {
+          const y = await $.pollCapture();
+          !p.cancelled && h === p.resetGeneration && (a(
+            (x) => x?.guid === y?.guid && x?.control === y?.control ? x : y
+          ), l(null));
+        } catch (y) {
+          !p.cancelled && h === p.resetGeneration && l(String(y));
+        }
+      p.cancelled || (u = window.setTimeout(f, 60));
+    };
+    return g.then(
+      () => {
+        p.cancelled || (o(!0), f());
+      },
+      (h) => !p.cancelled && l(String(h))
+    ), () => {
+      p.cancelled = !0, c.current === p && (c.current = null), u !== null && window.clearTimeout(u), g.then((h) => $.stopCapture(h)).catch(() => {
       });
     };
-  }, [v, t]), {
+  }, [d, t]);
+  const m = le(async () => {
+    a(null);
+    const u = c.current;
+    if (!u || u.cancelled) return;
+    u.resetGeneration += 1, u.pendingResets += 1;
+    const g = u.resetQueue.then(async () => {
+      await u.started, u.cancelled || await $.clearCapture();
+    });
+    u.resetQueue = g.catch(() => {
+    });
+    try {
+      await g;
+    } catch (p) {
+      u.cancelled || l(String(p));
+    } finally {
+      u.pendingResets -= 1, u.resetGeneration += 1, u.cancelled || a(null);
+    }
+  }, []);
+  return {
     last: r,
-    listening: s,
+    listening: n,
     error: i,
     // L'oubli doit aussi porter côté Rust : le thread garde son relevé, et le
     // sondage suivant le restaurerait aussitôt.
-    reset: () => {
-      a(null), h.clearCapture().catch(() => {
-      });
-    }
+    reset: m
   };
 }
-function Ze(e, t, r) {
+function ht(e, t, r) {
   if (!e) return null;
-  const a = t.find((s) => s.instance_guid === e.guid);
+  const a = t.find((n) => n.instance_guid === e.guid);
   return a ? `${r(a)}_${e.control}` : null;
 }
-function Ue({
+function bt({
   profilePath: e,
   mode: t,
   onModeChange: r,
   listening: a,
-  deviceCount: s,
+  deviceCount: n,
   captureError: o,
   probe: i,
-  onClearProbe: d,
-  onRestored: v
+  onClearProbe: l,
+  onRestored: c
 }) {
-  const u = y(), [g, b] = m([]), [f, N] = m(!1), [$, k] = m(!1), [l, _] = m(null);
-  async function A() {
+  const d = T(), [m, u] = N([]), [g, p] = N(!1), [f, h] = N(!1), [y, x] = N(null), k = A();
+  async function v() {
     try {
-      b(await h.listBackups());
+      u(await $.listBackups());
     } catch {
     }
   }
-  C(() => {
-    A();
+  z(() => {
+    v();
   }, []);
-  async function H() {
-    k(!0);
+  async function w() {
+    h(!0);
     try {
-      await h.createBackup(e), _(u("backup.created")), await A();
-    } catch (x) {
-      _(String(x));
+      await $.createBackup(e), x(d("backup.created")), await v();
+    } catch (C) {
+      x(String(C));
     } finally {
-      k(!1);
+      h(!1);
     }
   }
-  const Z = [
+  const E = [
     { id: "all", label: "filter.mode.all" },
     { id: "desk", label: "filter.mode.desk" },
     { id: "gamepad", label: "filter.mode.gamepad" },
     { id: "joystick", label: "filter.mode.joystick" }
   ];
-  return /* @__PURE__ */ c("div", { className: "space-y-2", children: [
-    /* @__PURE__ */ c("div", { className: "flex flex-wrap items-center gap-x-4 gap-y-2 rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-2)] px-3 py-2", children: [
-      /* @__PURE__ */ c("div", { className: "-mx-1 flex max-w-full items-center gap-1 overflow-x-auto overflow-y-hidden px-1", children: [
-        /* @__PURE__ */ n("span", { className: "mr-1 shrink-0 text-xs font-medium text-[var(--text-tertiary)]", children: u("filter.mode") }),
-        Z.map((x) => /* @__PURE__ */ n(
+  return /* @__PURE__ */ _("div", { className: "space-y-2", children: [
+    /* @__PURE__ */ _("div", { className: "app-panel app-panel--hud flex flex-wrap items-center gap-x-4 gap-y-2 !overflow-visible rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-2)] px-3 py-2", children: [
+      /* @__PURE__ */ _("div", { className: "-mx-1 flex max-w-full items-center gap-1 overflow-x-auto overflow-y-hidden px-1", children: [
+        /* @__PURE__ */ s("span", { className: "mr-1 shrink-0 text-xs font-medium text-[var(--text-tertiary)]", children: d("filter.mode") }),
+        E.map((C) => /* @__PURE__ */ s(
           "button",
           {
-            onClick: () => r(x.id),
-            className: "shrink-0 whitespace-nowrap rounded-[var(--radius-control)] px-2.5 py-1 text-xs font-medium transition-colors " + (t === x.id ? "bg-accent text-white" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"),
-            children: u(x.label)
+            type: "button",
+            onClick: () => r(C.id),
+            "aria-pressed": t === C.id,
+            className: "shrink-0 whitespace-nowrap rounded-[var(--radius-control)] px-2.5 py-1 text-xs font-medium transition-colors " + (t === C.id ? "bg-accent text-white" : "text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"),
+            children: d(C.label)
           },
-          x.id
+          C.id
         ))
       ] }),
-      /* @__PURE__ */ c("div", { className: "flex flex-wrap items-center gap-3 sm:ml-auto", children: [
-        /* @__PURE__ */ n(
-          me,
+      /* @__PURE__ */ _("div", { className: "flex flex-wrap items-center gap-3 sm:ml-auto", children: [
+        /* @__PURE__ */ s(
+          Be,
           {
             listening: a,
-            count: s,
+            count: n,
             error: o,
             probe: i,
-            onClear: d
+            onClear: l
           }
         ),
-        /* @__PURE__ */ c("div", { className: "relative", children: [
-          /* @__PURE__ */ c("div", { className: "flex items-center rounded-[var(--radius-control)] border border-[var(--border-default)]", children: [
-            /* @__PURE__ */ n(
+        /* @__PURE__ */ _("div", { className: "relative", children: [
+          /* @__PURE__ */ _("div", { className: "flex items-center rounded-[var(--radius-control)] border border-[var(--border-default)]", children: [
+            /* @__PURE__ */ s(
               "button",
               {
+                type: "button",
                 onClick: () => {
-                  H();
+                  w();
                 },
-                disabled: $,
+                disabled: f,
                 className: "rounded-l-md px-2.5 py-1 text-xs font-medium text-[var(--text-primary)] hover:bg-[var(--surface-hover)] disabled:text-[var(--text-disabled)]",
-                children: u("backup.create")
+                children: d("backup.create")
               }
             ),
-            /* @__PURE__ */ c(
+            /* @__PURE__ */ _(
               "button",
               {
-                onClick: () => N((x) => !x),
+                type: "button",
+                onClick: () => p((C) => !C),
+                "aria-controls": k,
+                "aria-expanded": g,
+                "aria-haspopup": "dialog",
+                "aria-label": `${d("backup.title")}: ${m.length}`,
                 className: "border-l border-[var(--border-default)] px-2 py-1 text-xs text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]",
-                title: u("backup.title"),
+                title: d("backup.title"),
                 children: [
-                  g.length,
+                  m.length,
                   " ▾"
                 ]
               }
             )
           ] }),
-          f && /* @__PURE__ */ n(
-            _e,
+          g && /* @__PURE__ */ s(
+            je,
             {
+              id: k,
               profilePath: e,
-              backups: g,
-              onClose: () => N(!1),
+              backups: m,
+              onClose: () => p(!1),
               onChanged: async () => {
-                await A(), v();
+                await v(), c();
               }
             }
           )
         ] }),
-        /* @__PURE__ */ n(fe, {})
+        /* @__PURE__ */ s(Ie, {})
       ] })
     ] }),
-    l && /* @__PURE__ */ n("p", { className: "rounded-[var(--radius-control)] bg-[var(--accent-soft)] px-3 py-1.5 text-xs text-[var(--text-accent)]", children: l })
+    y && /* @__PURE__ */ s("p", { className: "rounded-[var(--radius-control)] bg-[var(--accent-soft)] px-3 py-1.5 text-xs text-[var(--text-accent)]", children: y })
   ] });
 }
-function me({
+function Be({
   listening: e,
   count: t,
   error: r,
   probe: a,
-  onClear: s
+  onClear: n
 }) {
-  const o = y();
-  return r ? /* @__PURE__ */ n("span", { className: "text-xs text-[var(--danger-text)]", title: r, children: o("probe.stopped") }) : a ? /* @__PURE__ */ c("span", { className: "flex items-center gap-1.5 rounded-[var(--radius-control)] bg-[var(--accent-soft)] px-2 py-1 text-xs text-[var(--text-accent)]", children: [
-    /* @__PURE__ */ n("span", { className: "font-mono font-semibold", children: a.device }),
-    /* @__PURE__ */ n("span", { children: a.control }),
-    /* @__PURE__ */ n("span", { className: "text-[var(--text-accent)]", children: "·" }),
-    /* @__PURE__ */ n("span", { children: a.matches === 0 ? o("probe.noMatch") : `${a.matches} ${o(
+  const o = T();
+  return r ? /* @__PURE__ */ s("span", { className: "text-xs text-[var(--danger-text)]", title: r, children: o("probe.stopped") }) : a ? /* @__PURE__ */ _("span", { className: "flex items-center gap-1.5 rounded-[var(--radius-control)] bg-[var(--accent-soft)] px-2 py-1 text-xs text-[var(--text-accent)]", children: [
+    /* @__PURE__ */ s("span", { className: "font-mono font-semibold", children: a.device }),
+    /* @__PURE__ */ s("span", { children: a.control }),
+    /* @__PURE__ */ s("span", { className: "text-[var(--text-accent)]", children: "·" }),
+    /* @__PURE__ */ s("span", { children: a.matches === 0 ? o("probe.noMatch") : `${a.matches} ${o(
       a.matches > 1 ? "probe.matchMany" : "probe.matchOne"
     )}` }),
-    /* @__PURE__ */ n(
+    /* @__PURE__ */ s(
       "button",
       {
-        onClick: s,
+        type: "button",
+        onClick: n,
         className: "ml-1 text-[var(--text-accent)] hover:text-[var(--accent-hover)]",
         children: o("probe.clear")
       }
     )
-  ] }) : /* @__PURE__ */ c(
+  ] }) : /* @__PURE__ */ _(
     "span",
     {
       className: "flex items-center gap-1.5 text-xs text-[var(--text-tertiary)]",
       title: o("probe.idle"),
       children: [
-        /* @__PURE__ */ n(
+        /* @__PURE__ */ s(
           "span",
           {
-            className: "inline-block h-1.5 w-1.5 rounded-full " + (e ? "bg-[var(--accent-soft)]0" : "bg-[var(--border-default)]")
+            className: "inline-block h-1.5 w-1.5 rounded-full " + (e ? "bg-[var(--accent)]" : "bg-[var(--border-default)]")
           }
         ),
         t,
@@ -823,201 +1000,260 @@ function me({
     }
   );
 }
-function fe() {
-  const e = y(), [t, r] = m(!1);
-  return /* @__PURE__ */ c("div", { className: "relative", children: [
-    /* @__PURE__ */ n(
+function Ie() {
+  const e = T(), [t, r] = N(!1), a = A();
+  return /* @__PURE__ */ _("div", { className: "relative", children: [
+    /* @__PURE__ */ s(
       "button",
       {
-        onClick: () => r((a) => !a),
-        className: "flex h-5 w-5 items-center justify-center rounded-full border border-[var(--border-default)] text-xs text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)]",
+        type: "button",
+        onClick: () => r((n) => !n),
+        "aria-controls": a,
+        "aria-expanded": t,
+        "aria-haspopup": "dialog",
+        "aria-label": e("scope.title"),
+        className: "flex h-[var(--tap-min)] w-[var(--tap-min)] items-center justify-center rounded-full border border-[var(--border-default)] text-xs text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)]",
         title: e("scope.title"),
-        children: "?"
+        children: /* @__PURE__ */ s("span", { "aria-hidden": !0, children: "?" })
       }
     ),
-    t && /* @__PURE__ */ c(O, { children: [
-      /* @__PURE__ */ n("div", { className: "fixed inset-0 z-10", onClick: () => r(!1) }),
-      /* @__PURE__ */ c("div", { className: "absolute right-0 z-20 mt-2 w-80 rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-2)] p-3 shadow-[var(--shadow-2)]", children: [
-        /* @__PURE__ */ n("h4", { className: "text-xs font-semibold text-[var(--text-primary)]", children: e("scope.title") }),
-        /* @__PURE__ */ n("p", { className: "mt-1 text-xs text-[var(--text-secondary)]", children: e("scope.editable") }),
-        /* @__PURE__ */ n("p", { className: "mt-2 text-xs text-[var(--text-secondary)]", children: e("scope.defaults") }),
-        /* @__PURE__ */ n("p", { className: "mt-2 text-xs text-[var(--danger-text)]", children: e("scope.closeGame") })
-      ] })
+    t && /* @__PURE__ */ _(F, { children: [
+      /* @__PURE__ */ s("div", { className: "fixed inset-0 z-10", onClick: () => r(!1) }),
+      /* @__PURE__ */ _(
+        "div",
+        {
+          id: a,
+          role: "dialog",
+          "aria-label": e("scope.title"),
+          className: "absolute right-0 z-20 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-2)] p-3 shadow-[var(--shadow-2)]",
+          children: [
+            /* @__PURE__ */ s("h4", { className: "text-xs font-semibold text-[var(--text-primary)]", children: e("scope.title") }),
+            /* @__PURE__ */ s("p", { className: "mt-1 text-xs text-[var(--text-secondary)]", children: e("scope.editable") }),
+            /* @__PURE__ */ s("p", { className: "mt-2 text-xs text-[var(--text-secondary)]", children: e("scope.defaults") }),
+            /* @__PURE__ */ s("p", { className: "mt-2 text-xs text-[var(--danger-text)]", children: e("scope.closeGame") })
+          ]
+        }
+      )
     ] })
   ] });
 }
-function _e({
-  profilePath: e,
-  backups: t,
-  onClose: r,
-  onChanged: a
+function je({
+  id: e,
+  profilePath: t,
+  backups: r,
+  onClose: a,
+  onChanged: n
 }) {
-  const s = y(), [o, i] = m(null), d = W(null);
-  async function v() {
-    if (!o) return;
-    const { backup: u, action: g } = o;
-    i(null);
+  const o = T(), [i, l] = N(null), c = j(null), d = A(), m = A(), u = j(null), g = i !== null;
+  z(() => {
+    if (!g) return;
+    const f = document.activeElement instanceof HTMLElement ? document.activeElement : null, h = u.current;
+    if (!h) return;
+    const y = () => Array.from(h.querySelectorAll(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    ));
+    (y()[0] ?? h).focus();
+    function x(k) {
+      if (k.key === "Escape")
+        k.preventDefault(), k.stopPropagation(), l(null);
+      else if (k.key === "Tab") {
+        const v = y(), w = v[0], E = v[v.length - 1];
+        !w || !E ? (k.preventDefault(), h.focus()) : k.shiftKey && document.activeElement === w ? (k.preventDefault(), E.focus()) : !k.shiftKey && document.activeElement === E && (k.preventDefault(), w.focus());
+      }
+    }
+    return document.addEventListener("keydown", x), () => {
+      document.removeEventListener("keydown", x), f?.focus();
+    };
+  }, [g]);
+  async function p() {
+    if (!i) return;
+    const { backup: f, action: h } = i;
+    l(null);
     try {
-      g === "restore" ? await h.restoreBackup(e, u.path) : await h.deleteBackup(u.path), a();
+      h === "restore" ? await $.restoreBackup(t, f.path) : await $.deleteBackup(f.path), n();
     } catch {
     }
-    r();
+    a();
   }
-  return /* @__PURE__ */ c(O, { children: [
-    /* @__PURE__ */ n("div", { className: "fixed inset-0 z-10", onClick: r }),
-    /* @__PURE__ */ c(
+  return /* @__PURE__ */ _(F, { children: [
+    /* @__PURE__ */ s("div", { className: "fixed inset-0 z-10", onClick: a }),
+    /* @__PURE__ */ _(
       "div",
       {
-        ref: d,
-        className: "absolute right-0 z-20 mt-1 w-72 overflow-hidden rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-2)] shadow-[var(--shadow-2)]",
+        id: e,
+        ref: c,
+        role: "dialog",
+        "aria-label": o("backup.title"),
+        className: "absolute left-0 z-20 mt-1 w-72 max-w-[calc(100vw-2rem)] overflow-hidden rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-2)] shadow-[var(--shadow-2)] sm:left-auto sm:right-0",
         children: [
-          /* @__PURE__ */ n("p", { className: "border-b border-[var(--border-subtle)] px-3 py-2 text-xs text-[var(--text-tertiary)]", children: s("backup.hint") }),
-          t.length === 0 ? /* @__PURE__ */ n("p", { className: "px-3 py-4 text-center text-xs text-[var(--text-tertiary)]", children: s("backup.empty") }) : /* @__PURE__ */ n("ul", { className: "max-h-64 divide-y divide-[var(--border-subtle)] overflow-y-auto", children: t.map((u) => /* @__PURE__ */ c("li", { className: "px-3 py-2", children: [
-            /* @__PURE__ */ n("p", { className: "text-xs text-[var(--text-primary)]", children: z(u.timestamp) }),
-            /* @__PURE__ */ c("div", { className: "mt-1 flex gap-2", children: [
-              /* @__PURE__ */ n(
+          /* @__PURE__ */ s("p", { className: "border-b border-[var(--border-subtle)] px-3 py-2 text-xs text-[var(--text-tertiary)]", children: o("backup.hint") }),
+          r.length === 0 ? /* @__PURE__ */ s("p", { className: "px-3 py-4 text-center text-xs text-[var(--text-tertiary)]", children: o("backup.empty") }) : /* @__PURE__ */ s("ul", { className: "max-h-64 divide-y divide-[var(--border-subtle)] overflow-y-auto", children: r.map((f) => /* @__PURE__ */ _("li", { className: "px-3 py-2", children: [
+            /* @__PURE__ */ s("p", { className: "text-xs text-[var(--text-primary)]", children: U(f.timestamp) }),
+            /* @__PURE__ */ _("div", { className: "mt-1 flex gap-2", children: [
+              /* @__PURE__ */ s(
                 "button",
                 {
-                  onClick: () => i({ backup: u, action: "restore" }),
+                  type: "button",
+                  onClick: () => l({ backup: f, action: "restore" }),
                   className: "text-xs font-medium text-[var(--text-accent)] hover:text-[var(--accent-hover)]",
-                  children: s("backup.restore")
+                  children: o("backup.restore")
                 }
               ),
-              /* @__PURE__ */ n(
+              /* @__PURE__ */ s(
                 "button",
                 {
-                  onClick: () => i({ backup: u, action: "delete" }),
+                  type: "button",
+                  onClick: () => l({ backup: f, action: "delete" }),
                   className: "text-xs text-[var(--text-tertiary)] hover:text-[var(--danger-text)]",
-                  children: s("backup.delete")
+                  children: o("backup.delete")
                 }
               )
             ] })
-          ] }, u.path)) })
+          ] }, f.path)) })
         ]
       }
     ),
-    o && /* @__PURE__ */ n(
-      "div",
-      {
-        className: "fixed inset-0 z-30 flex items-center justify-center overflow-y-auto bg-[var(--scrim)] p-4 sm:p-8",
-        onClick: () => i(null),
-        children: /* @__PURE__ */ c(
-          "div",
-          {
-            className: "w-full max-w-md rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-2)] p-5 shadow-[var(--shadow-2)]",
-            onClick: (u) => u.stopPropagation(),
-            children: [
-              /* @__PURE__ */ n("h3", { className: "text-sm font-semibold text-[var(--text-primary)]", children: s(
-                o.action === "delete" ? "backup.confirmDeleteTitle" : "backup.confirmTitle"
-              ) }),
-              /* @__PURE__ */ n("p", { className: "mt-2 text-sm text-[var(--text-secondary)]", children: z(o.backup.timestamp) }),
-              /* @__PURE__ */ n(
-                "p",
-                {
-                  className: "mt-2 text-sm " + (o.action === "delete" ? "text-[var(--danger-text)]" : "text-[var(--text-tertiary)]"),
-                  children: s(
-                    o.action === "delete" ? "backup.confirmDeleteBody" : "backup.confirmKept"
-                  )
-                }
-              ),
-              /* @__PURE__ */ c("div", { className: "mt-4 flex justify-end gap-2", children: [
-                /* @__PURE__ */ n(
-                  "button",
+    i && ce(
+      /* @__PURE__ */ s(
+        "div",
+        {
+          className: "fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[var(--scrim)] p-4 sm:p-8",
+          onClick: () => l(null),
+          children: /* @__PURE__ */ _(
+            "div",
+            {
+              ref: u,
+              tabIndex: -1,
+              role: "dialog",
+              "aria-modal": "true",
+              "aria-labelledby": d,
+              "aria-describedby": m,
+              className: "max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-h-[calc(100dvh-4rem)] w-full max-w-md rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-2)] p-5 shadow-[var(--shadow-2)]",
+              onClick: (f) => f.stopPropagation(),
+              children: [
+                /* @__PURE__ */ s(
+                  "h3",
                   {
-                    onClick: () => i(null),
-                    className: "rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-2)] px-3 py-1.5 text-sm text-[var(--text-primary)] hover:bg-[var(--surface-hover)]",
-                    children: s("save.cancel")
-                  }
-                ),
-                /* @__PURE__ */ n(
-                  "button",
-                  {
-                    onClick: () => {
-                      v();
-                    },
-                    className: "rounded-[var(--radius-control)] px-3 py-1.5 text-sm font-medium text-white " + (o.action === "delete" ? "bg-[var(--danger)] hover:bg-[var(--danger)]" : "bg-accent hover:bg-[var(--accent-hover)]"),
-                    children: s(
-                      o.action === "delete" ? "backup.delete" : "backup.restore"
+                    id: d,
+                    className: "text-sm font-semibold text-[var(--text-primary)]",
+                    children: o(
+                      i.action === "delete" ? "backup.confirmDeleteTitle" : "backup.confirmTitle"
                     )
                   }
-                )
-              ] })
-            ]
-          }
-        )
-      }
+                ),
+                /* @__PURE__ */ s("p", { className: "mt-2 text-sm text-[var(--text-secondary)]", children: U(i.backup.timestamp) }),
+                /* @__PURE__ */ s(
+                  "p",
+                  {
+                    id: m,
+                    className: "mt-2 text-sm " + (i.action === "delete" ? "text-[var(--danger-text)]" : "text-[var(--text-tertiary)]"),
+                    children: o(
+                      i.action === "delete" ? "backup.confirmDeleteBody" : "backup.confirmKept"
+                    )
+                  }
+                ),
+                /* @__PURE__ */ _("div", { className: "mt-4 flex justify-end gap-2", children: [
+                  /* @__PURE__ */ s(
+                    "button",
+                    {
+                      type: "button",
+                      onClick: () => l(null),
+                      className: "rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-2)] px-3 py-1.5 text-sm text-[var(--text-primary)] hover:bg-[var(--surface-hover)]",
+                      children: o("save.cancel")
+                    }
+                  ),
+                  /* @__PURE__ */ s(
+                    "button",
+                    {
+                      type: "button",
+                      onClick: () => {
+                        p();
+                      },
+                      className: "rounded-[var(--radius-control)] px-3 py-1.5 text-sm font-medium text-white " + (i.action === "delete" ? "bg-[var(--danger)] hover:bg-[var(--danger)]" : "bg-accent hover:bg-[var(--accent-hover)]"),
+                      children: o(
+                        i.action === "delete" ? "backup.delete" : "backup.restore"
+                      )
+                    }
+                  )
+                ] })
+              ]
+            }
+          )
+        }
+      ),
+      document.body
     )
   ] });
 }
-function z(e) {
+function U(e) {
   const t = Number(e);
   return Number.isFinite(t) ? new Date(t).toLocaleString(void 0, {
     dateStyle: "medium",
     timeStyle: "short"
   }) : e;
 }
-const he = {
+const qe = {
   sm: "h-[var(--h-control-sm)] px-[var(--sp-5)] text-[length:var(--fs-body-sm)]",
   md: "h-[var(--h-control)] px-[var(--sp-6)] text-[length:var(--fs-body)]",
   lg: "h-[var(--h-control-lg)] px-[var(--sp-7)] text-[length:var(--fs-body)]"
-}, ge = {
-  primary: "border border-transparent bg-accent text-[var(--text-on-accent)] hover:bg-[var(--accent-hover)] hover:shadow-[var(--glow-soft)] active:bg-[var(--accent-press)] active:shadow-none",
+}, Fe = {
+  primary: "border border-transparent bg-accent text-[var(--text-on-accent)] hover:border-[var(--blue-300)] hover:bg-accent hover:shadow-[var(--glow-soft)] active:border-transparent active:bg-[var(--accent-press)] active:shadow-none",
   secondary: "border border-[var(--border-default)] bg-[var(--surface-2)] text-[var(--text-primary)] hover:border-[var(--border-strong)] hover:bg-[var(--surface-hover)]",
   ghost: "border border-transparent bg-transparent text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
 };
-function M({
+function Z({
   variant: e = "primary",
   size: t = "md",
   className: r = "",
   ...a
 }) {
-  return /* @__PURE__ */ n(
+  return /* @__PURE__ */ s(
     "button",
     {
-      className: `inline-flex items-center justify-center gap-[var(--sp-3)] rounded-[var(--radius-control)] font-medium leading-none transition-all duration-[var(--dur-fast)] ease-[var(--ease-out)] focus-visible:shadow-[var(--ring-focus)] active:scale-[var(--press-scale)] disabled:pointer-events-none disabled:opacity-[0.42] ${he[t]} ${ge[e]} ${r}`,
+      className: `inline-flex items-center justify-center gap-[var(--sp-3)] rounded-[var(--radius-control)] font-medium leading-none transition-all duration-[var(--dur-fast)] ease-[var(--ease-out)] focus-visible:shadow-[var(--ring-focus)] active:scale-[var(--press-scale)] disabled:pointer-events-none disabled:opacity-[0.42] ${qe[t]} ${Fe[e]} ${r}`,
       ...a
     }
   );
 }
-const be = "cursor-pointer transition-transform duration-[var(--dur-fast)] ease-[var(--ease-out)] hover:-translate-y-px hover:border-[var(--border-accent)]";
-function xe() {
+const Pe = "cursor-pointer transition-transform duration-[var(--dur-fast)] ease-[var(--ease-out)] hover:-translate-y-px hover:border-[var(--border-accent)]";
+function Ge() {
   const e = "pointer-events-none absolute h-[10px] w-[10px] border-[var(--border-hud)]";
-  return /* @__PURE__ */ c(O, { children: [
-    /* @__PURE__ */ n("span", { "aria-hidden": !0, className: `${e} left-0 top-0 border-l-2 border-t-2` }),
-    /* @__PURE__ */ n("span", { "aria-hidden": !0, className: `${e} right-0 top-0 border-r-2 border-t-2` }),
-    /* @__PURE__ */ n("span", { "aria-hidden": !0, className: `${e} bottom-0 left-0 border-b-2 border-l-2` }),
-    /* @__PURE__ */ n("span", { "aria-hidden": !0, className: `${e} bottom-0 right-0 border-b-2 border-r-2` })
+  return /* @__PURE__ */ _(F, { children: [
+    /* @__PURE__ */ s("span", { "aria-hidden": !0, className: `${e} left-0 top-0 border-l-2 border-t-2` }),
+    /* @__PURE__ */ s("span", { "aria-hidden": !0, className: `${e} right-0 top-0 border-r-2 border-t-2` }),
+    /* @__PURE__ */ s("span", { "aria-hidden": !0, className: `${e} bottom-0 left-0 border-b-2 border-l-2` }),
+    /* @__PURE__ */ s("span", { "aria-hidden": !0, className: `${e} bottom-0 right-0 border-b-2 border-r-2` })
   ] });
 }
-function ye({
+function Ve({
   variant: e = "standard",
   interactive: t = !1,
   className: r = "",
   children: a,
-  ...s
+  ...n
 }) {
-  const o = t ? be : "";
-  return e === "hud" ? /* @__PURE__ */ c(
+  const o = t ? Pe : "";
+  return e === "hud" ? /* @__PURE__ */ _(
     "div",
     {
-      className: `relative rounded-[var(--radius-xs)] border border-[var(--border-hud)] bg-[var(--surface-1)] p-[var(--pad-card)] ${o} ${r}`,
-      ...s,
+      className: `pk-card pk-card--hud relative rounded-[var(--radius-xs)] border border-[var(--border-hud)] bg-[var(--surface-1)] p-[var(--pad-card)] ${o} ${r}`,
+      ...n,
       children: [
-        /* @__PURE__ */ n(xe, {}),
+        /* @__PURE__ */ s(Ge, {}),
         a
       ]
     }
-  ) : /* @__PURE__ */ n(
+  ) : /* @__PURE__ */ s(
     "div",
     {
-      className: `rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--surface-1)] p-[var(--pad-card)] shadow-[var(--shadow-1)] ${o} ${r}`,
-      ...s,
+      className: `pk-card rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--surface-1)] p-[var(--pad-card)] shadow-[var(--shadow-1)] ${o} ${r}`,
+      ...n,
       children: a
     }
   );
 }
-function ke({ selected: e = !1, className: t = "", ...r }) {
-  return /* @__PURE__ */ n(
+function He({ selected: e = !1, className: t = "", ...r }) {
+  return /* @__PURE__ */ s(
     "button",
     {
       type: "button",
@@ -1027,241 +1263,281 @@ function ke({ selected: e = !1, className: t = "", ...r }) {
     }
   );
 }
-function Ke({
+function yt({
   filters: e,
   onChange: t,
   shown: r,
   total: a,
-  conflictCount: s,
+  conflictCount: n,
   unassignedCount: o,
   showEditableFilter: i = !0
 }) {
-  const d = y();
-  return /* @__PURE__ */ c("div", { className: "flex flex-wrap items-center gap-x-4 gap-y-2", children: [
-    /* @__PURE__ */ n(
+  const l = T();
+  return /* @__PURE__ */ _("div", { className: "app-panel flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2", children: [
+    /* @__PURE__ */ s(
       "input",
       {
         type: "search",
+        "aria-label": l("filter.placeholder"),
         value: e.query,
-        onChange: (v) => t({ ...e, query: v.target.value }),
-        placeholder: d("filter.placeholder"),
+        onChange: (c) => t({ ...e, query: c.target.value }),
+        placeholder: l("filter.placeholder"),
         className: "min-w-56 flex-1 rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-2)] px-[var(--sp-6)] py-[var(--sp-4)] text-[length:var(--fs-body-sm)] text-[var(--text-primary)] placeholder:text-[var(--text-disabled)] focus:border-[var(--border-accent)] focus-visible:shadow-[var(--ring-focus)] focus:outline-none"
       }
     ),
-    /* @__PURE__ */ n(
-      S,
+    /* @__PURE__ */ s(
+      B,
       {
         active: e.unassignedOnly,
         count: o,
         onClick: () => t({ ...e, unassignedOnly: !e.unassignedOnly }),
-        children: d("filter.unassigned")
+        children: l("filter.unassigned")
       }
     ),
-    /* @__PURE__ */ n(
-      S,
+    /* @__PURE__ */ s(
+      B,
       {
         active: e.conflictsOnly,
-        count: s,
+        count: n,
         warn: !0,
         onClick: () => t({ ...e, conflictsOnly: !e.conflictsOnly }),
-        children: d("filter.conflicts")
+        children: l("filter.conflicts")
       }
     ),
-    i && /* @__PURE__ */ n(
-      S,
+    i && /* @__PURE__ */ s(
+      B,
       {
         active: e.editableOnly,
         onClick: () => t({ ...e, editableOnly: !e.editableOnly }),
-        children: d("filter.editableOnly")
+        children: l("filter.editableOnly")
       }
     ),
-    /* @__PURE__ */ n("span", { className: "ml-auto whitespace-nowrap rounded-[var(--radius-pill)] border border-[var(--border-subtle)] px-[var(--sp-5)] py-[var(--sp-2)] text-[length:var(--fs-caption)] text-[var(--text-tertiary)]", children: r === a ? `${a}` : `${r} / ${a}` }),
-    F(e) && /* @__PURE__ */ n(
+    /* @__PURE__ */ s("span", { className: "ml-auto whitespace-nowrap rounded-[var(--radius-pill)] border border-[var(--border-subtle)] px-[var(--sp-5)] py-[var(--sp-2)] text-[length:var(--fs-caption)] text-[var(--text-tertiary)]", children: r === a ? `${a}` : `${r} / ${a}` }),
+    ee(e) && /* @__PURE__ */ s(
       "button",
       {
-        onClick: () => t(D),
+        type: "button",
+        onClick: () => t(Y),
         className: "whitespace-nowrap text-[length:var(--fs-caption)] font-medium text-[var(--text-accent)] hover:text-[var(--accent-hover)]",
-        children: d("filter.showAll")
+        children: l("filter.showAll")
       }
     )
   ] });
 }
-function S({
+function B({
   active: e,
   count: t,
   warn: r,
   onClick: a,
-  children: s
+  children: n
 }) {
   const o = t === 0;
-  return /* @__PURE__ */ c(
-    ke,
+  return /* @__PURE__ */ _(
+    He,
     {
       selected: e,
       onClick: a,
       disabled: o && !e,
       className: `${o && !e ? "opacity-[0.42]" : ""} ${r && e ? "!border-[var(--danger)] !bg-[var(--danger-soft)] !text-[var(--danger-text)]" : ""}`,
       children: [
-        s,
+        n,
         t !== void 0 && // `border-current` plutôt qu'une couleur fixe : le compteur doit se
         // détacher du libellé quel que soit l'état du Tag (actif, alerte,
         // survolé) sans dupliquer sa palette de couleurs ici.
-        /* @__PURE__ */ n("span", { className: "tabular-nums rounded-full border border-current/30 px-[var(--sp-3)] text-[length:var(--fs-caption)] opacity-80", children: t })
+        /* @__PURE__ */ s("span", { className: "tabular-nums rounded-full border border-current/30 px-[var(--sp-3)] text-[length:var(--fs-caption)] opacity-80", children: t })
       ]
     }
   );
 }
-function Ge({
+function xt({
   profilePath: e,
   profiles: t,
   onSelectProfile: r,
   onBrowse: a,
-  onChanged: s
+  onChanged: n
 }) {
-  const o = y(), [i, d] = m(null), [v, u] = m([]), [g, b] = m(null), [f, N] = m(null);
-  C(() => {
-    let l = !1;
+  const o = T(), i = A(), l = A(), c = A(), [d, m] = N(null), [u, g] = N([]), [p, f] = N(null), [h, y] = N(null);
+  z(() => {
+    let v = !1;
     return (async () => {
       try {
-        const _ = await h.getSettings();
-        l || d(_);
-      } catch (_) {
-        l || b(String(_));
+        const w = await $.getSettings();
+        v || m(w);
+      } catch (w) {
+        v || f(String(w));
       }
       if (e)
         try {
-          const _ = await h.listGameLanguages(e);
-          l || u(_);
-        } catch (_) {
-          l || b(String(_));
+          const w = await $.listGameLanguages(e);
+          v || g(w);
+        } catch (w) {
+          v || f(String(w));
         }
     })(), () => {
-      l = !0;
+      v = !0;
     };
   }, [e]);
-  async function $(l) {
-    d(l);
+  async function x(v) {
+    m(v);
     try {
-      await h.setSettings(l), N(o("settings.saved")), b(null), s();
-    } catch (_) {
-      b(String(_));
+      await $.setSettings(v), y(o("settings.saved")), f(null), n();
+    } catch (w) {
+      f(String(w));
     }
   }
-  if (!i)
-    return /* @__PURE__ */ n("p", { className: "text-[length:var(--fs-body-sm)] text-[var(--text-tertiary)]", children: o("settings.loading") });
+  if (!d)
+    return /* @__PURE__ */ s("p", { className: "text-[length:var(--fs-body-sm)] text-[var(--text-tertiary)]", children: o("settings.loading") });
   const k = "min-w-0 rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-2)] px-[var(--sp-6)] py-[var(--sp-4)] text-[length:var(--fs-body-sm)] text-[var(--text-primary)] focus:border-[var(--border-accent)] focus-visible:shadow-[var(--ring-focus)] focus:outline-none";
-  return /* @__PURE__ */ c("div", { className: "space-y-[var(--sp-6)]", children: [
-    /* @__PURE__ */ c(L, { title: o("profile.title"), hint: o("profile.hint"), children: [
-      /* @__PURE__ */ c("div", { className: "flex flex-wrap items-center gap-[var(--sp-4)]", children: [
-        t.length > 0 ? /* @__PURE__ */ n(
-          "select",
-          {
-            className: `flex-1 sm:flex-none ${k}`,
-            value: e ?? "",
-            onChange: (l) => r(l.target.value),
-            children: t.map((l) => /* @__PURE__ */ n("option", { value: l.path, children: l.channel }, l.path))
-          }
-        ) : /* @__PURE__ */ n("p", { className: "text-[length:var(--fs-body-sm)] text-[var(--text-tertiary)]", children: o("profile.none") }),
-        /* @__PURE__ */ n(M, { variant: "secondary", size: "sm", onClick: a, className: "shrink-0", children: o("profile.browse") })
-      ] }),
-      e && /* @__PURE__ */ n("p", { className: "technical mt-[var(--sp-4)] break-all text-[var(--text-disabled)]", children: e })
-    ] }),
-    /* @__PURE__ */ n(
-      L,
+  return /* @__PURE__ */ _("div", { className: "space-y-[var(--sp-6)]", children: [
+    /* @__PURE__ */ _(
+      I,
+      {
+        title: o("profile.title"),
+        titleId: i,
+        hint: o("profile.hint"),
+        children: [
+          /* @__PURE__ */ _("div", { className: "flex flex-wrap items-center gap-[var(--sp-4)]", children: [
+            t.length > 0 ? /* @__PURE__ */ s(
+              "select",
+              {
+                "aria-labelledby": i,
+                className: `flex-1 sm:flex-none ${k}`,
+                value: e ?? "",
+                onChange: (v) => r(v.target.value),
+                children: t.map((v) => /* @__PURE__ */ s("option", { value: v.path, children: v.channel }, v.path))
+              }
+            ) : /* @__PURE__ */ s("p", { className: "text-[length:var(--fs-body-sm)] text-[var(--text-tertiary)]", children: o("profile.none") }),
+            /* @__PURE__ */ s(Z, { variant: "secondary", size: "sm", onClick: a, className: "shrink-0", children: o("profile.browse") })
+          ] }),
+          e && /* @__PURE__ */ s("p", { className: "technical mt-[var(--sp-4)] break-all text-[var(--text-disabled)]", children: e })
+        ]
+      }
+    ),
+    /* @__PURE__ */ s(
+      I,
       {
         title: o("settings.gameLanguage"),
+        titleId: l,
         hint: o("settings.gameLanguageHint"),
-        children: v.length === 0 ? /* @__PURE__ */ n("p", { className: "text-[length:var(--fs-body-sm)] text-[var(--text-tertiary)]", children: o("settings.noLanguages") }) : /* @__PURE__ */ n(
+        children: u.length === 0 ? /* @__PURE__ */ s("p", { className: "text-[length:var(--fs-body-sm)] text-[var(--text-tertiary)]", children: o("settings.noLanguages") }) : /* @__PURE__ */ s(
           "select",
           {
+            "aria-labelledby": l,
             className: `w-full max-w-sm ${k}`,
-            value: i.game_language,
-            onChange: (l) => {
-              $({ ...i, game_language: l.target.value });
+            value: d.game_language,
+            onChange: (v) => {
+              x({ ...d, game_language: v.target.value });
             },
-            children: v.map((l) => /* @__PURE__ */ n("option", { value: l.id, children: l.label }, l.id))
+            children: u.map((v) => /* @__PURE__ */ s("option", { value: v.id, children: v.label }, v.id))
           }
         )
       }
     ),
-    /* @__PURE__ */ c(
-      L,
+    /* @__PURE__ */ _(
+      I,
       {
         title: o("settings.uiLanguage"),
+        titleId: c,
         hint: o("settings.uiLanguageHint"),
         children: [
-          /* @__PURE__ */ n("div", { className: "flex gap-[var(--sp-4)]", children: [
-            { id: "fr", label: "Français" },
-            { id: "en", label: "English" }
-          ].map((l) => /* @__PURE__ */ n(
-            M,
+          /* @__PURE__ */ s(
+            "div",
             {
-              size: "sm",
-              variant: i.ui_language === l.id ? "primary" : "secondary",
-              onClick: () => {
-                $({ ...i, ui_language: l.id });
-              },
-              children: l.label
-            },
-            l.id
-          )) }),
-          /* @__PURE__ */ n("p", { className: "mt-[var(--sp-4)] text-[length:var(--fs-caption)] text-[var(--text-tertiary)]", children: o("settings.installHint") })
+              className: "flex gap-[var(--sp-4)]",
+              role: "group",
+              "aria-labelledby": c,
+              children: [
+                { id: "fr", label: "Français" },
+                { id: "en", label: "English" }
+              ].map((v) => /* @__PURE__ */ s(
+                Z,
+                {
+                  size: "sm",
+                  variant: d.ui_language === v.id ? "primary" : "secondary",
+                  "aria-pressed": d.ui_language === v.id,
+                  onClick: () => {
+                    x({ ...d, ui_language: v.id });
+                  },
+                  children: v.label
+                },
+                v.id
+              ))
+            }
+          ),
+          /* @__PURE__ */ s("p", { className: "mt-[var(--sp-4)] text-[length:var(--fs-caption)] text-[var(--text-tertiary)]", children: o("settings.installHint") })
         ]
       }
     ),
-    f && /* @__PURE__ */ n("p", { className: "text-[length:var(--fs-body-sm)] text-[var(--success-text)]", children: f }),
-    g && /* @__PURE__ */ n("p", { className: "text-[length:var(--fs-body-sm)] text-[var(--danger-text)]", children: g })
+    h && /* @__PURE__ */ s("p", { className: "text-[length:var(--fs-body-sm)] text-[var(--success-text)]", children: h }),
+    p && /* @__PURE__ */ s("p", { className: "text-[length:var(--fs-body-sm)] text-[var(--danger-text)]", children: p })
   ] });
 }
-function L({
+function I({
   title: e,
-  hint: t,
-  children: r
+  titleId: t,
+  hint: r,
+  children: a
 }) {
-  return /* @__PURE__ */ c(ye, { children: [
-    /* @__PURE__ */ n("h3", { className: "text-[length:var(--fs-body)] font-semibold text-[var(--text-primary)]", children: e }),
-    /* @__PURE__ */ n("p", { className: "mb-[var(--sp-4)] mt-[var(--sp-1)] text-[length:var(--fs-caption)] text-[var(--text-tertiary)]", children: t }),
-    r
+  return /* @__PURE__ */ _(Ve, { children: [
+    /* @__PURE__ */ s(
+      "h3",
+      {
+        id: t,
+        className: "text-[length:var(--fs-body)] font-semibold text-[var(--text-primary)]",
+        children: e
+      }
+    ),
+    /* @__PURE__ */ s("p", { className: "mb-[var(--sp-4)] mt-[var(--sp-1)] text-[length:var(--fs-caption)] text-[var(--text-tertiary)]", children: r }),
+    a
   ] });
 }
 export {
-  ae as AXES,
-  Se as ContextRules,
-  Ue as EditorToolbar,
-  Ke as FilterBar,
-  D as NO_FILTERS,
-  Ge as SettingsPanel,
-  Pe as TranslationProvider,
-  X as actionLabel,
-  Ae as activationBadge,
-  h as api,
-  oe as apply,
-  Q as bindingLabel,
-  ce as build,
-  Ie as captureErrorMessage,
-  Ze as capturedToken,
-  Y as categoryLabel,
-  ze as controlLabel,
-  Te as controlsFor,
-  Ve as describe,
-  Me as devicePrefix,
-  R as effectiveToken,
-  Ee as filters,
-  qe as fromKeyPress,
-  De as fromMouse,
-  Fe as fromWheel,
-  Re as groupLabel,
-  re as hasConflict,
-  Le as indexConflicts,
-  te as isAssigned,
-  F as isFiltering,
-  Ce as isKnownAction,
-  w as keyOf,
-  ve as keycapLabel,
-  j as modeOf,
-  Be as modifierOf,
-  Oe as rivalsOf,
-  He as useCapture,
-  je as useKeyboardLayoutMap,
-  y as useT
+  Ce as AXES,
+  Ye as ContextRules,
+  bt as EditorToolbar,
+  yt as FilterBar,
+  Y as NO_FILTERS,
+  xt as SettingsPanel,
+  _t as TranslationProvider,
+  pe as actionLabel,
+  Xe as activationBadge,
+  ye as activationGestureOf,
+  Je as activationGesturesOverlap,
+  $ as api,
+  Ae as apply,
+  Ne as assessConflictPair,
+  de as bindingLabel,
+  Te as build,
+  R as canonicalControlToken,
+  ft as captureErrorMessage,
+  ht as capturedToken,
+  me as categoryLabel,
+  P as classifyConflictPair,
+  st as controlLabel,
+  ot as controlsFor,
+  mt as describe,
+  it as devicePrefix,
+  L as effectiveToken,
+  lt as filters,
+  ut as fromKeyPress,
+  dt as fromMouse,
+  pt as fromWheel,
+  nt as groupLabel,
+  $e as hasConflict,
+  at as hasUncertainConflict,
+  et as indexConflicts,
+  ke as isAssigned,
+  ee as isFiltering,
+  We as isKnownAction,
+  S as keyOf,
+  De as keycapLabel,
+  te as modeOf,
+  ct as modifierOf,
+  tt as rivalsOf,
+  M as triggerSignatureKey,
+  D as triggerSignatureOf,
+  rt as uncertainRivalsOf,
+  gt as useCapture,
+  vt as useKeyboardLayoutMap,
+  T as useT
 };

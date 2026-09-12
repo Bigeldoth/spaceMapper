@@ -1,3 +1,4 @@
+import type { TriggerSignature } from "./activation";
 /** Détermine le préfixe employé par le jeu : `js` ou `gp`. */
 export type DeviceCategory = "joystick" | "gamepad";
 export interface DeviceView {
@@ -45,7 +46,7 @@ export interface EditableBinding {
     label: string | null;
     /** Description fournie par le jeu. Souvent vide hors anglais. */
     description: string | null;
-    /** Situation de jeu où cette commande répond. Décide des conflits. */
+    /** Groupe utilisé par la politique de diagnostic des conflits. */
     context: Context;
     input_raw: string;
     device: string | null;
@@ -60,6 +61,10 @@ export interface EditableBinding {
      */
     activation_mode: string | null;
     multi_tap: string | null;
+    /** Déclencheur résolu pour ce contrôle : mode + action + périphérique + surcharge. */
+    trigger_attributes?: Record<string, string>;
+    /** Attributs locaux hérités ou surchargés, hors expansion du mode nommé. */
+    explicit_trigger_attributes?: Record<string, string>;
     /**
      * Motif du verrouillage, ou `null`/absent si l'assignation est modifiable.
      * Absent des réponses de Premium, qui n'en produit jamais — d'où
@@ -78,23 +83,39 @@ export interface EditableBinding {
  */
 export type LockReason = "dangerous_action" | "premium_category";
 /**
- * Situation de jeu où une commande répond.
+ * Groupe de commandes utilisé par le diagnostic des conflits.
  *
- * Deux commandes ne se disputent un bouton que si elles peuvent être actives
- * en même temps : on ne marche pas en pilotant.
+ * La politique exclut certains groupes et autorise les croisements utiles,
+ * notamment entre les commandes à pied et l'interface/HUD.
  */
-export type Context = "on_foot" | "ship_seat" | "ship_scanning" | "ship_mining" | "ship_salvage" | "turret" | "eva" | "ground_vehicle" | "always" | "out_of_game";
+export type Context = "on_foot" | "ship_seat" | "ship_scanning" | "ship_mining" | "ship_salvage" | "turret" | "eva" | "ground_vehicle" | "map" | "interface_hud" | "always" | "out_of_game";
 export interface MergedBindings {
     bindings: EditableBinding[];
     /** Motif d'indisponibilité des valeurs par défaut, le cas échéant. */
     defaults_error: string | null;
     /**
-     * Couples de situations qui peuvent coexister, calculés par le backend.
+     * Paires de groupes comparés par le diagnostic, calculées par le backend.
      *
      * La règle vit en Rust, où elle est testée. La réimplémenter ici
      * garantirait de la voir diverger au premier patch du jeu.
      */
     colliding_contexts: [Context, Context][];
+    /** Observations personnelles importées, limitées à leur paire et déclencheurs exacts. */
+    conflict_reviews?: ConflictReview[];
+    /** Erreur d'import du carnet ; les raccourcis restent disponibles. */
+    conflict_reviews_error?: string | null;
+    /** Modes lus dans la version installée du jeu, pour les modifications en attente. */
+    activation_modes?: Record<string, Record<string, string>>;
+}
+export interface ConflictReviewAction {
+    actionmap: string;
+    action: string;
+    trigger_signature: TriggerSignature;
+}
+export interface ConflictReview {
+    control: string;
+    actions: [ConflictReviewAction, ConflictReviewAction];
+    verdict: "false_alarm" | "real_conflict";
 }
 /** Une modification en attente d'enregistrement. `input: null` efface. */
 export interface PendingEdit {

@@ -10,6 +10,8 @@
 use crate::{Error, Result};
 use quick_xml::events::{BytesEnd, BytesStart, Event};
 use quick_xml::{Reader, Writer};
+use spacemapper_core::actionmaps::InputBinding;
+use std::borrow::Cow;
 
 /// Une modification d'assignation.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -65,10 +67,20 @@ impl BindingEdit {
         self
     }
 
-    /// Valeur à écrire. Effacer revient à `input=""`, la forme que le jeu
-    /// emploie lui-même pour une action délibérément non assignée.
-    fn value(&self) -> &str {
-        self.input.as_deref().unwrap_or("")
+    /// Effacer doit conserver le périphérique (`kb1_ `, `js3_ `…) pour
+    /// surcharger son assignation par défaut dans le jeu. Une valeur vide
+    /// perd cette information et peut laisser le raccourci par défaut actif.
+    /// Pour une entrée à créer, seul `original_input` permet de le retrouver.
+    fn value(&self, existing_input: Option<&str>) -> Cow<'_, str> {
+        if let Some(input) = &self.input {
+            return Cow::Borrowed(input);
+        }
+        self.original_input
+            .as_deref()
+            .and_then(InputBinding::parse_head)
+            .or_else(|| existing_input.and_then(InputBinding::parse_head))
+            .map(|(kind, instance)| Cow::Owned(format!("{}{}_ ", kind.prefix(), instance)))
+            .unwrap_or(Cow::Borrowed(""))
     }
 }
 
@@ -122,7 +134,7 @@ pub fn apply(xml: &str, edit: &BindingEdit) -> Result<String> {
                     && current_action.as_deref() == Some(edit.action.as_str()) =>
             {
                 write_raw(&mut writer, &format!("{indent}  "))?;
-                write_rebind(&mut writer, edit.value())?;
+                write_rebind(&mut writer, &edit.value(None))?;
                 write_raw(&mut writer, &indent)?;
                 write(&mut writer, &event)?;
                 current_action = None;
@@ -165,14 +177,16 @@ pub fn apply(xml: &str, edit: &BindingEdit) -> Result<String> {
 
             // `<rebind .../>` — la forme quasi universelle dans ce fichier.
             Event::Empty(ref e) if is_target(e, &current_map, &current_action, edit, applied) => {
-                let replaced = with_input(e, edit.value())?;
+                let value = edit.value(attribute(e, b"input").as_deref());
+                let replaced = with_input(e, &value)?;
                 write(&mut writer, &Event::Empty(replaced))?;
                 applied = true;
             }
 
             // `<rebind ...></rebind>` — rare, mais valide.
             Event::Start(ref e) if is_target(e, &current_map, &current_action, edit, applied) => {
-                let replaced = with_input(e, edit.value())?;
+                let value = edit.value(attribute(e, b"input").as_deref());
+                let replaced = with_input(e, &value)?;
                 write(&mut writer, &Event::Start(replaced))?;
                 applied = true;
             }
@@ -315,7 +329,7 @@ fn write_action(writer: &mut Writer<Vec<u8>>, edit: &BindingEdit) -> Result<()> 
     let mut element = BytesStart::new("action");
     element.push_attribute(("name", edit.action.as_str()));
     write(writer, &Event::Start(element))?;
-    write_rebind(writer, edit.value())?;
+    write_rebind(writer, &edit.value(None))?;
     write(writer, &Event::End(BytesEnd::new("action")))
 }
 
@@ -380,8 +394,120 @@ mod tests {
 
     #[test]
     fn clearing_writes_the_games_own_unbound_form() {
-        let out = apply(DOC, &BindingEdit::clear("spaceship_movement", "v_brake")).unwrap();
-        assert!(out.contains(r#"<rebind input=""/>"#), "{out}");
+        let out = apply(DOC, &BindingEdit::clear("spaceship_movement", "v_boost")).unwrap();
+        assert_eq!(
+            out,
+            DOC.replacen(r#"input="js1_button5""#, r#"input="js1_ ""#, 1)
+        );
+    }
+
+    #[test]
+    fn clearing_preserves_every_device_family_and_instance() {
+        for (bound, unbound) in [
+            ("kb1_a", "kb1_ "),
+            ("kb1_lshift+a", "kb1_ "),
+            ("mo1_mouse1", "mo1_ "),
+            ("gp1_x", "gp1_ "),
+            ("js3_button5", "js3_ "),
+            ("js10_rctrl+button10", "js10_ "),
+        ] {
+            for closing in ["/>", "></rebind>"] {
+                let doc = format!(
+                    r#"<ActionMaps><actionmap name="spaceship_movement"><action name="v_strafe_left"><rebind input="{bound}" activationMode="press"{closing}</action></actionmap></ActionMaps>"#
+                );
+                let out = apply(
+                    &doc,
+                    &BindingEdit::clear("spaceship_movement", "v_strafe_left"),
+                )
+                .unwrap();
+                assert_eq!(out, doc.replace(bound, unbound));
+                let parsed = spacemapper_core::actionmaps::parse_str(&out).unwrap();
+                let (_, _, rebind) = parsed.rebinds().next().unwrap();
+                assert!(rebind.is_unbound(), "{bound}: {out}");
+                assert_eq!(
+                    InputBinding::parse_head(&rebind.input_raw),
+                    InputBinding::parse_head(bound)
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn clearing_an_implicit_keyboard_default_creates_a_device_override() {
+        // Le jeu fournit `kb1_a` même si aucune surcharge n'est encore écrite.
+        for doc in [
+            r#"<ActionMaps><ActionProfiles></ActionProfiles></ActionMaps>"#,
+            r#"<ActionMaps><actionmap name="spaceship_movement"></actionmap></ActionMaps>"#,
+            r#"<ActionMaps><actionmap name="spaceship_movement"><action name="v_strafe_left"></action></actionmap></ActionMaps>"#,
+        ] {
+            let out = apply(
+                doc,
+                &BindingEdit::clear("spaceship_movement", "v_strafe_left").targeting("kb1_a"),
+            )
+            .unwrap();
+            assert_eq!(
+                reparse(&out, "spaceship_movement", "v_strafe_left").as_deref(),
+                Some("kb1_ ")
+            );
+            assert_eq!(out.matches("<rebind").count(), 1, "{out}");
+        }
+    }
+
+    #[test]
+    fn clearing_a_target_leaves_other_bindings_and_instances_untouched() {
+        let doc = r#"<ActionMaps><actionmap name="spaceship_movement"><action name="v_strafe_left"><rebind input="kb1_a"/><rebind input="js10_button1"/><rebind input="js1_button1"/><rebind input="js1_button2"/></action></actionmap></ActionMaps>"#;
+        let out = apply(
+            doc,
+            &BindingEdit::clear("spaceship_movement", "v_strafe_left").targeting("js1_button1"),
+        )
+        .unwrap();
+        assert_eq!(out, doc.replace("js1_button1", "js1_ "));
+    }
+
+    #[test]
+    fn clearing_a_default_inserts_next_to_another_device_override() {
+        let doc = r#"<ActionMaps><actionmap name="spaceship_movement"><action name="v_strafe_left"><rebind input="js3_x" activationMode="press"/></action></actionmap></ActionMaps>"#;
+        let out = apply(
+            doc,
+            &BindingEdit::clear("spaceship_movement", "v_strafe_left").targeting("kb1_a"),
+        )
+        .unwrap();
+        assert!(out.contains(r#"<rebind input="js3_x" activationMode="press"/>"#));
+        let parsed = spacemapper_core::actionmaps::parse_str(&out).unwrap();
+        let inputs: Vec<_> = parsed
+            .rebinds()
+            .map(|(_, _, rebind)| rebind.input_raw.as_str())
+            .collect();
+        assert_eq!(inputs, ["js3_x", "kb1_ "]);
+    }
+
+    #[test]
+    fn clearing_an_already_unbound_device_is_idempotent() {
+        for edit in [
+            BindingEdit::clear("spaceship_movement", "v_brake"),
+            BindingEdit::clear("spaceship_movement", "v_brake").targeting("js2_ "),
+        ] {
+            let once = apply(DOC, &edit).unwrap();
+            let twice = apply(&once, &edit).unwrap();
+            assert_eq!(once, DOC);
+            assert_eq!(twice, once);
+        }
+    }
+
+    #[test]
+    fn clearing_without_an_identifiable_device_keeps_the_empty_fallback() {
+        for binding in [
+            r#"<rebind/>"#,
+            r#"<rebind input=""/>"#,
+            r#"<rebind input="unknown"/>"#,
+            "",
+        ] {
+            let doc = format!(
+                r#"<ActionMaps><actionmap name="player"><action name="jump">{binding}</action></actionmap></ActionMaps>"#
+            );
+            let out = apply(&doc, &BindingEdit::clear("player", "jump")).unwrap();
+            assert_eq!(reparse(&out, "player", "jump").as_deref(), Some(""));
+        }
     }
 
     #[test]
@@ -512,7 +638,7 @@ mod tests {
         .unwrap();
 
         assert!(out.contains(r#"input="js1_button9""#));
-        assert!(out.contains(r#"<rebind input=""/>"#));
+        assert!(out.contains(r#"<rebind input="js2_ "/>"#));
     }
 
     #[test]

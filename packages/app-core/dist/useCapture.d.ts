@@ -17,7 +17,7 @@ export interface CaptureFeed {
     listening: boolean;
     error: string | null;
     /** Oublie le dernier relevé, pour repartir d'une capture propre. */
-    reset: () => void;
+    reset: () => Promise<void>;
 }
 export declare function useCapture(devices: DeviceView[], enabled: boolean): CaptureFeed;
 /**
