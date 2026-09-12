@@ -93,7 +93,13 @@ try {
   await page.getByRole("searchbox", { name: /Rechercher/ }).fill("Regression");
   await openEditor();
   await bounds();
-  assert.ok(await page.locator(".app-view").evaluate(element => element.scrollHeight > 2000), "Fixture reproduces a long command list");
+  assert.ok(await page.getByRole("button").filter({ has: page.getByText("Regression 00", { exact: true }) }).first().evaluate(element => {
+    for (let parent = element.parentElement; parent; parent = parent.parentElement) {
+      if (/^(auto|scroll)$/.test(getComputedStyle(parent).overflowY)
+        && parent.scrollHeight > parent.clientHeight && parent.scrollHeight > 2000) return true;
+    }
+    return false;
+  }), "Fixture reproduces a long command list inside a scrollable container");
   await page.waitForFunction(() => getComputedStyle(document.querySelector(".app-view")).transform === "none");
   await page.keyboard.press("Tab");
   assert.equal(await dialog.getByRole("combobox", { name: "Modificateur", exact: true }).evaluate(element => element === document.activeElement), true, "Tab leaves capture without assigning");
