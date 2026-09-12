@@ -12,14 +12,16 @@
 //! changer.
 
 use serde::{Deserialize, Serialize};
+use spacemapper_app_support::conflict_reviews::{self, ConflictReview};
 use spacemapper_app_support::gamedata::GameData;
 use spacemapper_app_support::settings as app_settings;
 use spacemapper_core::actionmaps::{self, ActionMaps, DeviceKind, InputBinding};
 use spacemapper_core::channel;
 use spacemapper_core::context::{self, Context};
 use spacemapper_core::defaults::DefaultProfile;
+use spacemapper_core::triggers::TriggerAttributes;
 use spacemapper_edit::{backup, scope, BindingEdit, EditAccess, EditCategory};
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use std::path::{Path, PathBuf};
 
 type CmdResult<T> = Result<T, String>;
@@ -71,10 +73,7 @@ pub struct EditableBinding {
     /// Description fournie par le jeu — sa réponse à « à quoi sert cette
     /// touche ? ». Souvent vide hors anglais.
     pub description: Option<String>,
-    /// Situation de jeu où cette commande est active.
-    ///
-    /// C'est elle qui décide d'un conflit : deux commandes ne se disputent un
-    /// bouton que si elles peuvent répondre en même temps.
+    /// Groupe utilisé par la politique de diagnostic des conflits.
     pub context: Context,
     pub input_raw: String,
     pub device: Option<String>,
@@ -88,6 +87,9 @@ pub struct EditableBinding {
     /// information affichée pour qui édite une assignation qui en porte un.
     pub activation_mode: Option<String>,
     pub multi_tap: Option<String>,
+    pub trigger_attributes: TriggerAttributes,
+    /// Action/device/rebind attributes, before expanding the activation mode.
+    pub explicit_trigger_attributes: TriggerAttributes,
     /// Motif du verrouillage, ou `None` si l'assignation est modifiable.
     pub lock: Option<LockReason>,
 }
@@ -110,6 +112,10 @@ impl From<&PendingEdit> for BindingEdit {
             actionmap: p.actionmap.clone(),
             action: p.action.clone(),
             input: p.input.clone(),
+            // Lite réassigne le contrôle sans modifier son geste d'activation.
+            activation_mode: None,
+            multi_tap: None,
+            gesture: None,
             original_input: p.original_input.clone(),
         }
     }
@@ -155,13 +161,21 @@ pub fn list_editable_bindings(
     let language = app_settings::load(APP_NAME).game_language;
     let catalog = state.catalog_for(Path::new(&path), &language);
 
-    let mut bindings = collect_editable(&maps, defaults.as_ref());
-    label_from_game(&mut bindings, defaults.as_ref(), &catalog);
+    let mut bindings = collect_editable(&maps, defaults.as_deref());
+    label_from_game(&mut bindings, defaults.as_deref(), &catalog);
 
+    let (conflict_reviews, conflict_reviews_error) =
+        conflict_reviews::load(APP_NAME, Path::new(&path));
     Ok(MergedBindings {
         bindings,
         defaults_error,
         colliding_contexts: colliding_contexts(),
+        conflict_reviews,
+        conflict_reviews_error,
+        activation_modes: defaults
+            .as_deref()
+            .map(|p| p.activation_modes.clone())
+            .unwrap_or_default(),
     })
 }
 
@@ -242,17 +256,20 @@ pub struct MergedBindings {
     pub bindings: Vec<EditableBinding>,
     /// Motif d'indisponibilité des valeurs par défaut, le cas échéant.
     pub defaults_error: Option<String>,
-    /// Couples de situations qui peuvent coexister.
+    /// Paires de groupes comparés par le diagnostic.
     ///
     /// Transmis une seule fois plutôt que réimplémenté côté interface : la
     /// règle est testée en Rust, et la dupliquer en TypeScript garantirait de
     /// les voir diverger au premier patch du jeu.
     pub colliding_contexts: Vec<[Context; 2]>,
+    pub conflict_reviews: Vec<ConflictReview>,
+    pub conflict_reviews_error: Option<String>,
+    pub activation_modes: BTreeMap<String, TriggerAttributes>,
 }
 
-/// Toutes les paires de situations compatibles, y compris réflexives.
+/// Toutes les paires autorisées par le diagnostic, y compris réflexives.
 fn colliding_contexts() -> Vec<[Context; 2]> {
-    const ALL: [Context; 10] = [
+    const ALL: [Context; 12] = [
         Context::OnFoot,
         Context::ShipSeat,
         Context::ShipScanning,
@@ -261,6 +278,8 @@ fn colliding_contexts() -> Vec<[Context; 2]> {
         Context::Turret,
         Context::Eva,
         Context::GroundVehicle,
+        Context::Map,
+        Context::InterfaceHud,
         Context::Always,
         Context::OutOfGame,
     ];
@@ -384,6 +403,30 @@ fn collect_editable(maps: &ActionMaps, defaults: Option<&DefaultProfile>) -> Vec
         return bindings;
     };
 
+    // Un rebind sans activationMode change le bouton, pas le geste défini par
+    // l'action du jeu. Une valeur explicite, même vide, reste prioritaire.
+    for binding in &mut bindings {
+        let Some((kind, _)) = InputBinding::parse_head(&binding.input_raw) else {
+            continue;
+        };
+        let action = defaults.action(&binding.actionmap, &binding.action);
+        let mut attributes = action
+            .map(|a| a.explicit_trigger_attributes_for(kind))
+            .unwrap_or_default();
+        attributes.extend(binding.trigger_attributes.clone());
+        binding.explicit_trigger_attributes = attributes.clone();
+        if binding.activation_mode.is_none() {
+            binding.activation_mode = action
+                .and_then(|a| a.activation_mode_for(kind))
+                .map(str::to_string);
+        }
+        binding.trigger_attributes =
+            defaults.resolve_trigger_attributes(binding.activation_mode.as_deref(), &attributes);
+        if binding.multi_tap.is_none() {
+            binding.multi_tap = binding.trigger_attributes.get("multiTap").cloned();
+        }
+    }
+
     // Familles déjà couvertes par une surcharge, par action — dérivé du
     // document brut via `Rebind::kind()`, la même classification que le reste
     // du crate utilise déjà pour distinguer « rien sur ce périphérique » de
@@ -431,35 +474,37 @@ fn collect_editable(maps: &ActionMaps, defaults: Option<&DefaultProfile>) -> Vec
                 // Le profil par défaut applique toujours la valeur au premier
                 // exemplaire de la famille — voir `default_token`/`token_for`.
                 let prefix = format!("{}1", device_kind.prefix());
-                let Some(token) = action.token_for(&prefix) else {
-                    continue;
-                };
+                for default_input in action.inputs_for(device_kind) {
+                    let token = format!("{prefix}_{}", default_input.control);
 
-                let input = InputBinding::parse(&token);
-                let locked_reason = lock_reason(access, &action.name);
+                    let input = InputBinding::parse(&token);
+                    let locked_reason = lock_reason(access, &action.name);
 
-                bindings.push(EditableBinding {
-                    actionmap: map.name.clone(),
-                    category,
-                    access,
-                    origin: Origin::GameDefault,
-                    context: context::context_of(&map.name),
-                    action: action.name.clone(),
-                    // Renseigné ensuite, une fois le catalogue chargé.
-                    label: None,
-                    description: None,
-                    input_raw: token.clone(),
-                    device: input
-                        .as_ref()
-                        .map(|i| format!("{}{}", i.device_kind.prefix(), i.instance)),
-                    modifier: input.as_ref().and_then(|i| i.modifier.clone()),
-                    control: input.as_ref().map(|i| i.control.clone()),
-                    // Le profil par défaut ne modélise que l'activation ;
-                    // le multi-appui n'existe que côté surcharges utilisateur.
-                    activation_mode: action.activation_mode.clone(),
-                    multi_tap: None,
-                    lock: locked_reason,
-                });
+                    bindings.push(EditableBinding {
+                        actionmap: map.name.clone(),
+                        category,
+                        access,
+                        origin: Origin::GameDefault,
+                        context: context::context_of(&map.name),
+                        action: action.name.clone(),
+                        // Renseigné ensuite, une fois le catalogue chargé.
+                        label: None,
+                        description: None,
+                        input_raw: token.clone(),
+                        device: input
+                            .as_ref()
+                            .map(|i| format!("{}{}", i.device_kind.prefix(), i.instance)),
+                        modifier: input.as_ref().and_then(|i| i.modifier.clone()),
+                        control: input.as_ref().map(|i| i.control.clone()),
+                        activation_mode: default_input.activation_mode.clone(),
+                        multi_tap: default_input.trigger_attributes.get("multiTap").cloned(),
+                        trigger_attributes: default_input.trigger_attributes.clone(),
+                        explicit_trigger_attributes: default_input
+                            .explicit_trigger_attributes
+                            .clone(),
+                        lock: locked_reason,
+                    });
+                }
             }
         }
     }
@@ -521,6 +566,8 @@ fn collect_overrides(maps: &ActionMaps) -> Vec<EditableBinding> {
                 // ce qu'elle affiche.
                 activation_mode: rebind.activation_mode.clone(),
                 multi_tap: rebind.multi_tap.clone(),
+                trigger_attributes: rebind.trigger_attributes.clone(),
+                explicit_trigger_attributes: rebind.trigger_attributes.clone(),
                 lock: locked_reason,
             })
         })
@@ -530,6 +577,50 @@ fn collect_overrides(maps: &ActionMaps) -> Vec<EditableBinding> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn merged_bindings_serializes_the_context_conflict_policy() {
+        let response = MergedBindings {
+            bindings: Vec::new(),
+            defaults_error: None,
+            colliding_contexts: colliding_contexts(),
+            conflict_reviews: Vec::new(),
+            conflict_reviews_error: None,
+            activation_modes: BTreeMap::new(),
+        };
+        let serialized = serde_json::to_value(response).unwrap();
+
+        // Le HUD/interface peut croiser les commandes à pied. Carte, EVA,
+        // véhicules et spectateur sont exclus, y compris entre eux.
+        assert_eq!(
+            serialized["colliding_contexts"],
+            serde_json::json!([
+                ["on_foot", "on_foot"],
+                ["on_foot", "interface_hud"],
+                ["ship_seat", "ship_seat"],
+                ["ship_seat", "ship_scanning"],
+                ["ship_seat", "ship_mining"],
+                ["ship_seat", "ship_salvage"],
+                ["ship_seat", "interface_hud"],
+                ["ship_seat", "always"],
+                ["ship_scanning", "ship_scanning"],
+                ["ship_scanning", "interface_hud"],
+                ["ship_scanning", "always"],
+                ["ship_mining", "ship_mining"],
+                ["ship_mining", "interface_hud"],
+                ["ship_mining", "always"],
+                ["ship_salvage", "ship_salvage"],
+                ["ship_salvage", "interface_hud"],
+                ["ship_salvage", "always"],
+                ["turret", "turret"],
+                ["turret", "interface_hud"],
+                ["turret", "always"],
+                ["interface_hud", "interface_hud"],
+                ["interface_hud", "always"],
+                ["always", "always"]
+            ])
+        );
+    }
 
     const DOC: &str = r#"<ActionMaps><ActionProfiles profileName="default">
   <actionmap name="spaceship_movement">
@@ -587,6 +678,221 @@ mod tests {
     fn merged() -> Vec<EditableBinding> {
         let defaults = spacemapper_core::defaults::parse_str(DEFAULTS).unwrap();
         collect_editable(&actionmaps::parse_str(DOC).unwrap(), Some(&defaults))
+    }
+
+    #[test]
+    fn overridden_self_destruct_and_eject_keep_their_default_activation_gestures() {
+        let defaults = spacemapper_core::defaults::parse_str(
+            r#"<profile><actionmap name="spaceship_general">
+             <action name="v_self_destruct" activationMode="delayed_press_medium" keyboard="backspace"/>
+             <action name="v_eject" activationMode="double_tap" keyboard="ralt+l"/>
+            </actionmap></profile>"#,
+        )
+        .unwrap();
+        let maps = actionmaps::parse_str(
+            r#"<ActionMaps><ActionProfiles profileName="default">
+             <actionmap name="spaceship_general">
+              <action name="v_self_destruct"><rebind input="js2_rctrl+button5"/></action>
+              <action name="v_eject"><rebind input="js2_rctrl+button5" multiTap="2"/></action>
+             </actionmap></ActionProfiles></ActionMaps>"#,
+        )
+        .unwrap();
+
+        let bindings = collect_editable(&maps, Some(&defaults));
+        for (action, mode, multi_tap) in [
+            ("v_self_destruct", "delayed_press_medium", None),
+            ("v_eject", "double_tap", Some("2")),
+        ] {
+            let overridden = bindings
+                .iter()
+                .find(|binding| binding.action == action && binding.origin == Origin::Override)
+                .unwrap();
+            assert_eq!(overridden.activation_mode.as_deref(), Some(mode));
+            assert_eq!(overridden.multi_tap.as_deref(), multi_tap);
+            assert_eq!(overridden.input_raw, "js2_rctrl+button5");
+            assert_eq!(overridden.device.as_deref(), Some("js2"));
+            assert_eq!(overridden.modifier.as_deref(), Some("rctrl"));
+            assert_eq!(overridden.control.as_deref(), Some("button5"));
+            assert_eq!(overridden.lock, Some(LockReason::DangerousAction));
+
+            let keyboard = bindings
+                .iter()
+                .find(|binding| binding.action == action && binding.origin == Origin::GameDefault)
+                .unwrap();
+            assert_eq!(keyboard.activation_mode, overridden.activation_mode);
+            assert!(keyboard.multi_tap.is_none());
+        }
+    }
+
+    #[test]
+    fn an_explicit_override_activation_wins_even_when_empty() {
+        let defaults = spacemapper_core::defaults::parse_str(
+            r#"<profile><actionmap name="spaceship_general">
+             <action name="v_self_destruct" activationMode="delayed_press_medium"/>
+            </actionmap></profile>"#,
+        )
+        .unwrap();
+
+        for mode in ["", "press", "double_tap", "future_mode"] {
+            let xml = format!(
+                r#"<ActionMaps><ActionProfiles profileName="default">
+                 <actionmap name="spaceship_general"><action name="v_self_destruct">
+                  <rebind input="js2_rctrl+button5" activationMode="{mode}" multiTap="3"/>
+                 </action></actionmap></ActionProfiles></ActionMaps>"#
+            );
+            let bindings = collect_editable(&actionmaps::parse_str(&xml).unwrap(), Some(&defaults));
+            assert_eq!(bindings.len(), 1);
+            assert_eq!(bindings[0].activation_mode.as_deref(), Some(mode));
+            assert_eq!(bindings[0].multi_tap.as_deref(), Some("3"));
+            assert_eq!(bindings[0].input_raw, "js2_rctrl+button5");
+        }
+    }
+
+    #[test]
+    fn inherited_activation_uses_the_input_family_for_overrides_and_defaults() {
+        let defaults = spacemapper_core::defaults::parse_str(
+            r#"<profile><actionmap name="player">
+             <action name="melee_dodgeLeft" activationMode="double_tap_nonblocking" keyboard="a">
+              <gamepad input=" " activationMode="press"/>
+             </action>
+             <action name="moveleft" activationMode="tap" keyboard="a" gamepad="thumblx">
+              <gamepad activationMode="hold"/>
+             </action>
+            </actionmap></profile>"#,
+        )
+        .unwrap();
+        let maps = actionmaps::parse_str(
+            r#"<ActionMaps><ActionProfiles profileName="default">
+             <actionmap name="player"><action name="melee_dodgeLeft">
+              <rebind input="gp2_button1"/>
+              <rebind input="js2_button1"/>
+              <rebind input="BAD TOKEN"/>
+             </action></actionmap></ActionProfiles></ActionMaps>"#,
+        )
+        .unwrap();
+
+        let bindings = collect_editable(&maps, Some(&defaults));
+        for (action, input, mode, origin) in [
+            (
+                "melee_dodgeLeft",
+                "gp2_button1",
+                Some("press"),
+                Origin::Override,
+            ),
+            (
+                "melee_dodgeLeft",
+                "js2_button1",
+                Some("double_tap_nonblocking"),
+                Origin::Override,
+            ),
+            ("melee_dodgeLeft", "BAD TOKEN", None, Origin::Override),
+            (
+                "melee_dodgeLeft",
+                "kb1_a",
+                Some("double_tap_nonblocking"),
+                Origin::GameDefault,
+            ),
+            ("moveleft", "kb1_a", Some("tap"), Origin::GameDefault),
+            ("moveleft", "gp1_thumblx", Some("hold"), Origin::GameDefault),
+        ] {
+            let binding = bindings
+                .iter()
+                .find(|binding| binding.action == action && binding.input_raw == input)
+                .unwrap();
+            assert_eq!(binding.activation_mode.as_deref(), mode, "{input}");
+            assert_eq!(binding.origin, origin);
+        }
+        assert_eq!(bindings.len(), 6);
+    }
+
+    #[test]
+    fn activation_stays_absent_without_a_matching_default() {
+        let maps = actionmaps::parse_str(
+            r#"<ActionMaps><ActionProfiles profileName="default">
+             <actionmap name="spaceship_general"><action name="v_self_destruct">
+              <rebind input="js2_rctrl+button5" multiTap="2"/>
+             </action></actionmap></ActionProfiles></ActionMaps>"#,
+        )
+        .unwrap();
+        for xml in [
+            "<profile/>",
+            r#"<profile><actionmap name="spaceship_general">
+             <action name="v_eject" activationMode="double_tap"/>
+            </actionmap></profile>"#,
+            r#"<profile><actionmap name="spaceship_movement">
+             <action name="v_self_destruct" activationMode="delayed_press_medium"/>
+            </actionmap></profile>"#,
+            r#"<profile><actionmap name="spaceship_general">
+             <action name="v_self_destruct"/>
+            </actionmap></profile>"#,
+        ] {
+            let defaults = spacemapper_core::defaults::parse_str(xml).unwrap();
+            for profile in [None, Some(&defaults)] {
+                let bindings = collect_editable(&maps, profile);
+                assert_eq!(bindings.len(), 1);
+                assert!(bindings[0].activation_mode.is_none());
+                assert_eq!(bindings[0].multi_tap.as_deref(), Some("2"));
+                assert_eq!(bindings[0].input_raw, "js2_rctrl+button5");
+            }
+        }
+    }
+
+    #[test]
+    fn clearing_a_keyboard_default_survives_reload_and_keeps_the_joystick() {
+        let defaults = spacemapper_core::defaults::parse_str(
+            r#"<profile><actionmap name="spaceship_movement">
+             <action name="v_strafe_left" keyboard="a" joystick="x"/>
+            </actionmap></profile>"#,
+        )
+        .unwrap();
+        let pending: PendingEdit = serde_json::from_str(
+            r#"{"actionmap":"spaceship_movement","action":"v_strafe_left",
+                "input":null,"original_input":"kb1_a"}"#,
+        )
+        .unwrap();
+
+        for (xml, joystick_input, joystick_origin) in [
+            (
+                r#"<ActionMaps><ActionProfiles profileName="default"></ActionProfiles></ActionMaps>"#,
+                "js1_x",
+                Origin::GameDefault,
+            ),
+            (
+                r#"<ActionMaps><ActionProfiles profileName="default">
+                 <actionmap name="spaceship_movement"><action name="v_strafe_left">
+                  <rebind input="js2_button3"/>
+                 </action></actionmap></ActionProfiles></ActionMaps>"#,
+                "js2_button3",
+                Origin::Override,
+            ),
+        ] {
+            let before = collect_editable(&actionmaps::parse_str(xml).unwrap(), Some(&defaults));
+            assert!(before.iter().any(|binding| {
+                binding.input_raw == "kb1_a" && binding.origin == Origin::GameDefault
+            }));
+
+            // Même chemin que l'enregistrement de l'interface, puis sa relecture.
+            let written =
+                spacemapper_edit::writer::apply(xml, &BindingEdit::from(&pending)).unwrap();
+            let reloaded = actionmaps::parse_str(&written).unwrap();
+            let bindings = collect_editable(&reloaded, Some(&defaults));
+            assert_eq!(bindings.len(), 2, "{bindings:?}");
+            assert!(bindings.iter().all(|binding| binding.input_raw != "kb1_a"));
+
+            let keyboard = bindings
+                .iter()
+                .find(|binding| binding.input_raw == "kb1_ ")
+                .expect("la suppression doit garder le périphérique clavier");
+            assert_eq!(keyboard.origin, Origin::Override);
+            assert!(keyboard.control.is_none());
+
+            let joystick = bindings
+                .iter()
+                .find(|binding| binding.input_raw == joystick_input)
+                .expect("la suppression clavier a masqué l'assignation du manche");
+            assert_eq!(joystick.origin, joystick_origin);
+            assert!(joystick.control.is_some());
+        }
     }
 
     #[test]

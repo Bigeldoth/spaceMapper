@@ -9,10 +9,10 @@
 //! Lecture seule, entièrement. Appliquer un profil, l'adapter à un autre ordre
 //! de périphériques ou en permuter les manches relève de l'édition Premium.
 
-use crate::devices::enumerator;
+use crate::devices::discover_devices;
 use serde::Serialize;
 use spacemapper_core::actionmaps::{self, ActionMaps, DeviceKind};
-use spacemapper_core::device::{DeviceEnumerator, InputDevice};
+use spacemapper_core::device::InputDevice;
 use std::path::{Path, PathBuf};
 
 type CmdResult<T> = Result<T, String>;
@@ -88,7 +88,13 @@ fn mappings_dir(profile: &Path) -> Option<PathBuf> {
 /// Une absence de dossier n'est pas une erreur : le joueur n'a simplement
 /// jamais exporté ni importé de disposition.
 #[tauri::command]
-pub fn list_layouts(path: String) -> CmdResult<Vec<LayoutFile>> {
+pub async fn list_layouts(path: String) -> CmdResult<Vec<LayoutFile>> {
+    tauri::async_runtime::spawn_blocking(move || list_layouts_on_worker(path))
+        .await
+        .map_err(|e| format!("lecture des profils partagés interrompue : {e}"))?
+}
+
+fn list_layouts_on_worker(path: String) -> CmdResult<Vec<LayoutFile>> {
     let Some(dir) = mappings_dir(Path::new(&path)) else {
         return Ok(Vec::new());
     };
@@ -129,10 +135,16 @@ pub fn list_layouts(path: String) -> CmdResult<Vec<LayoutFile>> {
 
 /// Détaille un profil exporté, sans rien y écrire.
 #[tauri::command]
-pub fn inspect_layout(path: String) -> CmdResult<LayoutInspection> {
+pub async fn inspect_layout(path: String) -> CmdResult<LayoutInspection> {
+    tauri::async_runtime::spawn_blocking(move || inspect_layout_on_worker(path))
+        .await
+        .map_err(|e| format!("inspection du profil interrompue : {e}"))?
+}
+
+fn inspect_layout_on_worker(path: String) -> CmdResult<LayoutInspection> {
     let file = PathBuf::from(&path);
     let maps = actionmaps::parse_file(&file).map_err(|e| e.to_string())?;
-    let devices = enumerator().enumerate().unwrap_or_default();
+    let devices = discover_devices()?;
 
     let mut with_modifier = 0;
     let mut with_activation_mode = 0;

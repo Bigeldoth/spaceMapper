@@ -20,7 +20,7 @@ const l = {
   md: "h-[var(--h-control)] px-[var(--sp-6)] text-[length:var(--fs-body)]",
   lg: "h-[var(--h-control-lg)] px-[var(--sp-7)] text-[length:var(--fs-body)]"
 }, u = {
-  primary: "border border-transparent bg-accent text-[var(--text-on-accent)] hover:bg-[var(--accent-hover)] hover:shadow-[var(--glow-soft)] active:bg-[var(--accent-press)] active:shadow-none",
+  primary: "border border-transparent bg-accent text-[var(--text-on-accent)] hover:border-[var(--blue-300)] hover:bg-accent hover:shadow-[var(--glow-soft)] active:border-transparent active:bg-[var(--accent-press)] active:shadow-none",
   secondary: "border border-[var(--border-default)] bg-[var(--surface-2)] text-[var(--text-primary)] hover:border-[var(--border-strong)] hover:bg-[var(--surface-hover)]",
   ghost: "border border-transparent bg-transparent text-[var(--text-secondary)] hover:bg-[var(--surface-hover)] hover:text-[var(--text-primary)]"
 };
@@ -86,7 +86,7 @@ function A({
   return r === "hud" ? /* @__PURE__ */ t(
     "div",
     {
-      className: `relative rounded-[var(--radius-xs)] border border-[var(--border-hud)] bg-[var(--surface-1)] p-[var(--pad-card)] ${c} ${n}`,
+      className: `pk-card pk-card--hud relative rounded-[var(--radius-xs)] border border-[var(--border-hud)] bg-[var(--surface-1)] p-[var(--pad-card)] ${c} ${n}`,
       ...d,
       children: [
         /* @__PURE__ */ e(b, {}),
@@ -96,7 +96,7 @@ function A({
   ) : /* @__PURE__ */ e(
     "div",
     {
-      className: `rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--surface-1)] p-[var(--pad-card)] shadow-[var(--shadow-1)] ${c} ${n}`,
+      className: `pk-card rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--surface-1)] p-[var(--pad-card)] shadow-[var(--shadow-1)] ${c} ${n}`,
       ...d,
       children: s
     }

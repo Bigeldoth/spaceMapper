@@ -1,14 +1,13 @@
 /**
- * Commandes qui se disputent le même contrôle.
+ * Commandes qui occupent le même usage d'un contrôle.
  *
- * Star Citizen n'interdit pas d'assigner deux commandes au même bouton, et ne
- * le signale nulle part : le joueur découvre en vol que sa postcombustion
- * déclenche aussi autre chose. C'est l'un des rares défauts de configuration
- * qu'on peut détecter sans le jeu, et il mérite mieux qu'un compteur.
+ * La combinaison complète comprend le périphérique, le contrôle, ses
+ * modificateurs et le type d'appui. Réutiliser un bouton avec Ctrl, Maj,
+ * un double-appui ou un appui prolongé crée un usage distinct.
  */
-import type { Context, EditableBinding } from "./api";
+import type { ConflictReview, Context, EditableBinding } from "./api";
 /**
- * Relation « ces deux situations peuvent coexister ».
+ * Contextes autorisés à produire un conflit dans le diagnostic.
  *
  * Fournie par le backend, où elle est testée, plutôt que réécrite ici. Tant
  * qu'elle n'est pas chargée, on considère que tout se heurte : mieux vaut une
@@ -16,6 +15,7 @@ import type { Context, EditableBinding } from "./api";
  */
 export declare class ContextRules {
     private readonly pairs;
+    private readonly loaded;
     constructor(pairs: [Context, Context][] | null);
     canCollide(a: Context, b: Context): boolean;
 }
@@ -52,15 +52,42 @@ export declare function isAssigned(binding: EditableBinding, pending: Map<string
  *
  * Construit une fois par rendu et passé aux filtres comme au détail : le
  * recalculer par ligne serait quadratique sur 451 assignations.
+ * Le regroupement reste physique (`byToken`), puis chaque paire est filtrée
+ * par contexte **et** par geste d'activation : court, long et double-appui
+ * peuvent partager un contrôle sans se disputer son déclenchement.
  */
 export interface ConflictIndex {
     /** Commandes partageant un jeton, sans distinction de situation. */
     readonly byToken: Map<string, EditableBinding[]>;
     readonly rules: ContextRules;
-    /** Clés des commandes réellement en conflit, situation comprise. */
+    /** Clés des commandes dont l'usage fait doublon dans un contexte compatible. */
     readonly flagged: Set<string>;
+    /** Partages non évalués ou dont le déclencheur n'est pas complètement connu. */
+    readonly uncertain: Set<string>;
+    readonly reviews: readonly ConflictReview[];
+    readonly probableRivals: Map<string, EditableBinding[]>;
+    readonly uncertainRivals: Map<string, EditableBinding[]>;
 }
-export declare function indexConflicts(bindings: EditableBinding[], pending: Map<string, string | null>, rules: ContextRules): ConflictIndex;
-/** Les *autres* commandes qui occupent le même contrôle au même moment. */
+/**
+ * Deux lignes d'une même action décrivent plusieurs façons de déclencher la
+ * même commande ; elles ne sont donc jamais rivales entre elles. Cette règle
+ * doit rester identique pour le badge calculé par l'index et le détail rendu
+ * par `rivalsOf`, même si les lignes ont des `input_raw` distincts.
+ */
+/** Casse et ordre des modificateurs sont normalisés, leurs côtés restent distincts. */
+export declare function canonicalControlToken(raw: string): string;
+export type ConflictLevel = "none" | "probable" | "uncertain";
+export type ConflictReason = "different_controls" | "same_action" | "review_false_alarm" | "review_real_conflict" | "different_triggers" | "separate_contexts" | "unknown_trigger" | "preexisting_default" | "same_usage";
+export interface ConflictAssessment {
+    level: ConflictLevel;
+    reason: ConflictReason;
+}
+/** Même décision pour le compteur, la fiche, la capture et le choix de geste. */
+export declare function assessConflictPair(left: EditableBinding, right: EditableBinding, pending: Map<string, string | null>, rules: ContextRules, reviews?: readonly ConflictReview[]): ConflictAssessment;
+export declare function classifyConflictPair(left: EditableBinding, right: EditableBinding, pending: Map<string, string | null>, rules: ContextRules, reviews?: readonly ConflictReview[]): ConflictLevel;
+export declare function indexConflicts(bindings: EditableBinding[], pending: Map<string, string | null>, rules: ContextRules, reviews?: readonly ConflictReview[]): ConflictIndex;
+/** Les autres commandes qui occupent le même usage dans un contexte compatible. */
 export declare function rivalsOf(binding: EditableBinding, pending: Map<string, string | null>, conflicts: ConflictIndex): EditableBinding[];
+export declare function uncertainRivalsOf(binding: EditableBinding, pending: Map<string, string | null>, conflicts: ConflictIndex): EditableBinding[];
+export declare function hasUncertainConflict(binding: EditableBinding, _pending: Map<string, string | null>, conflicts: ConflictIndex): boolean;
 export declare function hasConflict(binding: EditableBinding, _pending: Map<string, string | null>, conflicts: ConflictIndex): boolean;

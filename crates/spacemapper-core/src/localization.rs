@@ -11,6 +11,7 @@
 //! utiles, l'application visant moins de 80 Mo de mémoire.
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 /// Langues disponibles, du nom de dossier employé dans l'archive.
 ///
@@ -21,6 +22,17 @@ pub const ENGLISH: &str = "english";
 /// Chemin du catalogue pour une langue donnée.
 pub fn catalog_path(language: &str) -> String {
     format!(r"Data\Localization\{language}\global.ini")
+}
+
+/// Reconnaît un catalogue sans allouer un chemin normalisé pour chacune
+/// des millions d'entrées de la table centrale.
+pub fn is_catalog_path(path: &str) -> bool {
+    let mut parts = path.split(['\\', '/']);
+    matches!(parts.next(), Some(part) if part.eq_ignore_ascii_case("data"))
+        && matches!(parts.next(), Some(part) if part.eq_ignore_ascii_case("localization"))
+        && matches!(parts.next(), Some(part) if !part.is_empty())
+        && matches!(parts.next(), Some(part) if part.eq_ignore_ascii_case("global.ini"))
+        && parts.next().is_none()
 }
 
 /// Extrait le nom de langue d'un chemin de catalogue.
@@ -64,7 +76,9 @@ pub fn display_name(language: &str) -> String {
 /// Table de traduction, restreinte aux clés demandées.
 #[derive(Debug, Default, Clone)]
 pub struct Catalog {
-    entries: HashMap<String, String>,
+    // Le catalogue est immuable : les commandes simultanées peuvent le
+    // partager sans recopier des milliers de clés et de descriptions.
+    entries: Arc<HashMap<String, String>>,
 }
 
 impl Catalog {
@@ -75,7 +89,18 @@ impl Catalog {
     /// de ses clés décrit des missions, des objets ou de l'interface, pas des
     /// commandes.
     pub fn parse(text: &str, wanted: &dyn Fn(&str) -> bool) -> Self {
+        Self::parse_filtered(text, wanted, false)
+    }
+
+    /// Ne conserve que les clés du profil, et emploie une clé suffixée `,P`
+    /// comme alias si aucune traduction exacte n'existe.
+    pub fn parse_referenced(text: &str, wanted: &dyn Fn(&str) -> bool) -> Self {
+        Self::parse_filtered(text, wanted, true)
+    }
+
+    fn parse_filtered(text: &str, wanted: &dyn Fn(&str) -> bool, use_aliases: bool) -> Self {
         let mut entries = HashMap::new();
+        let mut aliases = HashMap::new();
 
         for line in text.lines() {
             // Le fichier peut commencer par une marque d'ordre des octets.
@@ -89,10 +114,20 @@ impl Catalog {
             let key = key.trim();
             if wanted(key) {
                 entries.insert(key.to_string(), value.trim().to_string());
+            } else if use_aliases {
+                if let Some(base) = key.strip_suffix(",P").filter(|base| wanted(base)) {
+                    aliases.insert(base.to_string(), value.trim().to_string());
+                }
             }
         }
 
-        Catalog { entries }
+        for (key, value) in aliases {
+            entries.entry(key).or_insert(value);
+        }
+        entries.shrink_to_fit();
+        Catalog {
+            entries: Arc::new(entries),
+        }
     }
 
     /// Traduction d'une clé, avec ou sans son arobase de tête.
@@ -120,10 +155,7 @@ impl Catalog {
 /// pas nécessairement toutes les traductions, et un patch peut en ajouter.
 pub fn available(archive: &crate::p4k::Archive) -> crate::Result<Vec<String>> {
     let mut found: Vec<String> = archive
-        .scan(|name| {
-            let lower = name.to_ascii_lowercase().replace('/', "\\");
-            lower.starts_with("data\\localization\\") && lower.ends_with("\\global.ini")
-        })?
+        .scan(is_catalog_path)?
         .iter()
         .filter_map(|entry| language_of(&entry.name).map(str::to_string))
         .collect();
@@ -192,5 +224,40 @@ mod tests {
         let catalog = Catalog::parse(SAMPLE, &|key| key.starts_with("ui_"));
         assert_eq!(catalog.len(), 2);
         assert!(catalog.get("mission_intro").is_none());
+    }
+
+    #[test]
+    fn catalog_clones_share_their_strings() {
+        let catalog = Catalog::parse(SAMPLE, &|_| true);
+        let cloned = catalog.clone();
+        assert!(Arc::ptr_eq(&catalog.entries, &cloned.entries));
+    }
+
+    #[test]
+    fn referenced_aliases_never_override_exact_translations() {
+        for text in [
+            "ui_exact=Exact\nui_exact,P=Alias\ninteraction_helmet,P=Recovered\nmission=Ignored",
+            "ui_exact,P=Alias\nui_exact=Exact\ninteraction_helmet,P=Recovered\nmission=Ignored",
+        ] {
+            let catalog = Catalog::parse_referenced(text, &|key| {
+                key == "ui_exact" || key == "interaction_helmet"
+            });
+            assert_eq!(catalog.get("ui_exact"), Some("Exact"));
+            assert_eq!(catalog.get("interaction_helmet"), Some("Recovered"));
+            assert_eq!(catalog.len(), 2);
+        }
+    }
+
+    #[test]
+    fn catalog_paths_accept_mixed_case_and_separators() {
+        assert!(is_catalog_path(r"DATA\Localization/English\GLOBAL.INI"));
+        for path in [
+            "global.ini",
+            "Data/Localization/global.ini",
+            "Data/Localization/en/nested/global.ini",
+            "Data/Textures/English/global.ini",
+        ] {
+            assert!(!is_catalog_path(path), "{path}");
+        }
     }
 }
