@@ -20,5 +20,6 @@ pub mod install;
 pub mod locale;
 pub mod localization;
 pub mod p4k;
+pub mod triggers;
 
 pub use error::{Error, Result};

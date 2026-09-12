@@ -219,6 +219,10 @@ pub struct Rebind {
     /// bug que le client produit et que le linter Premium corrige.
     pub activation_mode: Option<String>,
     pub multi_tap: Option<String>,
+    /// Attributs explicites hérités de l'action puis surchargés par ce rebind.
+    /// Les définitions des modes nommés sont résolues avec DefaultProfile.
+    #[serde(default)]
+    pub trigger_attributes: crate::triggers::TriggerAttributes,
     /// Ligne dans le fichier source, pour des diagnostics précis.
     pub line: u32,
 }
@@ -420,6 +424,7 @@ mod tests {
             input: InputBinding::parse(input),
             activation_mode: None,
             multi_tap: None,
+            trigger_attributes: Default::default(),
             line: 1,
         }
     }

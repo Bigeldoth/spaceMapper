@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   api,
   type ExpectedDevice,
@@ -30,23 +30,46 @@ export default function LayoutPanel({
   const [selected, setSelected] = useState<string | null>(null);
   const [detail, setDetail] = useState<LayoutInspection | null>(null);
   const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    if (!profilePath) return;
-    try {
-      const found = await api.listLayouts(profilePath);
-      setFiles(found);
-      setError(null);
-      // Un seul profil : l'ouvrir d'emblée épargne un clic sans rien masquer.
-      if (found.length === 1) setSelected(found[0]!.path);
-    } catch (e) {
-      setError(String(e));
-    }
-  }, [profilePath]);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    let cancelled = false;
+
+    // Un changement de canal ou de fichier racine invalide entièrement la
+    // sélection précédente. Sans cette remise à zéro, le détail d'un ancien
+    // profil pouvait rester affiché à côté de la nouvelle liste.
+    setFiles([]);
+    setSelected(null);
+    setDetail(null);
+    setError(null);
+
+    if (!profilePath) {
+      setLoading(false);
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    setLoading(true);
+    void api
+      .listLayouts(profilePath)
+      .then((found) => {
+        if (cancelled) return;
+        setFiles(found);
+        // Un seul profil : l'ouvrir d'emblée épargne un clic sans rien masquer.
+        if (found.length === 1) setSelected(found[0]!.path);
+      })
+      .catch((e) => {
+        if (!cancelled) setError(String(e));
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [profilePath]);
 
   useEffect(() => {
     if (!selected) {
@@ -54,6 +77,7 @@ export default function LayoutPanel({
       return;
     }
     let cancelled = false;
+    setDetail(null);
     void api
       .inspectLayout(selected)
       .then((d) => !cancelled && setDetail(d))
@@ -67,15 +91,25 @@ export default function LayoutPanel({
     return <Empty>{t("layout.noProfile")}</Empty>;
   }
 
+  if (loading) {
+    return (
+      <p className="app-loading" role="status" aria-live="polite">
+        {t("loading")}
+      </p>
+    );
+  }
+
   return (
     <div className="space-y-4">
-      <header>
-        <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+      <header className="app-page-header">
+        <div className="min-w-0">
+          <h2 className="app-page-title">
           {t("layout.title")}
-        </h2>
-        <p className="mt-0.5 max-w-2xl text-xs text-[var(--text-tertiary)]">
-          {t("layout.hint")}
-        </p>
+          </h2>
+          <p className="app-page-description">
+            {t("layout.hint")}
+          </p>
+        </div>
       </header>
 
       {error && (
@@ -84,9 +118,9 @@ export default function LayoutPanel({
         </p>
       )}
 
-      {files.length === 0 ? (
+      {files.length === 0 && !error ? (
         <Empty>{t("layout.empty")}</Empty>
-      ) : (
+      ) : files.length > 0 ? (
         <div className="grid gap-4 lg:grid-cols-[18rem_minmax(0,1fr)]">
           <ul className="divide-y divide-[var(--border-subtle)] self-start overflow-hidden rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-2)]">
             {files.map((f) => (
@@ -117,7 +151,7 @@ export default function LayoutPanel({
             <Empty>{t("layout.pick")}</Empty>
           )}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -132,7 +166,7 @@ function Inspection({ detail }: { detail: LayoutInspection }) {
 
   return (
     <div className="space-y-4">
-      <section className="rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-2)] p-4">
+      <section className="app-panel app-panel--hud rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-2)] p-4">
         <h3 className="text-sm font-semibold text-[var(--text-primary)]">
           {detail.label ?? detail.file_name}
         </h3>

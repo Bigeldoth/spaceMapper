@@ -1,0 +1,6011 @@
+{
+  "source": "Snapshot étude 2026-09-09 ; règle des déclencheurs et 90 observations utilisateur (commentaires et identifiants personnels omis).",
+  "bindings": [
+    {
+      "actionmap": "seat_general",
+      "action": "v_eject",
+      "input_raw": "js2_rctrl+button5",
+      "context": "ship_seat",
+      "activation_mode": "double_tap",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "2",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 2,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_general",
+      "action": "v_self_destruct",
+      "input_raw": "js2_rctrl+button5",
+      "context": "ship_seat",
+      "activation_mode": "delayed_press_medium",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "0.5",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": 0.5,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "seat_general",
+      "action": "v_enter_remote_turret_1",
+      "input_raw": "js1_rctrl+button5",
+      "context": "ship_seat",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_general",
+      "action": "v_toggle_all_portlocks",
+      "input_raw": "js1_rctrl+button5",
+      "context": "ship_seat",
+      "activation_mode": "double_tap",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "2",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 2,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "vehicle_driver",
+      "action": "v_move",
+      "input_raw": "js2_y",
+      "context": "ground_vehicle",
+      "activation_mode": null,
+      "multi_tap": null,
+      "trigger_attributes": {},
+      "signature": {
+        "kind": "continuous_axis"
+      }
+    },
+    {
+      "actionmap": "vehicle_general",
+      "action": "v_view_pitch",
+      "input_raw": "js2_y",
+      "context": "ground_vehicle",
+      "activation_mode": null,
+      "multi_tap": null,
+      "trigger_attributes": {},
+      "signature": {
+        "kind": "continuous_axis"
+      }
+    },
+    {
+      "actionmap": "seat_general",
+      "action": "v_toggle_flight_mode",
+      "input_raw": "js1_button2",
+      "context": "ship_seat",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "seat_general",
+      "action": "v_toggle_guns_mode",
+      "input_raw": "js1_button2",
+      "context": "ship_seat",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "seat_general",
+      "action": "v_toggle_missile_mode",
+      "input_raw": "js1_button2",
+      "context": "ship_seat",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "player_input_optical_tracking",
+      "action": "headtrack_enabled",
+      "input_raw": "js1_button5",
+      "context": "on_foot",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "player_input_optical_tracking",
+      "action": "hmd_toggle",
+      "input_raw": "js1_button5",
+      "context": "on_foot",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "player_input_optical_tracking",
+      "action": "headtrack_recenter_device",
+      "input_raw": "js1_button5",
+      "context": "on_foot",
+      "activation_mode": "double_tap",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "2",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 2,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "player_input_optical_tracking",
+      "action": "hmd_recenter",
+      "input_raw": "js1_button5",
+      "context": "on_foot",
+      "activation_mode": "double_tap",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "2",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 2,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "seat_general",
+      "action": "v_toggle_refuel_mode",
+      "input_raw": "js1_rctrl+button16",
+      "context": "ship_seat",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "seat_general",
+      "action": "v_toggle_salvage_mode",
+      "input_raw": "js1_rctrl+button16",
+      "context": "ship_seat",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "seat_general",
+      "action": "v_toggle_mining_mode",
+      "input_raw": "js1_rctrl+button16",
+      "context": "ship_seat",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "player",
+      "action": "weapon_zeroing_increase",
+      "input_raw": "js2_button11",
+      "context": "on_foot",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "tractor_beam",
+      "action": "tractor_beam_increase_distance",
+      "input_raw": "js2_button11",
+      "context": "on_foot",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_salvage",
+      "action": "tractor_beam_vehicle_increase_distance",
+      "input_raw": "js2_button11",
+      "context": "ship_salvage",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_salvage",
+      "action": "v_salvage_increase_beam_spacing",
+      "input_raw": "js2_button11",
+      "context": "ship_salvage",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_salvage",
+      "action": "tractor_beam_vehicle_decrease_distance",
+      "input_raw": "js2_button16",
+      "context": "ship_salvage",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_salvage",
+      "action": "v_salvage_decrease_beam_spacing",
+      "input_raw": "js2_button16",
+      "context": "ship_salvage",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "player",
+      "action": "weapon_zeroing_decrease",
+      "input_raw": "js2_button16",
+      "context": "on_foot",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "tractor_beam",
+      "action": "tractor_beam_decrease_distance",
+      "input_raw": "js2_button16",
+      "context": "on_foot",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "seat_general",
+      "action": "v_set_quantum_mode",
+      "input_raw": "js2_button2",
+      "context": "ship_seat",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_movement",
+      "action": "v_ifcs_throttle_swap_mode",
+      "input_raw": "js2_button2",
+      "context": "ship_seat",
+      "activation_mode": null,
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_movement",
+      "action": "v_ifcs_throttle_set_normal",
+      "input_raw": "js2_button3",
+      "context": "ship_seat",
+      "activation_mode": null,
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_movement",
+      "action": "v_space_brake",
+      "input_raw": "js2_button3",
+      "context": "ship_seat",
+      "activation_mode": null,
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onrelease": "1"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "mining",
+      "action": "weapon_change_mining_throttle",
+      "input_raw": "js2_button3",
+      "context": "on_foot",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "player",
+      "action": "gp_crouch",
+      "input_raw": "js2_button3",
+      "context": "on_foot",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_movement",
+      "action": "v_toggle_jump_request",
+      "input_raw": "js1_button1",
+      "context": "ship_seat",
+      "activation_mode": "tap",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "0",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "0.25",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": false,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": 0.25,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_weapons",
+      "action": "v_weapon_preset_fire_guns1",
+      "input_raw": "js1_button1",
+      "context": "ship_seat",
+      "activation_mode": "all",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "1",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": true,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "vehicle_general",
+      "action": "v_close_all_doors",
+      "input_raw": "js1_button10",
+      "context": "ground_vehicle",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "vehicle_general",
+      "action": "v_lock_all_doors",
+      "input_raw": "js1_button10",
+      "context": "ground_vehicle",
+      "activation_mode": "double_tap",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "2",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 2,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_general",
+      "action": "v_close_all_doors",
+      "input_raw": "js1_button10",
+      "context": "ship_seat",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_general",
+      "action": "v_lock_all_doors",
+      "input_raw": "js1_button10",
+      "context": "ship_seat",
+      "activation_mode": "double_tap",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "2",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 2,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_missiles",
+      "action": "v_weapon_increase_max_missiles",
+      "input_raw": "js1_button11",
+      "context": "ship_seat",
+      "activation_mode": "tap",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "0",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "0.25",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": false,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": 0.25,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_weapons",
+      "action": "v_weapon_preset_next",
+      "input_raw": "js1_button11",
+      "context": "ship_seat",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_targeting",
+      "action": "v_target_pin_selected_hold",
+      "input_raw": "js1_button12",
+      "context": "ship_seat",
+      "activation_mode": "delayed_press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "0.25",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": 0.25,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_targeting_advanced",
+      "action": "v_target_cycle_pinned_fwd",
+      "input_raw": "js1_button12",
+      "context": "ship_seat",
+      "activation_mode": "tap",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "0",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "0.25",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": false,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": 0.25,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_missiles",
+      "action": "v_weapon_decrease_max_missiles",
+      "input_raw": "js1_button16",
+      "context": "ship_seat",
+      "activation_mode": "tap",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "0",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "0.25",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": false,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": 0.25,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_weapons",
+      "action": "v_weapon_preset_prev",
+      "input_raw": "js1_button16",
+      "context": "ship_seat",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_missiles",
+      "action": "v_weapon_cycle_missile_fwd",
+      "input_raw": "js1_button3",
+      "context": "ship_seat",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_weapons",
+      "action": "v_weapon_preset_fire_guns2",
+      "input_raw": "js1_button3",
+      "context": "ship_seat",
+      "activation_mode": "all",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "1",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": true,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_weapons",
+      "action": "v_weapon_pip_prec_line_toggle",
+      "input_raw": "js1_button6",
+      "context": "ship_seat",
+      "activation_mode": "tap",
+      "multi_tap": "2",
+      "trigger_attributes": {
+        "onpress": "0",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "2",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "0.25",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": false,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 2,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": 0.25,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_weapons",
+      "action": "v_weapon_pip_toggle_lead_lag",
+      "input_raw": "js1_button6",
+      "context": "ship_seat",
+      "activation_mode": "tap",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "0",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "0.25",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": false,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": 0.25,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_movement",
+      "action": "v_ifcs_toggle_esp",
+      "input_raw": "js1_button7",
+      "context": "ship_seat",
+      "activation_mode": "smart_toggle",
+      "multi_tap": "2",
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "2",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0.25"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 2,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0.25
+      }
+    },
+    {
+      "actionmap": "spaceship_movement",
+      "action": "v_ifcs_toggle_gforce_safety",
+      "input_raw": "js1_button7",
+      "context": "ship_seat",
+      "activation_mode": "tap",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "0",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "0.25",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": false,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": 0.25,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_missiles",
+      "action": "v_weapon_bombing_toggle_desired_impact_point_hold",
+      "input_raw": "js1_hat1_up",
+      "context": "ship_seat",
+      "activation_mode": "delayed_press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "0.25",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": 0.25,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_targeting_advanced",
+      "action": "v_target_under_reticle",
+      "input_raw": "js1_hat1_up",
+      "context": "ship_seat",
+      "activation_mode": "tap",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "0",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "0.25",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": false,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": 0.25,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_general",
+      "action": "v_open_all_doors",
+      "input_raw": "js1_rctrl+button10",
+      "context": "ship_seat",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_general",
+      "action": "v_unlock_all_doors",
+      "input_raw": "js1_rctrl+button10",
+      "context": "ship_seat",
+      "activation_mode": "double_tap",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "2",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 2,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "vehicle_general",
+      "action": "v_open_all_doors",
+      "input_raw": "js1_rctrl+button10",
+      "context": "ground_vehicle",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "vehicle_general",
+      "action": "v_unlock_all_doors",
+      "input_raw": "js1_rctrl+button10",
+      "context": "ground_vehicle",
+      "activation_mode": "double_tap",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "2",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 2,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "seat_general",
+      "action": "v_toggle_quantum_mode",
+      "input_raw": "js1_rctrl+button2",
+      "context": "ship_seat",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_movement",
+      "action": "v_master_mode_cycle",
+      "input_raw": "js1_rctrl+button2",
+      "context": "ship_seat",
+      "activation_mode": "tap",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "0",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "0.25",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": false,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": 0.25,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_power",
+      "action": "v_engineering_assignment_shields_decrease",
+      "input_raw": "js2_button10",
+      "context": "ship_seat",
+      "activation_mode": "tap",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "0",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "0.25",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": false,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": 0.25,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_power",
+      "action": "v_engineering_assignment_shields_min",
+      "input_raw": "js2_button10",
+      "context": "ship_seat",
+      "activation_mode": null,
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onhold": "1",
+        "holdtriggerdelay": "0.25"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": false,
+        "onhold": true,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0.25,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "player_choice",
+      "action": "pc_pit_inventory",
+      "input_raw": "js2_button12",
+      "context": "on_foot",
+      "activation_mode": "tap",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "0",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "0.25",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": false,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": 0.25,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "player_choice",
+      "action": "pc_pit_looting",
+      "input_raw": "js2_button12",
+      "context": "on_foot",
+      "activation_mode": "delayed_press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "0.25",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": 0.25,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_movement",
+      "action": "v_atc_loading_area_request",
+      "input_raw": "js2_button14",
+      "context": "ship_seat",
+      "activation_mode": "tap",
+      "multi_tap": "2",
+      "trigger_attributes": {
+        "onpress": "0",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "2",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "0.25",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": false,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 2,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": 0.25,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_movement",
+      "action": "v_atc_request",
+      "input_raw": "js2_button14",
+      "context": "ship_seat",
+      "activation_mode": "tap",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "0",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "0.25",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": false,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": 0.25,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "player",
+      "action": "jump_release",
+      "input_raw": "js2_button2",
+      "context": "on_foot",
+      "activation_mode": null,
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onrelease": "1"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": false,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "player",
+      "action": "ledgegrab",
+      "input_raw": "js2_button2",
+      "context": "on_foot",
+      "activation_mode": "hold",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "player",
+      "action": "jump_hold",
+      "input_raw": "js2_button2",
+      "context": "on_foot",
+      "activation_mode": null,
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "0",
+        "onhold": "1",
+        "presstriggerthreshold": "0.5"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": false,
+        "onhold": true,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": 0.5,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "player",
+      "action": "jump",
+      "input_raw": "js2_button2",
+      "context": "on_foot",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_power",
+      "action": "v_engineering_assignment_shields_increase",
+      "input_raw": "js2_button5",
+      "context": "ship_seat",
+      "activation_mode": "tap",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "0",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "0.25",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": false,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": 0.25,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_power",
+      "action": "v_engineering_assignment_shields_max",
+      "input_raw": "js2_button5",
+      "context": "ship_seat",
+      "activation_mode": null,
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onhold": "1",
+        "holdtriggerdelay": "0.25"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": false,
+        "onhold": true,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0.25,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_power",
+      "action": "v_engineering_assignment_engine_increase",
+      "input_raw": "js2_button6",
+      "context": "ship_seat",
+      "activation_mode": "tap",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "0",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "0.25",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": false,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": 0.25,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_power",
+      "action": "v_engineering_assignment_engine_max",
+      "input_raw": "js2_button6",
+      "context": "ship_seat",
+      "activation_mode": null,
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onhold": "1",
+        "holdtriggerdelay": "0.25"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": false,
+        "onhold": true,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0.25,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_power",
+      "action": "v_engineering_assignment_weapons_increase",
+      "input_raw": "js2_button7",
+      "context": "ship_seat",
+      "activation_mode": "tap",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "0",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "0.25",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": false,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": 0.25,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_power",
+      "action": "v_engineering_assignment_weapons_max",
+      "input_raw": "js2_button7",
+      "context": "ship_seat",
+      "activation_mode": null,
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onhold": "1",
+        "holdtriggerdelay": "0.25"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": false,
+        "onhold": true,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0.25,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_power",
+      "action": "v_engineering_assignment_weapons_decrease",
+      "input_raw": "js2_button8",
+      "context": "ship_seat",
+      "activation_mode": "tap",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "0",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "0.25",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": false,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": 0.25,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_power",
+      "action": "v_engineering_assignment_weapons_min",
+      "input_raw": "js2_button8",
+      "context": "ship_seat",
+      "activation_mode": null,
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onhold": "1",
+        "holdtriggerdelay": "0.25"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": false,
+        "onhold": true,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0.25,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_general",
+      "action": "v_flightready",
+      "input_raw": "js2_button8",
+      "context": "ship_seat",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_power",
+      "action": "v_engineering_assignment_engine_decrease",
+      "input_raw": "js2_button9",
+      "context": "ship_seat",
+      "activation_mode": "tap",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "0",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "0.25",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": false,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": 0.25,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_power",
+      "action": "v_engineering_assignment_engine_min",
+      "input_raw": "js2_button9",
+      "context": "ship_seat",
+      "activation_mode": null,
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onhold": "1",
+        "holdtriggerdelay": "0.25"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": false,
+        "onhold": true,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0.25,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "player",
+      "action": "holster",
+      "input_raw": "js2_rctrl+button4",
+      "context": "on_foot",
+      "activation_mode": "delayed_press_medium",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "0.5",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": 0.5,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "player",
+      "action": "reload",
+      "input_raw": "js2_rctrl+button4",
+      "context": "on_foot",
+      "activation_mode": "tap",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "0",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "0.25",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": false,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": 0.25,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_movement",
+      "action": "v_autoland",
+      "input_raw": "js2_rctrl+hat1_left",
+      "context": "ship_seat",
+      "activation_mode": "delayed_press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "0.25",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": 0.25,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_movement",
+      "action": "v_toggle_landing_system",
+      "input_raw": "js2_rctrl+hat1_left",
+      "context": "ship_seat",
+      "activation_mode": "tap",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "0",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "0.25",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": false,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": 0.25,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_scanning",
+      "action": "v_scanning_trigger_scan",
+      "input_raw": "js1_button1",
+      "context": "ship_scanning",
+      "activation_mode": "hold",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_scanning",
+      "action": "v_inc_scan_focus_level",
+      "input_raw": "js1_button11",
+      "context": "ship_scanning",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_mining",
+      "action": "v_mining_use_permanent_modifier",
+      "input_raw": "js1_button13",
+      "context": "ship_mining",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_salvage",
+      "action": "v_salvage_toggle_beam_spacing_axis",
+      "input_raw": "js1_button13",
+      "context": "ship_salvage",
+      "activation_mode": null,
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_weapons",
+      "action": "v_weapon_staggered_fire_toggle",
+      "input_raw": "js1_button13",
+      "context": "ship_seat",
+      "activation_mode": "tap",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "0",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "0.25",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": false,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": 0.25,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_scanning",
+      "action": "v_dec_scan_focus_level",
+      "input_raw": "js1_button16",
+      "context": "ship_scanning",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_salvage",
+      "action": "v_salvage_cycle_modifiers_focused",
+      "input_raw": "js1_button3",
+      "context": "ship_salvage",
+      "activation_mode": null,
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_mining",
+      "action": "v_toggle_mining_laser_type",
+      "input_raw": "js1_button3",
+      "context": "ship_mining",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "player",
+      "action": "free_thirdperson_camera",
+      "input_raw": "js1_button8",
+      "context": "on_foot",
+      "activation_mode": "hold",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "vehicle_general",
+      "action": "v_view_freelook_mode",
+      "input_raw": "js1_button8",
+      "context": "ground_vehicle",
+      "activation_mode": "hold",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_view",
+      "action": "v_view_freelook_mode",
+      "input_raw": "js1_button8",
+      "context": "ship_seat",
+      "activation_mode": "hold",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "zero_gravity_eva",
+      "action": "eva_toggle_headlook_mode",
+      "input_raw": "js1_button8",
+      "context": "eva",
+      "activation_mode": "hold",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_salvage",
+      "action": "v_salvage_toggle_gimbal_mode",
+      "input_raw": "js1_button9",
+      "context": "ship_salvage",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_weapons",
+      "action": "v_weapon_gimbals_state_toggle",
+      "input_raw": "js1_button9",
+      "context": "ship_seat",
+      "activation_mode": "tap",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "0",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "0.25",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": false,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": 0.25,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_salvage",
+      "action": "v_salvage_focus_fracture",
+      "input_raw": "js1_hat1_down",
+      "context": "ship_salvage",
+      "activation_mode": null,
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_targeting_advanced",
+      "action": "v_target_cycle_hostile_fwd",
+      "input_raw": "js1_hat1_down",
+      "context": "ship_seat",
+      "activation_mode": "tap",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "0",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "0.25",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": false,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": 0.25,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_mining",
+      "action": "v_mining_use_consumable2",
+      "input_raw": "js1_hat1_left",
+      "context": "ship_mining",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_salvage",
+      "action": "v_salvage_focus_left",
+      "input_raw": "js1_hat1_left",
+      "context": "ship_salvage",
+      "activation_mode": null,
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_targeting_advanced",
+      "action": "v_target_cycle_all_fwd",
+      "input_raw": "js1_hat1_left",
+      "context": "ship_seat",
+      "activation_mode": "tap",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "0",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "0.25",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": false,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": 0.25,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_mining",
+      "action": "v_mining_use_consumable3",
+      "input_raw": "js1_hat1_right",
+      "context": "ship_mining",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_salvage",
+      "action": "v_salvage_focus_right",
+      "input_raw": "js1_hat1_right",
+      "context": "ship_salvage",
+      "activation_mode": null,
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_targeting_advanced",
+      "action": "v_target_cycle_friendly_fwd",
+      "input_raw": "js1_hat1_right",
+      "context": "ship_seat",
+      "activation_mode": "tap",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "0",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "0.25",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": false,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": 0.25,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_salvage",
+      "action": "v_salvage_focus_all_heads",
+      "input_raw": "js1_hat1_up",
+      "context": "ship_salvage",
+      "activation_mode": null,
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_mining",
+      "action": "v_mining_use_consumable1",
+      "input_raw": "js1_hat1_up",
+      "context": "ship_mining",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "view_director_mode",
+      "action": "view_restore_defaults",
+      "input_raw": "js1_rctrl+button10",
+      "context": "out_of_game",
+      "activation_mode": null,
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onrelease": "1"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "vehicle_general",
+      "action": "v_toggle_all_portlocks",
+      "input_raw": "js1_rctrl+button5",
+      "context": "ground_vehicle",
+      "activation_mode": "double_tap",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "2",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 2,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_salvage",
+      "action": "v_salvage_reset_gimbal",
+      "input_raw": "js1_rctrl+button9",
+      "context": "ship_salvage",
+      "activation_mode": "double_tap",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "2",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 2,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_weapons",
+      "action": "v_weapon_gimbals_unlocked_cycle_source",
+      "input_raw": "js1_rctrl+button9",
+      "context": "ship_seat",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_mining",
+      "action": "v_increase_mining_throttle",
+      "input_raw": "js2_button11",
+      "context": "ship_mining",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_defensive",
+      "action": "v_weapon_countermeasure_decoy_burst_increase",
+      "input_raw": "js2_button12",
+      "context": "ship_seat",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "player",
+      "action": "interact_with_scope",
+      "input_raw": "js2_button14",
+      "context": "on_foot",
+      "activation_mode": "tap",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "0",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "0.25",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": false,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": 0.25,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "player_choice",
+      "action": "pc_pit_looting_toggle_view",
+      "input_raw": "js2_button15",
+      "context": "on_foot",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_defensive",
+      "action": "v_weapon_countermeasure_decoy_burst_decrease",
+      "input_raw": "js2_button15",
+      "context": "ship_seat",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_mining",
+      "action": "v_decrease_mining_throttle",
+      "input_raw": "js2_button16",
+      "context": "ship_mining",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "zero_gravity_eva",
+      "action": "eva_boost",
+      "input_raw": "js2_button2",
+      "context": "eva",
+      "activation_mode": "hold",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "vehicle_general",
+      "action": "v_horn",
+      "input_raw": "js2_button2",
+      "context": "ground_vehicle",
+      "activation_mode": null,
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onrelease": "1"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "turret_advanced",
+      "action": "turret_change_position",
+      "input_raw": "js2_button2",
+      "context": "turret",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "zero_gravity_eva",
+      "action": "eva_roll_left",
+      "input_raw": "js2_button3",
+      "context": "eva",
+      "activation_mode": "hold",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "vehicle_driver",
+      "action": "v_brake",
+      "input_raw": "js2_button3",
+      "context": "ground_vehicle",
+      "activation_mode": "hold",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "player",
+      "action": "sprint",
+      "input_raw": "js2_button4",
+      "context": "on_foot",
+      "activation_mode": "hold_toggle",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_movement",
+      "action": "v_afterburner",
+      "input_raw": "js2_button4",
+      "context": "ship_seat",
+      "activation_mode": "all",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "1",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": true,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "zero_gravity_eva",
+      "action": "eva_roll_right",
+      "input_raw": "js2_button4",
+      "context": "eva",
+      "activation_mode": "hold",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "vehicle_driver",
+      "action": "v_boost",
+      "input_raw": "js2_button4",
+      "context": "ground_vehicle",
+      "activation_mode": "all",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "1",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": true,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "zero_gravity_eva",
+      "action": "eva_brake",
+      "input_raw": "js2_button8",
+      "context": "eva",
+      "activation_mode": "hold",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "player",
+      "action": "weapon_auxiliary_action",
+      "input_raw": "js2_hat1_down",
+      "context": "on_foot",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_movement",
+      "action": "v_ifcs_speed_limiter_down",
+      "input_raw": "js2_hat1_down",
+      "context": "ship_seat",
+      "activation_mode": null,
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onrelease": "1"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "turret_advanced",
+      "action": "turret_limiter_rel_decrease",
+      "input_raw": "js2_hat1_down",
+      "context": "turret",
+      "activation_mode": "all",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "1",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": true,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_defensive",
+      "action": "v_weapon_countermeasure_decoy_launch",
+      "input_raw": "js2_hat1_left",
+      "context": "ship_seat",
+      "activation_mode": null,
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "1",
+        "onrelease": "1",
+        "holdtriggerdelay": "0.25"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": true,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0.25,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "turret_movement",
+      "action": "turret_gyromode",
+      "input_raw": "js2_hat1_left",
+      "context": "turret",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "player_choice",
+      "action": "pc_qs_consumables",
+      "input_raw": "js2_hat1_left",
+      "context": "on_foot",
+      "activation_mode": "all",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "1",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": true,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_defensive",
+      "action": "v_weapon_countermeasure_noise_launch",
+      "input_raw": "js2_hat1_right",
+      "context": "ship_seat",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "turret_advanced",
+      "action": "turret_esp_toggle",
+      "input_raw": "js2_hat1_right",
+      "context": "turret",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "player_choice",
+      "action": "pc_qs_grenades",
+      "input_raw": "js2_hat1_right",
+      "context": "on_foot",
+      "activation_mode": "all",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "1",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": true,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "player_choice",
+      "action": "pc_qs_weapons_pit_primary",
+      "input_raw": "js2_hat1_up",
+      "context": "on_foot",
+      "activation_mode": "all",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "1",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": true,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_movement",
+      "action": "v_ifcs_speed_limiter_up",
+      "input_raw": "js2_hat1_up",
+      "context": "ship_seat",
+      "activation_mode": null,
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onrelease": "1"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "turret_advanced",
+      "action": "turret_limiter_rel_increase",
+      "input_raw": "js2_hat1_up",
+      "context": "turret",
+      "activation_mode": "all",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "1",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": true,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "default",
+      "action": "pl_exit",
+      "input_raw": "js2_rctrl+button10",
+      "context": "interface_hud",
+      "activation_mode": null,
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "1"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": true,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "turret_movement",
+      "action": "turret_remote_exit",
+      "input_raw": "js2_rctrl+button10",
+      "context": "turret",
+      "activation_mode": null,
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "1",
+        "onrelease": "1"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": true,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "player",
+      "action": "ammoRepool",
+      "input_raw": "js2_rctrl+button2",
+      "context": "on_foot",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_weapons",
+      "action": "v_weapon_aim_type_cycle",
+      "input_raw": "js2_rctrl+button2",
+      "context": "ship_seat",
+      "activation_mode": "tap",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "0",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "0.25",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": false,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": 0.25,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "player",
+      "action": "prone",
+      "input_raw": "js2_rctrl+button3",
+      "context": "on_foot",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_movement",
+      "action": "v_ifcs_gravity_compensation_toggle",
+      "input_raw": "js2_rctrl+button3",
+      "context": "ship_seat",
+      "activation_mode": "tap",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "0",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "0.25",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": false,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": 0.25,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_movement",
+      "action": "v_ifcs_vector_decoupling_toggle",
+      "input_raw": "js2_rctrl+button4",
+      "context": "ship_seat",
+      "activation_mode": "tap",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "0",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "0.25",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": false,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": 0.25,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_power",
+      "action": "v_power_set_on",
+      "input_raw": "js2_rctrl+button8",
+      "context": "ship_seat",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "vehicle_general",
+      "action": "v_flightready",
+      "input_raw": "js2_rctrl+button8",
+      "context": "ground_vehicle",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "player",
+      "action": "weapon_change_firemode",
+      "input_raw": "js2_rctrl+hat1_down",
+      "context": "on_foot",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_movement",
+      "action": "v_vtol_toggle",
+      "input_raw": "js2_rctrl+hat1_down",
+      "context": "ship_seat",
+      "activation_mode": "tap",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "0",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "0.25",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": false,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": 0.25,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "turret_advanced",
+      "action": "turret_recenter",
+      "input_raw": "js2_rctrl+hat1_down",
+      "context": "turret",
+      "activation_mode": "hold_no_retrigger",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "vehicle_general",
+      "action": "visor_wipe",
+      "input_raw": "js2_rctrl+hat1_left",
+      "context": "ground_vehicle",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "player",
+      "action": "visor_wipe",
+      "input_raw": "js2_rctrl+hat1_left",
+      "context": "on_foot",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "player",
+      "action": "toggleAttachHelmet",
+      "input_raw": "js2_rctrl+hat1_right",
+      "context": "on_foot",
+      "activation_mode": "tap",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "0",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "0.25",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": false,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": 0.25,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_movement",
+      "action": "v_transform_cycle",
+      "input_raw": "js2_rctrl+hat1_right",
+      "context": "ship_seat",
+      "activation_mode": "tap",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "0",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "0.25",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": false,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": 0.25,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "player",
+      "action": "toggle_flashlight",
+      "input_raw": "js2_rctrl+hat1_up",
+      "context": "on_foot",
+      "activation_mode": "press",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "0",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": false,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "spaceship_movement",
+      "action": "v_ifcs_speed_limiter_toggle",
+      "input_raw": "js2_rctrl+hat1_up",
+      "context": "ship_seat",
+      "activation_mode": "tap",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "0",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "0.25",
+        "releasetriggerdelay": "0"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": false,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": 0.25,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0
+      }
+    },
+    {
+      "actionmap": "turret_advanced",
+      "action": "turret_limiter_toggle",
+      "input_raw": "js2_rctrl+hat1_up",
+      "context": "turret",
+      "activation_mode": "smart_toggle",
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1",
+        "onhold": "0",
+        "onrelease": "1",
+        "multitap": "1",
+        "presstriggerthreshold": "-1",
+        "releasetriggerthreshold": "-1",
+        "releasetriggerdelay": "0.25"
+      },
+      "signature": {
+        "kind": "button",
+        "onpress": true,
+        "onhold": false,
+        "onrelease": true,
+        "multitap": 1,
+        "presstriggerthreshold": -1,
+        "releasetriggerthreshold": -1,
+        "holdtriggerdelay": 0,
+        "releasetriggerdelay": 0.25
+      }
+    },
+    {
+      "actionmap": "spaceship_movement",
+      "action": "v_strafe_vertical",
+      "input_raw": "js2_rotz",
+      "context": "ship_seat",
+      "activation_mode": null,
+      "multi_tap": null,
+      "trigger_attributes": {},
+      "signature": {
+        "kind": "continuous_axis"
+      }
+    },
+    {
+      "actionmap": "zero_gravity_eva",
+      "action": "eva_strafe_vertical",
+      "input_raw": "js2_rotz",
+      "context": "eva",
+      "activation_mode": null,
+      "multi_tap": null,
+      "trigger_attributes": {},
+      "signature": {
+        "kind": "continuous_axis"
+      }
+    },
+    {
+      "actionmap": "vehicle_driver",
+      "action": "v_yaw",
+      "input_raw": "js2_rotz",
+      "context": "ground_vehicle",
+      "activation_mode": null,
+      "multi_tap": null,
+      "trigger_attributes": {},
+      "signature": {
+        "kind": "continuous_axis"
+      }
+    },
+    {
+      "actionmap": "spaceship_mining",
+      "action": "v_mining_throttle",
+      "input_raw": "js2_slider1",
+      "context": "ship_mining",
+      "activation_mode": null,
+      "multi_tap": null,
+      "trigger_attributes": {
+        "onpress": "1"
+      },
+      "signature": {
+        "kind": "continuous_axis"
+      }
+    },
+    {
+      "actionmap": "spaceship_salvage",
+      "action": "v_salvage_beam_spacing_abs",
+      "input_raw": "js2_slider1",
+      "context": "ship_salvage",
+      "activation_mode": null,
+      "multi_tap": null,
+      "trigger_attributes": {},
+      "signature": {
+        "kind": "continuous_axis"
+      }
+    },
+    {
+      "actionmap": "spaceship_movement",
+      "action": "v_strafe_lateral",
+      "input_raw": "js2_x",
+      "context": "ship_seat",
+      "activation_mode": null,
+      "multi_tap": null,
+      "trigger_attributes": {},
+      "signature": {
+        "kind": "continuous_axis"
+      }
+    },
+    {
+      "actionmap": "zero_gravity_eva",
+      "action": "eva_strafe_lateral",
+      "input_raw": "js2_x",
+      "context": "eva",
+      "activation_mode": null,
+      "multi_tap": null,
+      "trigger_attributes": {},
+      "signature": {
+        "kind": "continuous_axis"
+      }
+    },
+    {
+      "actionmap": "player",
+      "action": "gp_movex",
+      "input_raw": "js2_x",
+      "context": "on_foot",
+      "activation_mode": null,
+      "multi_tap": null,
+      "trigger_attributes": {},
+      "signature": {
+        "kind": "continuous_axis"
+      }
+    },
+    {
+      "actionmap": "player",
+      "action": "gp_movey",
+      "input_raw": "js2_y",
+      "context": "on_foot",
+      "activation_mode": null,
+      "multi_tap": null,
+      "trigger_attributes": {},
+      "signature": {
+        "kind": "continuous_axis"
+      }
+    },
+    {
+      "actionmap": "zero_gravity_eva",
+      "action": "eva_strafe_longitudinal",
+      "input_raw": "js2_y",
+      "context": "eva",
+      "activation_mode": null,
+      "multi_tap": null,
+      "trigger_attributes": {},
+      "signature": {
+        "kind": "continuous_axis"
+      }
+    },
+    {
+      "actionmap": "spaceship_movement",
+      "action": "v_strafe_longitudinal",
+      "input_raw": "js2_y",
+      "context": "ship_seat",
+      "activation_mode": null,
+      "multi_tap": null,
+      "trigger_attributes": {},
+      "signature": {
+        "kind": "continuous_axis"
+      }
+    }
+  ],
+  "pairs": [
+    {
+      "bindings": [
+        0,
+        1
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        2,
+        3
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        4,
+        5
+      ],
+      "excluded": false,
+      "verdict": "real_conflict"
+    },
+    {
+      "bindings": [
+        6,
+        7
+      ],
+      "excluded": false,
+      "verdict": "real_conflict"
+    },
+    {
+      "bindings": [
+        7,
+        8
+      ],
+      "excluded": false,
+      "verdict": "real_conflict"
+    },
+    {
+      "bindings": [
+        6,
+        8
+      ],
+      "excluded": false,
+      "verdict": "real_conflict"
+    },
+    {
+      "bindings": [
+        9,
+        10
+      ],
+      "excluded": false,
+      "verdict": "real_conflict"
+    },
+    {
+      "bindings": [
+        11,
+        12
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        13,
+        14
+      ],
+      "excluded": false,
+      "verdict": "real_conflict"
+    },
+    {
+      "bindings": [
+        15,
+        13
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        15,
+        14
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        16,
+        17
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        18,
+        19
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        20,
+        21
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        22,
+        23
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        24,
+        25
+      ],
+      "excluded": false,
+      "verdict": "real_conflict"
+    },
+    {
+      "bindings": [
+        26,
+        27
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        28,
+        29
+      ],
+      "excluded": false,
+      "verdict": "real_conflict"
+    },
+    {
+      "bindings": [
+        30,
+        31
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        32,
+        33
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        34,
+        35
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        36,
+        37
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        38,
+        39
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        40,
+        41
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        42,
+        43
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        9,
+        11
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        9,
+        12
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        12,
+        10
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        11,
+        10
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        44,
+        45
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        46,
+        47
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        48,
+        49
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        50,
+        51
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        52,
+        53
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        54,
+        55
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        56,
+        57
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        58,
+        59
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        60,
+        61
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        62,
+        63
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        64,
+        62
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        64,
+        63
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        65,
+        63
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        65,
+        64
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        65,
+        62
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        66,
+        67
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        68,
+        69
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        70,
+        71
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        72,
+        73
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        74,
+        73
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        74,
+        72
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        75,
+        76
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        77,
+        78
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        79,
+        80
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        81,
+        31
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        30,
+        81
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        34,
+        33
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        35,
+        32
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        34,
+        32
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        35,
+        33
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        82,
+        37
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        36,
+        82
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        83,
+        84
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        84,
+        85
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        83,
+        85
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        86,
+        41
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        40,
+        86
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        42,
+        87
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        88,
+        43
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        87,
+        43
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        88,
+        87
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        88,
+        42
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        89,
+        90
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        91,
+        92
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        91,
+        90
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        90,
+        92
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        89,
+        92
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        89,
+        91
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        93,
+        94
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        95,
+        96
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        97,
+        98
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        98,
+        99
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        97,
+        99
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        100,
+        101
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        100,
+        102
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        101,
+        102
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        48,
+        103
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        104,
+        48
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        103,
+        49
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        104,
+        49
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        104,
+        103
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        50,
+        53
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        53,
+        105
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        52,
+        105
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        50,
+        52
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        51,
+        53
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        51,
+        105
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        50,
+        105
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        51,
+        52
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        2,
+        106
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        3,
+        106
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        107,
+        108
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        16,
+        18
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        16,
+        109
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        18,
+        17
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        16,
+        19
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        19,
+        17
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        109,
+        17
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        109,
+        19
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        109,
+        18
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        58,
+        110
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        59,
+        110
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        111,
+        60
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        111,
+        61
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        112,
+        113
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        21,
+        23
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        22,
+        21
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        114,
+        21
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        114,
+        20
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        22,
+        114
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        20,
+        23
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        22,
+        20
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        114,
+        23
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        64,
+        115
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        63,
+        25
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        63,
+        116
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        63,
+        117
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        65,
+        117
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        65,
+        24
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        63,
+        115
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        62,
+        115
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        62,
+        24
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        64,
+        25
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        25,
+        116
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        64,
+        116
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        117,
+        115
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        25,
+        117
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        24,
+        116
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        65,
+        115
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        62,
+        25
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        63,
+        24
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        24,
+        115
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        65,
+        116
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        117,
+        116
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        64,
+        24
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        24,
+        117
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        64,
+        117
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        62,
+        117
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        65,
+        25
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        25,
+        115
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        62,
+        116
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        116,
+        115
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        27,
+        118
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        28,
+        119
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        29,
+        119
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        28,
+        27
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        27,
+        119
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        119,
+        118
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        29,
+        118
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        29,
+        27
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        28,
+        26
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        26,
+        118
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        29,
+        26
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        26,
+        119
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        28,
+        118
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        120,
+        121
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        120,
+        122
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        121,
+        122
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        120,
+        123
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        123,
+        122
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        121,
+        123
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        73,
+        124
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        72,
+        124
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        74,
+        124
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        125,
+        126
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        125,
+        127
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        126,
+        127
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        128,
+        129
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        130,
+        129
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        130,
+        128
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        131,
+        132
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        133,
+        131
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        133,
+        132
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        134,
+        135
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        135,
+        136
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        134,
+        136
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        137,
+        138
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        139,
+        140
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        141,
+        142
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        78,
+        143
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        77,
+        143
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        144,
+        145
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        146,
+        147
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        147,
+        148
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        146,
+        148
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        79,
+        149
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        150,
+        80
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        150,
+        149
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        80,
+        149
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        150,
+        79
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        151,
+        152
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        153,
+        154
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        154,
+        155
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        153,
+        155
+      ],
+      "excluded": true
+    },
+    {
+      "bindings": [
+        156,
+        157
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        156,
+        158
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        158,
+        157
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        159,
+        160
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        161,
+        162
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        163,
+        161
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        163,
+        162
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        164,
+        165
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        166,
+        4
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        164,
+        5
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        5,
+        165
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        164,
+        166
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        164,
+        4
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        166,
+        5
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        4,
+        165
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    },
+    {
+      "bindings": [
+        166,
+        165
+      ],
+      "excluded": false,
+      "verdict": "false_alarm"
+    }
+  ]
+}

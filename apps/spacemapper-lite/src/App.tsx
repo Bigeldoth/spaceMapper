@@ -1,13 +1,20 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
-import { Badge, Crosshair, Diamond, Magnet, RocketLaunch } from "@spacemapper/ui";
+import {
+  Badge,
+  Button,
+  Crosshair,
+  Diamond,
+  Magnet,
+  RocketLaunch,
+} from "@spacemapper/ui";
 import {
   api,
   type BuildInfo,
   type DeviceView,
   type ProfileLocation,
 } from "@spacemapper/app-core";
-import BindingEditor, { Modal, PremiumBadge } from "./BindingEditor";
+import BindingEditor, { Modal } from "./BindingEditor";
 import DiagnosisPanel from "./DiagnosisPanel";
 import LayoutPanel from "./LayoutPanel";
 import { SettingsPanel, TranslationProvider, useT } from "@spacemapper/app-core";
@@ -56,6 +63,18 @@ function Workspace({
 }) {
   const t = useT();
   const [devices, setDevices] = useState<DeviceView[]>([]);
+  const [deviceError, setDeviceError] = useState<string | null>(null);
+  // Le démarrage et la surveillance réutilisent le même scan en vol.
+  // Un pilote lent ne doit pas accumuler de nouvelles énumérations DirectInput.
+  const deviceScan = useRef<Promise<DeviceView[]> | null>(null);
+  const enumerateDevices = useCallback((): Promise<DeviceView[]> => {
+    if (deviceScan.current) return deviceScan.current;
+    const request = api.listDevices();
+    deviceScan.current = request;
+    const clear = () => { if (deviceScan.current === request) deviceScan.current = null; };
+    void request.then(clear, clear);
+    return request;
+  }, []);
   const [profiles, setProfiles] = useState<ProfileLocation[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -76,39 +95,49 @@ function Workspace({
    * pour ne pas réinitialiser l'écran toutes les trois secondes.
    */
   useEffect(() => {
-    const timer = window.setInterval(async () => {
+    let cancelled = false;
+    let timer: number | undefined;
+    const poll = async () => {
       try {
-        const found = await api.listDevices();
-        setDevices((previous) => {
-          const before = previous.map((d) => d.instance_guid).join();
-          const after = found.map((d) => d.instance_guid).join();
-          return before === after ? previous : found;
-        });
-      } catch {
-        // Un échec ponctuel d'énumération ne doit pas vider la liste ni
-        // afficher une erreur : le prochain passage reprendra.
+        const found = await enumerateDevices();
+        if (!cancelled) {
+          setDevices((previous) => JSON.stringify(previous) === JSON.stringify(found) ? previous : found);
+          setDeviceError(null);
+        }
+      } catch (reason) {
+        if (!cancelled) setDeviceError(String(reason));
+      } finally {
+        if (!cancelled) timer = window.setTimeout(poll, 3000);
       }
-    }, 3000);
-    return () => window.clearInterval(timer);
-  }, []);
+    };
+    timer = window.setTimeout(poll, 3000);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [enumerateDevices]);
 
   // Découverte initiale : périphériques branchés et profils sur le disque.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [found, located, info] = await Promise.all([
-          api.listDevices(),
+        const [found, located, info] = await Promise.allSettled([
+          enumerateDevices(),
           api.locateActionmaps(),
           api.buildInfo(),
         ]);
         if (cancelled) return;
-        setDevices(found);
-        setProfiles(located);
-        setBuild(info);
-        // Le canal LIVE est celui que joue l'écrasante majorité des joueurs.
-        const live = located.find((p) => p.channel === "LIVE") ?? located[0];
-        if (live) setSelected(live.path);
+        if (found.status === "fulfilled") {
+          setDevices(found.value);
+          setDeviceError(null);
+        } else setDeviceError(String(found.reason));
+        if (info.status === "fulfilled") setBuild(info.value);
+        if (located.status === "fulfilled") {
+          setProfiles(located.value);
+          const preferred = located.value.find((profile) => profile.channel.toUpperCase() === "LIVE") ??
+            located.value.find((profile) => profile.channel.toUpperCase() === "HOTFIX") ?? located.value[0];
+          if (preferred) setSelected(preferred.path);
+        }
+        const failures = [located, info].filter((result) => result.status === "rejected");
+        if (failures.length) setError(failures.map((result) => String(result.reason)).join(" · "));
       } catch (e) {
         if (!cancelled) setError(String(e));
       } finally {
@@ -118,7 +147,7 @@ function Workspace({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [enumerateDevices]);
 
   // Changer de profil efface l'erreur du précédent : chaque onglet relit ce
   // dont il a besoin, et un message resté à l'écran parlerait d'un fichier
@@ -144,20 +173,26 @@ function Workspace({
     }
   }
 
+  const activeChannel =
+    profiles.find((profile) => profile.path === selected)?.channel ?? null;
+
   return (
-    <div className="flex h-full flex-col bg-[var(--bg-base)]">
+    <div className="app-shell">
       {build?.channel === "staging" && <StagingBanner version={build.version} />}
-      <Header />
+      <Header channel={activeChannel} />
       {/* La navigation vit sous l'en-tête plutôt que dans le flux : elle ne
           défile pas avec le contenu, et reste atteignable même sans profil —
           c'est par les Réglages qu'on en choisit un. */}
       {!loading && <Tabs active={tab} onChange={setTab} />}
 
-      <main className="mx-auto w-full max-w-6xl flex-1 overflow-y-auto px-4 py-5 sm:px-6 lg:px-8">
+      <main className="app-main">
         {loading ? (
-          <p className="text-sm text-[var(--text-tertiary)]">{t("loading")}</p>
+          <p className="app-loading" role="status" aria-live="polite">
+            {t("loading")}
+          </p>
         ) : (
-          <div className="space-y-4">
+          <div key={tab} className="app-view space-y-4">
+            {deviceError && <ErrorNotice message={deviceError} />}
             {error && <ErrorNotice message={error} />}
 
             {tab === "settings" ? (
@@ -222,14 +257,21 @@ function StagingBanner({ version }: { version: string }) {
   );
 }
 
-function Header() {
+function Header({ channel }: { channel: string | null }) {
   return (
-    <header className="border-b border-[var(--border-subtle)] bg-[var(--surface-2)]">
-      <div className="mx-auto flex w-full max-w-6xl items-baseline gap-2 px-4 py-3 sm:px-6 lg:px-8">
-        <h1 className="text-base font-semibold tracking-tight text-[var(--text-primary)] sm:text-lg">
-          SpaceMapper
-        </h1>
-        <Badge tone="accent">Lite</Badge>
+    <header className="app-header" aria-label="SpaceMapper Lite">
+      <div className="app-header__inner">
+        <span className="app-brand-mark" aria-hidden="true">
+          <Crosshair size={20} />
+        </span>
+        <div className="app-brand-copy">
+          <p className="app-brand-eyebrow">Padek Interactive</p>
+          <h1 className="app-brand-title">SpaceMapper</h1>
+        </div>
+        <div className="app-edition">
+          {channel && <Badge tone="neutral">{channel}</Badge>}
+          <Badge tone="accent">Lite</Badge>
+        </div>
       </div>
     </header>
   );
@@ -238,7 +280,7 @@ function Header() {
 /**
  * Navigation principale.
  *
- * Défilante horizontalement plutôt que repliée dans un menu : quatre entrées
+ * Défilante horizontalement plutôt que repliée dans un menu : cinq entrées
  * courtes tiennent sur un écran étroit dès lors qu'on accepte de les faire
  * glisser, et un menu déroulant cacherait où l'on se trouve.
  */
@@ -259,23 +301,20 @@ function Tabs({
   ];
 
   return (
-    <nav className="border-b border-[var(--border-subtle)] bg-[var(--surface-2)]">
+    <nav className="app-tabs" aria-label={t("nav.main")}>
       {/* `overflow-y-hidden` n'est pas décoratif : sans lui, la ligne (dont le
           contenu déborde d'un pixel via les métriques de police) hérite un
           `overflow-y: auto` du seul `overflow-x-auto` posé — la CSS impose ça
           dès qu'un seul axe n'est pas `visible` — et affiche une barre de
           défilement verticale résiduelle, réduite à ses flèches. */}
-      <div className="mx-auto flex w-full max-w-6xl gap-1 overflow-x-auto overflow-y-hidden px-4 sm:px-6 lg:px-8">
+      <div className="app-tabs__track">
         {tabs.map((tab) => (
           <button
+            type="button"
             key={tab.id}
             onClick={() => onChange(tab.id)}
-            className={
-              "-mb-px shrink-0 whitespace-nowrap border-b-2 px-3 py-2 text-sm font-medium transition-colors sm:px-4 " +
-              (active === tab.id
-                ? "border-accent text-[var(--text-accent)]"
-                : "border-transparent text-[var(--text-tertiary)] hover:text-[var(--text-primary)]")
-            }
+            aria-current={active === tab.id ? "page" : undefined}
+            className="app-tab"
           >
             {t(tab.label)}
           </button>
@@ -300,27 +339,49 @@ function WizardTeaser() {
 
   return (
     <>
-      <div className="grid gap-3 sm:grid-cols-2">
-        {WIZARD_ACTIVITIES.map(({ icon: Icon, titleKey }) => (
-          <button
-            key={titleKey}
+      <section className="app-panel app-panel--hud overflow-hidden">
+        <div className="grid items-center gap-6 p-[var(--pad-card)] md:grid-cols-[minmax(0,1fr)_auto] md:p-8">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="app-eyebrow">SpaceMapper</p>
+              <Badge tone="accent">Premium</Badge>
+            </div>
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight text-[var(--text-primary)] sm:text-3xl">
+              {t("wizard.teaser.title")}
+            </h2>
+            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-[var(--text-secondary)]">
+              {t("wizard.teaser.body")}
+            </p>
+          </div>
+          <Button
+            type="button"
             onClick={() => setOpen(true)}
-            className="flex items-start gap-3 rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--surface-1)] p-[var(--pad-card)] text-left opacity-[0.7] shadow-[var(--shadow-1)] transition-opacity hover:opacity-100"
+            aria-haspopup="dialog"
+            className="w-full md:w-auto"
           >
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-[var(--accent-soft)] text-[var(--text-accent)]">
-              <Icon size={20} />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="flex items-center gap-2">
-                <span className="text-sm font-semibold text-[var(--text-primary)]">
-                  {t(titleKey)}
-                </span>
-                <PremiumBadge />
+            {t("wizard.teaser.cta")} <span aria-hidden="true">→</span>
+          </Button>
+        </div>
+
+        <ul className="grid border-t border-[var(--border-subtle)] sm:grid-cols-2 lg:grid-cols-4">
+          {WIZARD_ACTIVITIES.map(({ icon: Icon, titleKey }, index) => (
+            <li
+              key={titleKey}
+              className="flex min-w-0 items-center gap-3 border-[var(--border-subtle)] px-4 py-3 sm:border-r sm:last:border-r-0"
+            >
+              <span className="technical text-[var(--text-disabled)]" aria-hidden="true">
+                {String(index + 1).padStart(2, "0")}
               </span>
-            </span>
-          </button>
-        ))}
-      </div>
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-[var(--accent-soft)] text-[var(--text-accent)]">
+                <Icon size={18} />
+              </span>
+              <span className="truncate text-sm font-medium text-[var(--text-primary)]">
+                {t(titleKey)}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </section>
 
       {open && (
         <Modal onCancel={() => setOpen(false)} title={t("upsell.title")}>
@@ -331,12 +392,14 @@ function WizardTeaser() {
             {t("upsell.body")}
           </p>
           <div className="mt-5 flex justify-end">
-            <button
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
               onClick={() => setOpen(false)}
-              className="rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-2)] px-3 py-1.5 text-sm text-[var(--text-primary)] hover:bg-[var(--surface-hover)]"
             >
               {t("upsell.close")}
-            </button>
+            </Button>
           </div>
         </Modal>
       )}
@@ -347,14 +410,13 @@ function WizardTeaser() {
 function NoProfile({ onSettings }: { onSettings: () => void }) {
   const t = useT();
   return (
-    <div className="rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-2)] px-4 py-10 text-center">
-      <p className="text-sm text-[var(--text-secondary)]">{t("profile.none")}</p>
-      <button
-        onClick={onSettings}
-        className="mt-3 rounded-[var(--radius-control)] bg-accent px-3 py-1.5 text-sm font-medium text-white hover:bg-[var(--accent-hover)]"
-      >
-        {t("profile.goToSettings")}
-      </button>
+    <div className="app-state">
+      <div className="app-state__content">
+        <p className="text-sm text-[var(--text-secondary)]">{t("profile.none")}</p>
+        <Button type="button" size="sm" onClick={onSettings} className="mt-3">
+          {t("profile.goToSettings")}
+        </Button>
+      </div>
     </div>
   );
 }
@@ -364,7 +426,7 @@ function NoProfile({ onSettings }: { onSettings: () => void }) {
 function ErrorNotice({ message }: { message: string }) {
   const t = useT();
   return (
-    <div className="rounded-[var(--radius-card)] border border-[var(--danger)]/30 bg-[var(--danger-soft)] p-4">
+    <div className="app-error" role="alert">
       <p className="text-sm font-medium text-[var(--danger-text)]">{t("error.title")}</p>
       <p className="technical mt-1 text-[var(--text-secondary)]">{message}</p>
     </div>

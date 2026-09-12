@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { api, type BackupView } from "./lib/api";
 import type { SetupMode } from "./lib/filter";
 import type { CoreKey } from "./lib/keys";
@@ -39,6 +40,7 @@ export default function EditorToolbar({
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  const backupMenuId = useId();
 
   async function reload() {
     try {
@@ -74,7 +76,7 @@ export default function EditorToolbar({
 
   return (
     <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-2)] px-3 py-2">
+      <div className="app-panel app-panel--hud flex flex-wrap items-center gap-x-4 gap-y-2 !overflow-visible rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-2)] px-3 py-2">
         {/* Le mode n'est pas un filtre mais un contexte : « qu'est-ce que je
             configure ». Il précède donc la recherche et lui survit.
             Défilant horizontalement plutôt que replié : en fenêtre étroite on
@@ -89,8 +91,10 @@ export default function EditorToolbar({
           </span>
           {modes.map((m) => (
             <button
+              type="button"
               key={m.id}
               onClick={() => onModeChange(m.id)}
+              aria-pressed={mode === m.id}
               className={
                 "shrink-0 whitespace-nowrap rounded-[var(--radius-control)] px-2.5 py-1 text-xs font-medium transition-colors " +
                 (mode === m.id
@@ -115,6 +119,7 @@ export default function EditorToolbar({
           <div className="relative">
             <div className="flex items-center rounded-[var(--radius-control)] border border-[var(--border-default)]">
               <button
+                type="button"
                 onClick={() => void createBackup()}
                 disabled={busy}
                 className="rounded-l-md px-2.5 py-1 text-xs font-medium text-[var(--text-primary)] hover:bg-[var(--surface-hover)] disabled:text-[var(--text-disabled)]"
@@ -122,7 +127,12 @@ export default function EditorToolbar({
                 {t("backup.create")}
               </button>
               <button
+                type="button"
                 onClick={() => setOpen((v) => !v)}
+                aria-controls={backupMenuId}
+                aria-expanded={open}
+                aria-haspopup="dialog"
+                aria-label={`${t("backup.title")}: ${backups.length}`}
                 className="border-l border-[var(--border-default)] px-2 py-1 text-xs text-[var(--text-secondary)] hover:bg-[var(--surface-hover)]"
                 title={t("backup.title")}
               >
@@ -132,6 +142,7 @@ export default function EditorToolbar({
 
             {open && (
               <BackupMenu
+                id={backupMenuId}
                 profilePath={profilePath}
                 backups={backups}
                 onClose={() => setOpen(false)}
@@ -202,6 +213,7 @@ function Probe({
               )}`}
         </span>
         <button
+          type="button"
           onClick={onClear}
           className="ml-1 text-[var(--text-accent)] hover:text-[var(--accent-hover)]"
         >
@@ -219,7 +231,7 @@ function Probe({
       <span
         className={
           "inline-block h-1.5 w-1.5 rounded-full " +
-          (listening ? "bg-[var(--accent-soft)]0" : "bg-[var(--border-default)]")
+          (listening ? "bg-[var(--accent)]" : "bg-[var(--border-default)]")
         }
       />
       {count} {t(count > 1 ? "probe.deviceMany" : "probe.deviceOne")}
@@ -236,20 +248,31 @@ function Probe({
 function ScopeHint() {
   const t = useT();
   const [open, setOpen] = useState(false);
+  const scopeHintId = useId();
 
   return (
     <div className="relative">
       <button
+        type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex h-5 w-5 items-center justify-center rounded-full border border-[var(--border-default)] text-xs text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)]"
+        aria-controls={scopeHintId}
+        aria-expanded={open}
+        aria-haspopup="dialog"
+        aria-label={t("scope.title")}
+        className="flex h-[var(--tap-min)] w-[var(--tap-min)] items-center justify-center rounded-full border border-[var(--border-default)] text-xs text-[var(--text-tertiary)] hover:bg-[var(--surface-hover)]"
         title={t("scope.title")}
       >
-        ?
+        <span aria-hidden>?</span>
       </button>
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 z-20 mt-2 w-80 rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-2)] p-3 shadow-[var(--shadow-2)]">
+          <div
+            id={scopeHintId}
+            role="dialog"
+            aria-label={t("scope.title")}
+            className="absolute right-0 z-20 mt-2 w-80 max-w-[calc(100vw-2rem)] rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-2)] p-3 shadow-[var(--shadow-2)]"
+          >
             <h4 className="text-xs font-semibold text-[var(--text-primary)]">
               {t("scope.title")}
             </h4>
@@ -265,11 +288,13 @@ function ScopeHint() {
 
 /** Liste déroulante des points de restauration. */
 function BackupMenu({
+  id,
   profilePath,
   backups,
   onClose,
   onChanged,
 }: {
+  id: string;
   profilePath: string;
   backups: BackupView[];
   onClose: () => void;
@@ -281,6 +306,49 @@ function BackupMenu({
     action: "restore" | "delete";
   } | null>(null);
   const box = useRef<HTMLDivElement>(null);
+  const confirmTitleId = useId();
+  const confirmDescriptionId = useId();
+  const confirmRef = useRef<HTMLDivElement>(null);
+  const confirmationOpen = confirming !== null;
+
+  useEffect(() => {
+    if (!confirmationOpen) return;
+    const previouslyFocused = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    const dialog = confirmRef.current;
+    if (!dialog) return;
+    const focusable = () => Array.from(dialog.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ));
+    (focusable()[0] ?? dialog).focus();
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        setConfirming(null);
+      } else if (event.key === "Tab") {
+        const elements = focusable();
+        const first = elements[0];
+        const last = elements[elements.length - 1];
+        if (!first || !last) {
+          event.preventDefault();
+          dialog!.focus();
+        } else if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      previouslyFocused?.focus();
+    };
+  }, [confirmationOpen]);
 
   async function run() {
     if (!confirming) return;
@@ -303,8 +371,11 @@ function BackupMenu({
     <>
       <div className="fixed inset-0 z-10" onClick={onClose} />
       <div
+        id={id}
         ref={box}
-        className="absolute right-0 z-20 mt-1 w-72 overflow-hidden rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-2)] shadow-[var(--shadow-2)]"
+        role="dialog"
+        aria-label={t("backup.title")}
+        className="absolute left-0 z-20 mt-1 w-72 max-w-[calc(100vw-2rem)] overflow-hidden rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-2)] shadow-[var(--shadow-2)] sm:left-auto sm:right-0"
       >
         <p className="border-b border-[var(--border-subtle)] px-3 py-2 text-xs text-[var(--text-tertiary)]">
           {t("backup.hint")}
@@ -323,6 +394,7 @@ function BackupMenu({
                 </p>
                 <div className="mt-1 flex gap-2">
                   <button
+                    type="button"
                     onClick={() =>
                       setConfirming({ backup: b, action: "restore" })
                     }
@@ -331,6 +403,7 @@ function BackupMenu({
                     {t("backup.restore")}
                   </button>
                   <button
+                    type="button"
                     onClick={() =>
                       setConfirming({ backup: b, action: "delete" })
                     }
@@ -345,16 +418,25 @@ function BackupMenu({
         )}
       </div>
 
-      {confirming && (
+      {confirming && createPortal(
         <div
-          className="fixed inset-0 z-30 flex items-center justify-center overflow-y-auto bg-[var(--scrim)] p-4 sm:p-8"
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[var(--scrim)] p-4 sm:p-8"
           onClick={() => setConfirming(null)}
         >
           <div
-            className="w-full max-w-md rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-2)] p-5 shadow-[var(--shadow-2)]"
+            ref={confirmRef}
+            tabIndex={-1}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={confirmTitleId}
+            aria-describedby={confirmDescriptionId}
+            className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-h-[calc(100dvh-4rem)] w-full max-w-md rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-2)] p-5 shadow-[var(--shadow-2)]"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 className="text-sm font-semibold text-[var(--text-primary)]">
+            <h3
+              id={confirmTitleId}
+              className="text-sm font-semibold text-[var(--text-primary)]"
+            >
               {t(
                 confirming.action === "delete"
                   ? "backup.confirmDeleteTitle"
@@ -365,6 +447,7 @@ function BackupMenu({
               {formatTimestamp(confirming.backup.timestamp)}
             </p>
             <p
+              id={confirmDescriptionId}
               className={
                 "mt-2 text-sm " +
                 (confirming.action === "delete"
@@ -380,12 +463,14 @@ function BackupMenu({
             </p>
             <div className="mt-4 flex justify-end gap-2">
               <button
+                type="button"
                 onClick={() => setConfirming(null)}
                 className="rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-2)] px-3 py-1.5 text-sm text-[var(--text-primary)] hover:bg-[var(--surface-hover)]"
               >
                 {t("save.cancel")}
               </button>
               <button
+                type="button"
                 onClick={() => void run()}
                 className={
                   "rounded-[var(--radius-control)] px-3 py-1.5 text-sm font-medium text-white " +
@@ -402,7 +487,8 @@ function BackupMenu({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );

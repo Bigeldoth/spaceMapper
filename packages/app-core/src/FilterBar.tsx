@@ -36,9 +36,10 @@ export default function FilterBar({
   const t = useT();
 
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+    <div className="app-panel flex flex-wrap items-center gap-x-4 gap-y-2 px-3 py-2">
       <input
         type="search"
+        aria-label={t("filter.placeholder")}
         value={filters.query}
         onChange={(e) => onChange({ ...filters, query: e.target.value })}
         placeholder={t("filter.placeholder")}
@@ -83,6 +84,7 @@ export default function FilterBar({
 
       {isFiltering(filters) && (
         <button
+          type="button"
           onClick={() => onChange(NO_FILTERS)}
           className="whitespace-nowrap text-[length:var(--fs-caption)] font-medium text-[var(--text-accent)] hover:text-[var(--accent-hover)]"
         >
