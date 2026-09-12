@@ -11,7 +11,10 @@
 //! assigner, et l'application reconnaît lequel a bougé.
 
 use serde::Serialize;
-use spacemapper_core::device::{capture::MultiCaptureSession, DeviceGuid};
+use spacemapper_core::device::{
+    capture::{CapturedControlKind, CapturedFrom, MultiCaptureSession},
+    DeviceGuid,
+};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -26,6 +29,14 @@ const POLL_INTERVAL: Duration = Duration::from_millis(16);
 /// session concurrente. Son handle reste conservé après ce délai.
 const WORKER_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(1);
 const SHUTDOWN_CHECK_INTERVAL: Duration = Duration::from_millis(5);
+
+/// Marge normalisée qui départage des axes capturables de plusieurs manches.
+///
+/// Le suivi de chaque périphérique applique déjà la même marge en unités
+/// DirectInput. Cette seconde comparaison est nécessaire en HOSAS : une petite
+/// dérive du manche au repos ne doit pas gagner uniquement parce que ce manche
+/// a été énuméré avant celui que l'utilisateur actionne volontairement.
+const AXIS_CAPTURE_DOMINANCE_MARGIN: f32 = 4_000.0 / 32_767.0;
 
 #[derive(Default)]
 pub struct CaptureState {
@@ -45,18 +56,76 @@ struct Session {
     /// périphériques en sortant.
     running: Arc<AtomicBool>,
     latest: Arc<Mutex<Option<CapturedInput>>>,
+    /// Frame live la plus récente. Contrairement à `latest`, une frame vide
+    /// remplace la précédente au relâchement d'un contrôle.
+    live: Arc<Mutex<LiveCaptureFrame>>,
     /// Panne d'ouverture ou de lecture, à remonter telle quelle.
     failure: Arc<Mutex<Option<String>>>,
-    /// Conservé pendant toute fermeture lente ; joint uniquement après sortie.
+    /// Thread propriétaire des objets DirectInput/COM.
+    ///
+    /// Une nouvelle session attend sa sortie, au plus une seconde par appel.
+    /// Si le pilote reste suspendu, le handle reste dans `retiring` et aucun
+    /// remplaçant n'est ouvert. `join` ne s'exécute jamais sur le thread UI.
     worker: std::thread::JoinHandle<()>,
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, PartialEq, Serialize)]
 pub struct CapturedInput {
     /// GUID du périphérique effectivement actionné.
     pub guid: String,
     /// Contrôle nommé comme le jeu le nomme, ex. `button5`.
     pub control: String,
+    /// Nature DirectInput relevée au moment précis du geste.
+    pub kind: LiveInputKind,
+    /// Intensité du candidat au moment où il est devenu capturable.
+    pub value: f32,
+    /// Toujours vrai pour un candidat persistant ; explicite pour que
+    /// l'interface n'ait pas à faire confiance à cette convention interne.
+    pub capturable: bool,
+    /// Séquence de la frame où ce geste a été détecté.
+    ///
+    /// Elle ne change pas au relâchement : un appui très bref reste donc
+    /// attribuable même si l'interface ne sonde qu'après la frame vide.
+    pub detected_sequence: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LiveInputKind {
+    Button,
+    Hat,
+    Axis,
+}
+
+/// Un contrôle actif dans la dernière frame DirectInput.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct LiveInput {
+    pub guid: String,
+    pub control: String,
+    pub kind: LiveInputKind,
+    /// `1` pour un bouton/HAT ; valeur signée dans `[-1, 1]` pour un axe.
+    pub value: f32,
+    /// Ce mouvement est-il assez franc pour devenir une assignation ?
+    ///
+    /// Les petits mouvements d'axe restent utiles au retour visuel, mais ne
+    /// doivent pas voler la capture d'un bouton. Exposer ce verdict dans la
+    /// frame complète permet à l'interface de filtrer d'abord par périphérique
+    /// et par nature de contrôle, avant de choisir son candidat.
+    pub capturable: bool,
+}
+
+/// État live complet d'une session de capture.
+///
+/// `last` reste persistant pour le sélecteur d'assignation, tandis que
+/// `inputs` décrit uniquement la frame courante et devient donc vide au repos.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct LiveCaptureFrame {
+    pub session_id: u64,
+    pub sequence: u64,
+    pub inputs: Vec<LiveInput>,
+    pub last: Option<CapturedInput>,
+    /// Le thread a-t-il observé une frame neutre depuis le dernier clear ?
+    pub capture_ready: bool,
 }
 
 /// Ouvre une session de capture sur les périphériques désignés.
@@ -110,11 +179,19 @@ fn start_capture_inner(
     replace_capture(state, WORKER_SHUTDOWN_TIMEOUT, |id| {
         let running = Arc::new(AtomicBool::new(true));
         let latest = Arc::new(Mutex::new(None));
+        let live = Arc::new(Mutex::new(LiveCaptureFrame {
+            session_id: id,
+            sequence: 0,
+            inputs: Vec::new(),
+            last: None,
+            capture_ready: true,
+        }));
         let failure = Arc::new(Mutex::new(None));
 
         let worker = {
             let running = Arc::clone(&running);
             let latest = Arc::clone(&latest);
+            let live = Arc::clone(&live);
             let failure = Arc::clone(&failure);
 
             std::thread::spawn(move || {
@@ -157,7 +234,9 @@ fn start_capture_inner(
 
                 let mut announced = false;
                 while running.load(Ordering::Relaxed) {
-                    if let Some(found) = session.poll() {
+                    let found = session.poll_all();
+                    let candidate = capture_candidate(&found);
+                    if let Some(found) = candidate.as_ref() {
                         if !announced {
                             eprintln!(
                                 "[capture] session {id} : premier contrôle détecté — {}",
@@ -165,11 +244,20 @@ fn start_capture_inner(
                             );
                             announced = true;
                         }
-                        if let Ok(mut slot) = latest.lock() {
-                            *slot = Some(CapturedInput {
-                                guid: found.guid.to_string(),
-                                control: found.control,
-                            });
+                    }
+
+                    let inputs: Vec<LiveInput> = found.into_iter().map(live_input).collect();
+                    // `clear_capture` prend les verrous dans le même ordre. Garder
+                    // cette discipline rend atomiques la séquence du geste, le
+                    // candidat persistant et la frame publiée.
+                    if let Ok(mut sticky) = latest.lock() {
+                        if let Ok(mut slot) = live.lock() {
+                            publish_capture_frame(
+                                &mut slot,
+                                &mut sticky,
+                                candidate.as_ref(),
+                                inputs,
+                            );
                         }
                     }
                     std::thread::sleep(POLL_INTERVAL);
@@ -183,6 +271,7 @@ fn start_capture_inner(
             id,
             running,
             latest,
+            live,
             failure,
             worker,
         })
@@ -235,24 +324,63 @@ fn poll_capture_inner(state: &CaptureState) -> CmdResult<Option<CapturedInput>> 
     Ok(found)
 }
 
+/// Relève la dernière frame live de la session désignée.
+///
+/// L'identifiant ferme la même course que pour [`stop_capture`] : un effet
+/// React obsolète ne doit jamais lire la session ouverte par son successeur.
+#[tauri::command]
+pub fn poll_live_capture(
+    state: tauri::State<'_, CaptureState>,
+    id: u64,
+) -> CmdResult<LiveCaptureFrame> {
+    let guard = state.inner.lock().map_err(|_| "état de capture corrompu")?;
+    let Some(session) = guard.as_ref() else {
+        return Err("aucune session de capture active".into());
+    };
+    if session.id != id {
+        return Err(format!(
+            "session de capture {id} obsolète (courante : {})",
+            session.id
+        ));
+    }
+
+    if let Ok(slot) = session.failure.lock() {
+        if let Some(message) = slot.as_ref() {
+            return Err(message.clone());
+        }
+    }
+
+    session
+        .live
+        .lock()
+        .map_err(|_| "état de capture corrompu".into())
+        .map(|frame| frame.clone())
+}
+
 /// Oublie le dernier contrôle relevé, sans fermer la session.
 ///
 /// Effacer côté interface ne suffit pas : le thread conserve son relevé, et le
 /// sondage suivant le restaurerait aussitôt. Le bouton « Effacer » paraissait
 /// alors sans effet.
 #[tauri::command]
-pub fn clear_capture(state: tauri::State<'_, CaptureState>) -> CmdResult<()> {
+pub fn clear_capture(state: tauri::State<'_, CaptureState>) -> CmdResult<Option<u64>> {
     clear_capture_inner(&state)
 }
 
-fn clear_capture_inner(state: &CaptureState) -> CmdResult<()> {
+fn clear_capture_inner(state: &CaptureState) -> CmdResult<Option<u64>> {
     let guard = state.inner.lock().map_err(|_| "état de capture corrompu")?;
     if let Some(session) = guard.as_ref() {
-        if let Ok(mut slot) = session.latest.lock() {
-            *slot = None;
-        }
+        let mut sticky = session
+            .latest
+            .lock()
+            .map_err(|_| "état de capture corrompu")?;
+        let mut frame = session
+            .live
+            .lock()
+            .map_err(|_| "état de capture corrompu")?;
+        return Ok(Some(clear_capture_frame(&mut frame, &mut sticky)));
     }
-    Ok(())
+    Ok(None)
 }
 
 /// Ferme la session dont on donne le numéro, et rend les périphériques.
@@ -346,13 +474,161 @@ impl Drop for CaptureState {
 
 fn stop_session(slot: &mut Option<Session>) {
     if let Some(session) = slot.take() {
+        let id = session.id;
         session.running.store(false, Ordering::Release);
+        // Le retour de `join` est la garantie que `MultiCaptureSession` est
+        // sorti de portée et que tous ses périphériques DirectInput sont
+        // désacquis avant qu'un remplacement ne commence son ouverture.
         if session.worker.join().is_err() {
-            eprintln!(
-                "[capture] session {} : thread terminé en panique",
-                session.id
-            );
+            eprintln!("[capture] session {id} : thread terminé en panique");
         }
+    }
+}
+
+/// Choisit le candidat persistant sans perdre la frame multi-contrôles.
+///
+/// Un bouton est prioritaire sur un HAT, lui-même prioritaire sur un axe,
+/// même si le contrôle numérique appartient à un périphérique énuméré
+/// après celui de l'axe.
+fn capture_candidate(inputs: &[CapturedFrom]) -> Option<CapturedFrom> {
+    // Les contrôles numériques gardent leur priorité historique, quel que soit
+    // leur périphérique ou l'amplitude simultanée des axes.
+    for kind in [CapturedControlKind::Button, CapturedControlKind::Hat] {
+        if let Some(input) = inputs
+            .iter()
+            .find(|input| input.capturable && input.kind == kind)
+        {
+            return Some(input.clone());
+        }
+    }
+
+    let mut strongest: Option<(usize, &CapturedFrom)> = None;
+    for (index, input) in inputs
+        .iter()
+        .enumerate()
+        .filter(|(_, input)| input.capturable && input.kind == CapturedControlKind::Axis)
+    {
+        let magnitude = input.value.abs();
+        match strongest {
+            Some((_, current)) if magnitude > current.value.abs() => {
+                strongest = Some((index, input));
+            }
+            Some(_) => {}
+            None => strongest = Some((index, input)),
+        }
+    }
+
+    let (strongest_index, strongest) = strongest?;
+    // Un axe live mais pas encore capturable reste un concurrent pertinent :
+    // l'ignorer ferait valider un autre manche à 38 % face à une dérive à 36 %.
+    let runner_up = inputs
+        .iter()
+        .enumerate()
+        .filter(|(index, input)| {
+            *index != strongest_index && input.kind == CapturedControlKind::Axis
+        })
+        .map(|(_, input)| input.value.abs())
+        .fold(0.0_f32, f32::max);
+
+    (strongest.value.abs() - runner_up >= AXIS_CAPTURE_DOMINANCE_MARGIN).then(|| strongest.clone())
+}
+
+/// Publie une frame et date précisément le début du candidat persistant.
+///
+/// `last` doit survivre au relâchement afin qu'un tap plus court que la cadence
+/// de sondage du frontend ne soit pas perdu. Sa séquence n'est renouvelée qu'au
+/// début d'un geste (ou quand un autre contrôle devient candidat), jamais à
+/// chaque tick d'un bouton maintenu.
+fn publish_capture_frame(
+    frame: &mut LiveCaptureFrame,
+    sticky: &mut Option<CapturedInput>,
+    candidate: Option<&CapturedFrom>,
+    inputs: Vec<LiveInput>,
+) {
+    let next_sequence = frame.sequence.wrapping_add(1);
+
+    // Un clear ouvre une vraie barrière de neutralité côté matériel. Ainsi un
+    // bouton déjà tenu mais pas encore remonté jusqu'à React ne peut pas être
+    // pris pour le premier geste de la nouvelle fenêtre. La première frame vide
+    // réarme le thread ; tout appui commencé avant elle est ignoré.
+    if !frame.capture_ready {
+        let capture_ready = inputs.is_empty();
+        let changed = frame.inputs != inputs || frame.last.is_some() || capture_ready;
+        *sticky = None;
+        if changed {
+            frame.sequence = next_sequence;
+            frame.inputs = inputs;
+            frame.last = None;
+            frame.capture_ready = capture_ready;
+        }
+        return;
+    }
+
+    if let Some(candidate) = candidate {
+        let candidate_was_already_active = frame.inputs.iter().any(|input| {
+            input.guid.eq_ignore_ascii_case(candidate.guid.as_str())
+                && input.control == candidate.control
+                && input.capturable
+        });
+        let candidate_changed = sticky.as_ref().map_or(true, |current| {
+            !current.guid.eq_ignore_ascii_case(candidate.guid.as_str())
+                || current.control != candidate.control
+        });
+
+        if !candidate_was_already_active || candidate_changed {
+            *sticky = Some(captured_input(candidate, next_sequence));
+        }
+    }
+
+    let latest = sticky.clone();
+    // Une séquence est un changement observable, pas un simple tick : au repos
+    // l'interface ne doit pas se rerendre 60 fois par seconde. La transition
+    // vers `inputs: []` reste bien un changement et signale le relâchement.
+    if frame.inputs != inputs || frame.last != latest {
+        frame.sequence = next_sequence;
+        frame.inputs = inputs;
+        frame.last = latest;
+    }
+}
+
+/// Invalide tout geste antérieur et renvoie l'identifiant exact de la barrière.
+fn clear_capture_frame(frame: &mut LiveCaptureFrame, sticky: &mut Option<CapturedInput>) -> u64 {
+    *sticky = None;
+    // Même si `last` était déjà vide, cette séquence constitue une barrière
+    // observable. `inputs` reste intact pour que l'interface puisse exiger le
+    // relâchement d'un contrôle qui était tenu avant l'ouverture.
+    frame.sequence = frame.sequence.wrapping_add(1);
+    frame.last = None;
+    frame.capture_ready = false;
+    frame.sequence
+}
+
+fn captured_input(input: &CapturedFrom, detected_sequence: u64) -> CapturedInput {
+    CapturedInput {
+        guid: input.guid.to_string(),
+        control: input.control.clone(),
+        kind: live_input_kind(input.kind),
+        value: input.value,
+        capturable: input.capturable,
+        detected_sequence,
+    }
+}
+
+fn live_input_kind(kind: CapturedControlKind) -> LiveInputKind {
+    match kind {
+        CapturedControlKind::Button => LiveInputKind::Button,
+        CapturedControlKind::Hat => LiveInputKind::Hat,
+        CapturedControlKind::Axis => LiveInputKind::Axis,
+    }
+}
+
+fn live_input(input: CapturedFrom) -> LiveInput {
+    LiveInput {
+        guid: input.guid.to_string(),
+        control: input.control,
+        kind: live_input_kind(input.kind),
+        value: input.value,
+        capturable: input.capturable,
     }
 }
 
@@ -377,6 +653,13 @@ mod tests {
             latest: Arc::new(Mutex::new(None)),
             failure: Arc::new(Mutex::new(None)),
             worker,
+            live: Arc::new(Mutex::new(LiveCaptureFrame {
+                session_id: id,
+                sequence: 0,
+                inputs: Vec::new(),
+                last: None,
+                capture_ready: true,
+            })),
         }
     }
 
@@ -474,5 +757,249 @@ mod tests {
         assert!(!running.load(Ordering::Acquire));
         release.send(()).unwrap();
         dropper.join().unwrap();
+    }
+
+    fn captured(
+        control: &str,
+        kind: CapturedControlKind,
+        value: f32,
+        capturable: bool,
+    ) -> CapturedFrom {
+        captured_on(
+            "B10A044F-0000-0000-0000-504944564944",
+            control,
+            kind,
+            value,
+            capturable,
+        )
+    }
+
+    fn captured_on(
+        guid: &str,
+        control: &str,
+        kind: CapturedControlKind,
+        value: f32,
+        capturable: bool,
+    ) -> CapturedFrom {
+        CapturedFrom {
+            guid: DeviceGuid::parse(guid).unwrap(),
+            control: control.into(),
+            kind,
+            value,
+            capturable,
+        }
+    }
+
+    #[test]
+    fn stopping_a_session_joins_its_worker_before_returning() {
+        let running = Arc::new(AtomicBool::new(true));
+        let worker_running = Arc::clone(&running);
+        let entered = Arc::new(std::sync::Barrier::new(2));
+        let worker_entered = Arc::clone(&entered);
+        let released = Arc::new(AtomicBool::new(false));
+        let worker_released = Arc::clone(&released);
+
+        let worker = std::thread::spawn(move || {
+            worker_entered.wait();
+            while worker_running.load(Ordering::Relaxed) {
+                std::thread::yield_now();
+            }
+            // Simule la destruction des objets DirectInput détenus par le
+            // thread. Le prochain démarrage ne doit pouvoir arriver qu'après.
+            worker_released.store(true, Ordering::Release);
+        });
+
+        let mut slot = Some(Session {
+            id: 7,
+            running,
+            latest: Arc::new(Mutex::new(None)),
+            live: Arc::new(Mutex::new(LiveCaptureFrame {
+                session_id: 7,
+                sequence: 0,
+                inputs: Vec::new(),
+                last: None,
+                capture_ready: true,
+            })),
+            failure: Arc::new(Mutex::new(None)),
+            worker,
+        });
+
+        entered.wait();
+        stop_session(&mut slot);
+
+        assert!(slot.is_none());
+        assert!(
+            released.load(Ordering::Acquire),
+            "les ressources du worker sont encore détenues après stop_session"
+        );
+    }
+
+    #[test]
+    fn sticky_candidate_ignores_subtle_axes_and_prefers_digital_controls() {
+        let inputs = vec![
+            captured("x", CapturedControlKind::Axis, 0.08, false),
+            captured("y", CapturedControlKind::Axis, -0.7, true),
+            captured("hat1_left", CapturedControlKind::Hat, 1.0, true),
+            captured("button5", CapturedControlKind::Button, 1.0, true),
+        ];
+
+        let candidate = capture_candidate(&inputs).unwrap();
+        assert_eq!(candidate.control, "button5");
+    }
+
+    #[test]
+    fn axis_candidate_uses_amplitude_instead_of_directinput_order() {
+        let inputs = vec![
+            captured_on(
+                "B10A044F-0000-0000-0000-504944564944",
+                "x",
+                CapturedControlKind::Axis,
+                0.44,
+                true,
+            ),
+            captured_on(
+                "A36D044F-0000-0000-0000-504944564944",
+                "y",
+                CapturedControlKind::Axis,
+                -0.76,
+                true,
+            ),
+        ];
+
+        let candidate = capture_candidate(&inputs).unwrap();
+        assert_eq!(candidate.control, "y");
+        assert_eq!(candidate.value, -0.76);
+    }
+
+    #[test]
+    fn close_axis_candidates_from_different_devices_remain_ambiguous() {
+        let inputs = vec![
+            captured_on(
+                "B10A044F-0000-0000-0000-504944564944",
+                "x",
+                CapturedControlKind::Axis,
+                0.50,
+                true,
+            ),
+            captured_on(
+                "A36D044F-0000-0000-0000-504944564944",
+                "y",
+                CapturedControlKind::Axis,
+                -0.45,
+                false,
+            ),
+        ];
+
+        assert!(
+            capture_candidate(&inputs).is_none(),
+            "l'ordre d'énumération a départagé deux axes trop proches"
+        );
+    }
+
+    #[test]
+    fn live_conversion_preserves_axis_sign_and_kind() {
+        let input = live_input(captured("rotz", CapturedControlKind::Axis, -0.625, true));
+        assert_eq!(input.control, "rotz");
+        assert_eq!(input.kind, LiveInputKind::Axis);
+        assert_eq!(input.value, -0.625);
+        assert!(input.capturable);
+    }
+
+    #[test]
+    fn live_conversion_keeps_subtle_axis_non_capturable() {
+        let input = live_input(captured("x", CapturedControlKind::Axis, 0.08, false));
+        assert_eq!(input.kind, LiveInputKind::Axis);
+        assert!(!input.capturable);
+    }
+
+    #[test]
+    fn a_short_tap_keeps_the_sequence_of_its_press_after_release() {
+        let mut frame = LiveCaptureFrame {
+            session_id: 1,
+            sequence: 10,
+            inputs: Vec::new(),
+            last: None,
+            capture_ready: true,
+        };
+        let mut sticky = None;
+        let pressed = captured("button5", CapturedControlKind::Button, 1.0, true);
+
+        publish_capture_frame(
+            &mut frame,
+            &mut sticky,
+            Some(&pressed),
+            vec![live_input(pressed.clone())],
+        );
+        assert_eq!(frame.sequence, 11);
+        assert_eq!(frame.last.as_ref().unwrap().detected_sequence, 11);
+        assert_eq!(frame.last.as_ref().unwrap().kind, LiveInputKind::Button);
+        assert!(frame.last.as_ref().unwrap().capturable);
+
+        // Le frontend peut ne voir que cette frame de relâchement. Le candidat
+        // doit rester disponible, daté de la frame où le bouton était enfoncé.
+        publish_capture_frame(&mut frame, &mut sticky, None, Vec::new());
+        assert_eq!(frame.sequence, 12);
+        assert!(frame.inputs.is_empty());
+        assert_eq!(frame.last.as_ref().unwrap().detected_sequence, 11);
+    }
+
+    #[test]
+    fn reset_and_neutral_barriers_reject_a_preheld_button_but_allow_its_next_tap() {
+        let mut frame = LiveCaptureFrame {
+            session_id: 1,
+            sequence: 0,
+            inputs: Vec::new(),
+            last: None,
+            capture_ready: true,
+        };
+        let mut sticky = None;
+        let pressed = captured("button5", CapturedControlKind::Button, 1.0, true);
+
+        publish_capture_frame(
+            &mut frame,
+            &mut sticky,
+            Some(&pressed),
+            vec![live_input(pressed.clone())],
+        );
+        let reset_barrier = clear_capture_frame(&mut frame, &mut sticky);
+        assert_eq!(reset_barrier, 2);
+        assert!(frame.last.is_none());
+        assert_eq!(
+            frame.inputs.len(),
+            1,
+            "le contrôle tenu doit rester visible"
+        );
+
+        // Le thread revoit le bouton toujours tenu après le clear. La barrière
+        // native ne le republie pas comme candidat, même si React ne l'avait
+        // pas vu avant l'ouverture du sélecteur.
+        publish_capture_frame(
+            &mut frame,
+            &mut sticky,
+            Some(&pressed),
+            vec![live_input(pressed.clone())],
+        );
+        assert_eq!(frame.sequence, reset_barrier);
+        assert!(frame.last.is_none());
+        assert!(!frame.capture_ready);
+
+        publish_capture_frame(&mut frame, &mut sticky, None, Vec::new());
+        let neutral_barrier = frame.sequence;
+        assert_eq!(neutral_barrier, 3);
+        assert!(frame.last.is_none());
+        assert!(frame.capture_ready);
+
+        // Une nouvelle pression du même bouton doit renouveler la séquence.
+        // Sinon un second tap très bref serait confondu avec le bouton pré-tenu.
+        publish_capture_frame(
+            &mut frame,
+            &mut sticky,
+            Some(&pressed),
+            vec![live_input(pressed.clone())],
+        );
+        publish_capture_frame(&mut frame, &mut sticky, None, Vec::new());
+        assert_eq!(frame.sequence, 5);
+        assert_eq!(frame.last.as_ref().unwrap().detected_sequence, 4);
+        assert!(frame.last.as_ref().unwrap().detected_sequence > neutral_barrier);
     }
 }

@@ -112,6 +112,10 @@ impl From<&PendingEdit> for BindingEdit {
             actionmap: p.actionmap.clone(),
             action: p.action.clone(),
             input: p.input.clone(),
+            // Lite réassigne le contrôle sans modifier son geste d'activation.
+            activation_mode: None,
+            multi_tap: None,
+            gesture: None,
             original_input: p.original_input.clone(),
         }
     }
@@ -495,7 +499,9 @@ fn collect_editable(maps: &ActionMaps, defaults: Option<&DefaultProfile>) -> Vec
                         activation_mode: default_input.activation_mode.clone(),
                         multi_tap: default_input.trigger_attributes.get("multiTap").cloned(),
                         trigger_attributes: default_input.trigger_attributes.clone(),
-                        explicit_trigger_attributes: default_input.explicit_trigger_attributes.clone(),
+                        explicit_trigger_attributes: default_input
+                            .explicit_trigger_attributes
+                            .clone(),
                         lock: locked_reason,
                     });
                 }

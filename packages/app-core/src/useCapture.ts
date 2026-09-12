@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, type CapturedInput, type DeviceView } from "./lib/api";
+import {
+  api,
+  type CapturedInput,
+  type DeviceView,
+  type LiveInput,
+} from "./lib/api";
+
+/** Environ trente images par seconde ; le backend sonde le matériel à 60 Hz. */
+const LIVE_POLL_INTERVAL_MS = 32;
 
 /**
  * Session de capture partagée par tout l'éditeur.
@@ -15,11 +23,20 @@ import { api, type CapturedInput, type DeviceView } from "./lib/api";
 export interface CaptureFeed {
   /** Dernier contrôle relevé, ou `null` si rien n'a encore été actionné. */
   last: CapturedInput | null;
+  /** Contrôles actifs dans la frame courante. Vide dès le relâchement. */
+  active: readonly LiveInput[];
+  /** Numéro du dernier changement live observé dans cette session. */
+  frameSequence: number;
+  /** Barrière native de neutralité franchie, si le backend la fournit. */
+  captureReady: boolean | undefined;
   /** La session est-elle ouverte ? Distingue « rien actionné » de « inactif ». */
   listening: boolean;
   error: string | null;
-  /** Oublie le dernier relevé, pour repartir d'une capture propre. */
-  reset: () => Promise<void>;
+  /**
+   * Vide le dernier relevé et la frame active, puis attend le clear natif.
+   * Renvoie la séquence exacte de la barrière quand le backend la fournit.
+   */
+  reset: () => Promise<number | null>;
 }
 
 interface CaptureRun {
@@ -31,7 +48,22 @@ interface CaptureRun {
 }
 
 export function useCapture(devices: DeviceView[], enabled: boolean): CaptureFeed {
+  const [visible, setVisible] = useState(() => !document.hidden);
+  useEffect(() => {
+    const onDocumentVisibility = () => setVisible(!document.hidden);
+    const onDesktopVisibility = (event: Event) =>
+      setVisible((event as CustomEvent<boolean>).detail);
+    document.addEventListener("visibilitychange", onDocumentVisibility);
+    window.addEventListener("spacemapper:visibility", onDesktopVisibility);
+    return () => {
+      document.removeEventListener("visibilitychange", onDocumentVisibility);
+      window.removeEventListener("spacemapper:visibility", onDesktopVisibility);
+    };
+  }, []);
   const [last, setLast] = useState<CapturedInput | null>(null);
+  const [active, setActive] = useState<readonly LiveInput[]>([]);
+  const [frameSequence, setFrameSequence] = useState(0);
+  const [captureReady, setCaptureReady] = useState<boolean | undefined>(undefined);
   const [listening, setListening] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const runRef = useRef<CaptureRun | null>(null);
@@ -42,13 +74,16 @@ export function useCapture(devices: DeviceView[], enabled: boolean): CaptureFeed
 
   useEffect(() => {
     setLast(null);
+    setActive([]);
+    setFrameSequence(0);
+    setCaptureReady(undefined);
     setListening(false);
     setError(null);
-    if (!enabled || guids === "") {
-      return;
-    }
+    if (!enabled || !visible || guids === "") return;
 
     let timer: number | null = null;
+    let acceptedSequence = -1;
+    let acceptedGeneration = 0;
 
     // On conserve la promesse de démarrage pour n'arrêter qu'une session
     // réellement ouverte. React réexécute les effets en développement, et un
@@ -63,35 +98,60 @@ export function useCapture(devices: DeviceView[], enabled: boolean): CaptureFeed
     };
     runRef.current = run;
 
-    const poll = async () => {
-      if (run.cancelled) return;
-      const generation = run.resetGeneration;
-      if (run.pendingResets === 0) {
-        try {
-          const found = await api.pollCapture();
-          if (!run.cancelled && generation === run.resetGeneration) {
-            setLast((current) =>
-              current?.guid === found?.guid && current?.control === found?.control
-                ? current
-                : found,
-            );
-            setError(null);
-          }
-        } catch (e) {
-          if (!run.cancelled && generation === run.resetGeneration) {
-            setError(String(e));
-          }
-        }
-      }
-      // Un appel lent ne crée pas une file de sondages IPC. Le prochain ne
-      // démarre qu'après la réponse du précédent et la fin d'un éventuel reset.
-      if (!run.cancelled) timer = window.setTimeout(poll, 60);
-    };
-
     started.then(
-      () => {
+      (id) => {
         if (run.cancelled) return;
         setListening(true);
+
+        const poll = async () => {
+          if (run.cancelled) return;
+          const generation = run.resetGeneration;
+          if (run.pendingResets === 0) {
+            try {
+              const frame = await api.pollLiveCapture(id);
+              if (
+                !run.cancelled &&
+                frame.session_id === id &&
+                generation === run.resetGeneration &&
+                run.pendingResets === 0
+              ) {
+                // Chaque reset ouvre une nouvelle fenêtre d'acceptation. La
+                // séquence peut rester identique après un clear : il faut alors
+                // republier sa barrière et son éventuel tap persistant.
+                if (acceptedGeneration !== generation) {
+                  acceptedGeneration = generation;
+                  acceptedSequence = -1;
+                }
+                if (frame.sequence > acceptedSequence) {
+                  acceptedSequence = frame.sequence;
+                  setActive(frame.inputs);
+                  setFrameSequence(frame.sequence);
+                  setCaptureReady(frame.capture_ready);
+                  setLast((current) =>
+                    sameCapturedInput(current, frame.last) ? current : frame.last,
+                  );
+                }
+                setError(null);
+                setListening(true);
+              }
+            } catch (e) {
+              if (!run.cancelled && generation === run.resetGeneration) {
+                setError(String(e));
+                setListening(false);
+                setActive([]);
+                setCaptureReady(undefined);
+                acceptedSequence = -1;
+              }
+            }
+          }
+
+          // Aucun chevauchement ni lecture pendant un reset. Une panne
+          // transitoire reste visible jusqu'à la prochaine réponse valide.
+          if (!run.cancelled) {
+            timer = window.setTimeout(poll, LIVE_POLL_INTERVAL_MS);
+          }
+        };
+
         void poll();
       },
       (e) => !run.cancelled && setError(String(e)),
@@ -103,40 +163,67 @@ export function useCapture(devices: DeviceView[], enabled: boolean): CaptureFeed
       if (timer !== null) window.clearTimeout(timer);
       void started.then((id) => api.stopCapture(id)).catch(() => {});
     };
-  }, [guids, enabled]);
+  }, [guids, enabled, visible]);
 
-  const reset = useCallback(async (): Promise<void> => {
+  const reset = useCallback(async (): Promise<number | null> => {
     setLast(null);
+    setActive([]);
+    setCaptureReady(undefined);
     const run = runRef.current;
-    if (!run || run.cancelled) return;
+    if (!run || run.cancelled) return null;
     run.resetGeneration += 1;
     run.pendingResets += 1;
-    // Les resets rapides sont sérialisés. Aucun relevé lancé avant ou pendant
-    // l'effacement ne peut réintroduire le contrôle qu'on vient d'oublier.
+
+    // Les resets rapides sont sérialisés et attendent leur propre démarrage.
+    // Une ancienne session ne doit jamais effacer celle qui l'a remplacée.
     const cleared = run.resetQueue.then(async () => {
       await run.started;
-      if (!run.cancelled) await api.clearCapture();
+      return run.cancelled ? null : api.clearCapture();
     });
-    run.resetQueue = cleared.catch(() => {});
+    run.resetQueue = cleared.then(() => {}, () => {});
     try {
-      await cleared;
+      return await cleared;
     } catch (e) {
       if (!run.cancelled) setError(String(e));
+      return null;
     } finally {
+      // Invalide également les réponses lancées pendant l'effacement. La
+      // prochaine frame live republiera ensuite la barrière de neutralité.
       run.pendingResets -= 1;
       run.resetGeneration += 1;
-      if (!run.cancelled) setLast(null);
+      if (!run.cancelled) {
+        setLast(null);
+        setActive([]);
+        setCaptureReady(undefined);
+      }
     }
   }, []);
 
   return {
     last,
+    active,
+    frameSequence,
+    captureReady,
     listening,
     error,
     // L'oubli doit aussi porter côté Rust : le thread garde son relevé, et le
     // sondage suivant le restaurerait aussitôt.
     reset,
   };
+}
+
+function sameCapturedInput(
+  left: CapturedInput | null,
+  right: CapturedInput | null,
+): boolean {
+  return (
+    left === right ||
+    (left !== null &&
+      right !== null &&
+      left.guid === right.guid &&
+      left.control === right.control &&
+      left.detected_sequence === right.detected_sequence)
+  );
 }
 
 /**

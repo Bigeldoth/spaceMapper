@@ -15,10 +15,11 @@ import { type ProfileLocation } from "./lib/api";
  * relevées dans l'archive : en proposer une absente mènerait à une liste de
  * commandes soudain sans nom.
  */
-export default function SettingsPanel({ profilePath, profiles, onSelectProfile, onBrowse, onChanged, }: {
+export default function SettingsPanel({ profilePath, profiles, onSelectProfile, onBrowse, onRefresh, onChanged, }: {
     profilePath: string | null;
     profiles: ProfileLocation[];
     onSelectProfile: (path: string) => void;
     onBrowse: () => void;
+    onRefresh?: () => void | Promise<void>;
     onChanged: () => void;
 }): import("react").JSX.Element;
