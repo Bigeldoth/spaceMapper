@@ -17,13 +17,18 @@ use spacemapper_core::device::{
 };
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
+use std::time::{Duration, Instant};
+use tauri::Manager;
 
 type CmdResult<T> = Result<T, String>;
 
 /// Cadence de sondage. Soixante fois par seconde suffit largement à ne pas
 /// manquer un appui, sans occuper un cœur pour rien.
 const POLL_INTERVAL: Duration = Duration::from_millis(16);
+/// Un pilote suspendu ne doit ni bloquer l'interface ni ouvrir une seconde
+/// session concurrente. Son handle reste conservé après ce délai.
+const WORKER_SHUTDOWN_TIMEOUT: Duration = Duration::from_secs(1);
+const SHUTDOWN_CHECK_INTERVAL: Duration = Duration::from_millis(5);
 
 /// Marge normalisée qui départage des axes capturables de plusieurs manches.
 ///
@@ -36,6 +41,9 @@ const AXIS_CAPTURE_DOMINANCE_MARGIN: f32 = 4_000.0 / 32_767.0;
 #[derive(Default)]
 pub struct CaptureState {
     inner: Mutex<Option<Session>>,
+    /// Sérialise les changements de session, sans retenir le verrou des relevés.
+    /// Une fermeture expirée reste ici jusqu'à la sortie effective du worker.
+    retiring: Mutex<Option<Session>>,
     /// Numéro de la prochaine session. Voir [`stop_capture`] pour la raison
     /// d'être de cette numérotation.
     next_id: AtomicU64,
@@ -55,9 +63,9 @@ struct Session {
     failure: Arc<Mutex<Option<String>>>,
     /// Thread propriétaire des objets DirectInput/COM.
     ///
-    /// Il doit être joint avant toute session suivante : basculer seulement
-    /// `running` laisserait les anciens périphériques acquis pendant que le
-    /// nouveau thread tente de les ouvrir.
+    /// Une nouvelle session attend sa sortie, au plus une seconde par appel.
+    /// Si le pilote reste suspendu, le handle reste dans `retiring` et aucun
+    /// remplaçant n'est ouvert. `join` ne s'exécute jamais sur le thread UI.
     worker: std::thread::JoinHandle<()>,
 }
 
@@ -124,11 +132,7 @@ pub struct LiveCaptureFrame {
 ///
 /// Renvoie le numéro de la session, à repasser à [`stop_capture`].
 #[tauri::command]
-pub fn start_capture(
-    window: tauri::Window,
-    state: tauri::State<'_, CaptureState>,
-    guids: Vec<String>,
-) -> CmdResult<u64> {
+pub async fn start_capture(window: tauri::Window, guids: Vec<String>) -> CmdResult<u64> {
     let parsed: Vec<DeviceGuid> = guids.iter().filter_map(|g| DeviceGuid::parse(g)).collect();
 
     // Trace de mise au point : en cas de capture muette, il faut savoir si la
@@ -158,118 +162,120 @@ pub fn start_capture(
         })?
         .0 as isize;
 
-    let mut guard = state.inner.lock().map_err(|_| {
-        eprintln!("[capture] refus : état de capture corrompu");
-        "état de capture corrompu"
-    })?;
-    if let Some(previous) = guard.as_ref() {
-        eprintln!(
-            "[capture] la session {} est remplacée par une nouvelle",
-            previous.id
-        );
-    }
-    stop_session(&mut guard);
+    let app = window.app_handle().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<CaptureState>();
+        start_capture_inner(&state, parsed, hwnd)
+    })
+    .await
+    .map_err(|error| format!("démarrage de capture interrompu : {error}"))?
+}
 
-    let id = state.next_id.fetch_add(1, Ordering::Relaxed) + 1;
-    let running = Arc::new(AtomicBool::new(true));
-    let latest = Arc::new(Mutex::new(None));
-    let live = Arc::new(Mutex::new(LiveCaptureFrame {
-        session_id: id,
-        sequence: 0,
-        inputs: Vec::new(),
-        last: None,
-        capture_ready: true,
-    }));
-    let failure = Arc::new(Mutex::new(None));
+fn start_capture_inner(
+    state: &CaptureState,
+    parsed: Vec<DeviceGuid>,
+    hwnd: isize,
+) -> CmdResult<u64> {
+    replace_capture(state, WORKER_SHUTDOWN_TIMEOUT, |id| {
+        let running = Arc::new(AtomicBool::new(true));
+        let latest = Arc::new(Mutex::new(None));
+        let live = Arc::new(Mutex::new(LiveCaptureFrame {
+            session_id: id,
+            sequence: 0,
+            inputs: Vec::new(),
+            last: None,
+            capture_ready: true,
+        }));
+        let failure = Arc::new(Mutex::new(None));
 
-    let worker = {
-        let running = Arc::clone(&running);
-        let latest = Arc::clone(&latest);
-        let live = Arc::clone(&live);
-        let failure = Arc::clone(&failure);
+        let worker = {
+            let running = Arc::clone(&running);
+            let latest = Arc::clone(&latest);
+            let live = Arc::clone(&live);
+            let failure = Arc::clone(&failure);
 
-        std::thread::spawn(move || {
-            // Une panique ici laisserait l'interface attendre un appui qui ne
-            // viendrait jamais, sans le moindre message. Le garde note la
-            // sortie du thread, y compris pendant un déroulement de pile.
-            let _guard = ExitGuard {
-                failure: Arc::clone(&failure),
-                running: Arc::clone(&running),
-            };
+            std::thread::spawn(move || {
+                // Une panique ici laisserait l'interface attendre un appui qui ne
+                // viendrait jamais, sans le moindre message. Le garde note la
+                // sortie du thread, y compris pendant un déroulement de pile.
+                let _guard = ExitGuard {
+                    failure: Arc::clone(&failure),
+                    running: Arc::clone(&running),
+                };
 
-            // Repère d'entrée : sans lui, un thread bloqué *dans* l'ouverture
-            // est indiscernable d'un thread qui n'a jamais démarré.
-            eprintln!(
-                "[capture] session {id} : ouverture de {} périphérique(s)…",
-                parsed.len()
-            );
-            let (session, failures) = MultiCaptureSession::open(&parsed, hwnd);
-            eprintln!(
-                "[capture] session {id} : {} ouvert(s), {} échec(s){}",
-                parsed.len() - failures.len(),
-                failures.len(),
-                if failures.is_empty() {
-                    String::new()
-                } else {
-                    format!(" — {}", failures.join(" ; "))
-                }
-            );
-
-            if session.is_empty() {
-                if let Ok(mut slot) = failure.lock() {
-                    *slot = Some(if failures.is_empty() {
-                        "aucun périphérique n'a pu être ouvert".into()
+                // Repère d'entrée : sans lui, un thread bloqué *dans* l'ouverture
+                // est indiscernable d'un thread qui n'a jamais démarré.
+                eprintln!(
+                    "[capture] session {id} : ouverture de {} périphérique(s)…",
+                    parsed.len()
+                );
+                let (session, failures) = MultiCaptureSession::open(&parsed, hwnd);
+                eprintln!(
+                    "[capture] session {id} : {} ouvert(s), {} échec(s){}",
+                    parsed.len() - failures.len(),
+                    failures.len(),
+                    if failures.is_empty() {
+                        String::new()
                     } else {
-                        failures.join(" ; ")
-                    });
-                }
-                return;
-            }
-
-            let mut announced = false;
-            while running.load(Ordering::Relaxed) {
-                let found = session.poll_all();
-                let candidate = capture_candidate(&found);
-                if let Some(found) = candidate.as_ref() {
-                    if !announced {
-                        eprintln!(
-                            "[capture] session {id} : premier contrôle détecté — {}",
-                            found.control
-                        );
-                        announced = true;
+                        format!(" — {}", failures.join(" ; "))
                     }
+                );
+
+                if session.is_empty() {
+                    if let Ok(mut slot) = failure.lock() {
+                        *slot = Some(if failures.is_empty() {
+                            "aucun périphérique n'a pu être ouvert".into()
+                        } else {
+                            failures.join(" ; ")
+                        });
+                    }
+                    return;
                 }
 
-                let inputs: Vec<LiveInput> = found.into_iter().map(live_input).collect();
-                // `clear_capture` prend les verrous dans le même ordre. Garder
-                // cette discipline rend atomiques la séquence du geste, le
-                // candidat persistant et la frame publiée.
-                if let Ok(mut sticky) = latest.lock() {
-                    if let Ok(mut slot) = live.lock() {
-                        publish_capture_frame(
-                            &mut slot,
-                            &mut sticky,
-                            candidate.as_ref(),
-                            inputs,
-                        );
+                let mut announced = false;
+                while running.load(Ordering::Relaxed) {
+                    let found = session.poll_all();
+                    let candidate = capture_candidate(&found);
+                    if let Some(found) = candidate.as_ref() {
+                        if !announced {
+                            eprintln!(
+                                "[capture] session {id} : premier contrôle détecté — {}",
+                                found.control
+                            );
+                            announced = true;
+                        }
                     }
+
+                    let inputs: Vec<LiveInput> = found.into_iter().map(live_input).collect();
+                    // `clear_capture` prend les verrous dans le même ordre. Garder
+                    // cette discipline rend atomiques la séquence du geste, le
+                    // candidat persistant et la frame publiée.
+                    if let Ok(mut sticky) = latest.lock() {
+                        if let Ok(mut slot) = live.lock() {
+                            publish_capture_frame(
+                                &mut slot,
+                                &mut sticky,
+                                candidate.as_ref(),
+                                inputs,
+                            );
+                        }
+                    }
+                    std::thread::sleep(POLL_INTERVAL);
                 }
-                std::thread::sleep(POLL_INTERVAL);
-            }
-            eprintln!("[capture] session {id} : arrêtée");
-            // `session` sort de portée ici : les périphériques sont relâchés.
+                eprintln!("[capture] session {id} : arrêtée");
+                // `session` sort de portée ici : les périphériques sont relâchés.
+            })
+        };
+
+        Ok(Session {
+            id,
+            running,
+            latest,
+            live,
+            failure,
+            worker,
         })
-    };
-
-    *guard = Some(Session {
-        id,
-        running,
-        latest,
-        live,
-        failure,
-        worker,
-    });
-    Ok(id)
+    })
 }
 
 /// Note une fin de thread anormale, pour qu'elle ne passe pas pour un silence.
@@ -281,7 +287,7 @@ struct ExitGuard {
 impl Drop for ExitGuard {
     fn drop(&mut self) {
         // Sortie alors que personne n'a demandé l'arrêt : le thread a cédé.
-        if self.running.load(Ordering::Relaxed) {
+        if self.running.swap(false, Ordering::AcqRel) {
             if let Ok(mut slot) = self.failure.lock() {
                 if slot.is_none() {
                     *slot = Some("la capture s'est interrompue".into());
@@ -294,6 +300,10 @@ impl Drop for ExitGuard {
 /// Relève le dernier contrôle actionné, s'il y en a un.
 #[tauri::command]
 pub fn poll_capture(state: tauri::State<'_, CaptureState>) -> CmdResult<Option<CapturedInput>> {
+    poll_capture_inner(&state)
+}
+
+fn poll_capture_inner(state: &CaptureState) -> CmdResult<Option<CapturedInput>> {
     let guard = state.inner.lock().map_err(|_| "état de capture corrompu")?;
     let Some(session) = guard.as_ref() else {
         return Ok(None);
@@ -354,6 +364,10 @@ pub fn poll_live_capture(
 /// alors sans effet.
 #[tauri::command]
 pub fn clear_capture(state: tauri::State<'_, CaptureState>) -> CmdResult<Option<u64>> {
+    clear_capture_inner(&state)
+}
+
+fn clear_capture_inner(state: &CaptureState) -> CmdResult<Option<u64>> {
     let guard = state.inner.lock().map_err(|_| "état de capture corrompu")?;
     if let Some(session) = guard.as_ref() {
         let mut sticky = session
@@ -377,18 +391,85 @@ pub fn clear_capture(state: tauri::State<'_, CaptureState>) -> CmdResult<Option<
 /// La capture restait alors muette sans qu'aucune erreur ne soit levée. Un
 /// arrêt qui ne désigne plus la session courante est désormais ignoré.
 #[tauri::command]
-pub fn stop_capture(state: tauri::State<'_, CaptureState>, id: u64) -> CmdResult<()> {
-    let mut guard = state.inner.lock().map_err(|_| "état de capture corrompu")?;
-    let current = guard.as_ref().map(|s| s.id);
-    if current == Some(id) {
-        eprintln!("[capture] arrêt demandé de la session courante {id}");
-        stop_session(&mut guard);
-    } else {
-        // Trace décisive : distingue « l'interface a fermé la session » d'un
-        // arrêt tardif venu d'un montage précédent, qui lui est sans effet.
-        eprintln!("[capture] arrêt ignoré de la session {id} (courante : {current:?})");
+pub async fn stop_capture(app: tauri::AppHandle, id: u64) -> CmdResult<()> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<CaptureState>();
+        stop_capture_inner(&state, id, WORKER_SHUTDOWN_TIMEOUT)
+    })
+    .await
+    .map_err(|error| format!("arrêt de capture interrompu : {error}"))?
+}
+
+/// Cette fonction tourne uniquement hors du thread UI. `try_lock` refuse les
+/// changements concurrents au lieu d'empiler des threads derrière un pilote.
+fn replace_capture(
+    state: &CaptureState,
+    timeout: Duration,
+    create: impl FnOnce(u64) -> CmdResult<Session>,
+) -> CmdResult<u64> {
+    let mut retiring = state
+        .retiring
+        .try_lock()
+        .map_err(|_| "un changement de capture est déjà en cours ; réessayez")?;
+    finish_retiring(&mut retiring, timeout)?;
+    *retiring = state
+        .inner
+        .lock()
+        .map_err(|_| "état de capture corrompu")?
+        .take();
+    finish_retiring(&mut retiring, timeout)?;
+    let id = state.next_id.fetch_add(1, Ordering::Relaxed) + 1;
+    let session = create(id)?;
+    *state.inner.lock().map_err(|_| "état de capture corrompu")? = Some(session);
+    Ok(id)
+}
+
+fn stop_capture_inner(state: &CaptureState, id: u64, timeout: Duration) -> CmdResult<()> {
+    let mut retiring = state
+        .retiring
+        .try_lock()
+        .map_err(|_| "un changement de capture est déjà en cours ; réessayez")?;
+    {
+        let mut current = state.inner.lock().map_err(|_| "état de capture corrompu")?;
+        if current.as_ref().is_some_and(|session| session.id == id) {
+            *retiring = current.take();
+        }
+    }
+    if retiring.as_ref().is_some_and(|session| session.id == id) {
+        finish_retiring(&mut retiring, timeout)?;
     }
     Ok(())
+}
+
+fn finish_retiring(slot: &mut Option<Session>, timeout: Duration) -> CmdResult<()> {
+    if let Some(session) = slot.as_ref() {
+        session.running.store(false, Ordering::Release);
+        let deadline = Instant::now() + timeout;
+        while !session.worker.is_finished() {
+            if Instant::now() >= deadline {
+                return Err("le périphérique tarde à arrêter la capture ; aucun autre accès n'a été ouvert. Réessayez après sa reconnexion".into());
+            }
+            std::thread::sleep(SHUTDOWN_CHECK_INTERVAL);
+        }
+    }
+    stop_session(slot);
+    Ok(())
+}
+
+impl Drop for CaptureState {
+    fn drop(&mut self) {
+        // La destruction de l'état peut se produire sur le thread UI. Signaler
+        // l'arrêt suffit ici : jamais de join vers un pilote possiblement figé.
+        for slot in [&mut self.inner, &mut self.retiring] {
+            if let Some(session) = slot
+                .get_mut()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .as_ref()
+            {
+                session.running.store(false, Ordering::Release);
+            }
+        }
+    }
 }
 
 fn stop_session(slot: &mut Option<Session>) {
@@ -489,7 +570,7 @@ fn publish_capture_frame(
                 && input.control == candidate.control
                 && input.capturable
         });
-        let candidate_changed = sticky.as_ref().is_none_or(|current| {
+        let candidate_changed = sticky.as_ref().map_or(true, |current| {
             !current.guid.eq_ignore_ascii_case(candidate.guid.as_str())
                 || current.control != candidate.control
         });
@@ -511,10 +592,7 @@ fn publish_capture_frame(
 }
 
 /// Invalide tout geste antérieur et renvoie l'identifiant exact de la barrière.
-fn clear_capture_frame(
-    frame: &mut LiveCaptureFrame,
-    sticky: &mut Option<CapturedInput>,
-) -> u64 {
+fn clear_capture_frame(frame: &mut LiveCaptureFrame, sticky: &mut Option<CapturedInput>) -> u64 {
     *sticky = None;
     // Même si `last` était déjà vide, cette séquence constitue une barrière
     // observable. `inputs` reste intact pour que l'interface puisse exiger le
@@ -557,6 +635,129 @@ fn live_input(input: CapturedFrom) -> LiveInput {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn simulated_session(id: u64, gate: Option<std::sync::mpsc::Receiver<()>>) -> Session {
+        let running = Arc::new(AtomicBool::new(true));
+        let worker_running = Arc::clone(&running);
+        let worker = std::thread::spawn(move || {
+            if let Some(gate) = gate {
+                gate.recv().unwrap();
+            }
+            while worker_running.load(Ordering::Acquire) {
+                std::thread::sleep(Duration::from_millis(1));
+            }
+        });
+        Session {
+            id,
+            running,
+            latest: Arc::new(Mutex::new(None)),
+            failure: Arc::new(Mutex::new(None)),
+            worker,
+            live: Arc::new(Mutex::new(LiveCaptureFrame {
+                session_id: id,
+                sequence: 0,
+                inputs: Vec::new(),
+                last: None,
+                capture_ready: true,
+            })),
+        }
+    }
+
+    #[test]
+    fn slow_shutdown_keeps_poll_clear_and_stale_session_handling_responsive() {
+        let state = Arc::new(CaptureState::default());
+        let (release, gate) = std::sync::mpsc::channel();
+        let session = simulated_session(100, Some(gate));
+        let running = Arc::clone(&session.running);
+        *state.inner.lock().unwrap() = Some(session);
+        let stop_state = Arc::clone(&state);
+        let stopper = std::thread::spawn(move || {
+            stop_capture_inner(&stop_state, 100, Duration::from_millis(500))
+        });
+        let deadline = Instant::now() + Duration::from_secs(1);
+        while running.load(Ordering::Acquire) && Instant::now() < deadline {
+            std::thread::yield_now();
+        }
+        assert!(!running.load(Ordering::Acquire));
+        // The control thread is still waiting on a deliberately blocked worker.
+        // UI reads and clear must not wait behind that lifecycle operation.
+        let probe_state = Arc::clone(&state);
+        let (observed, observe) = std::sync::mpsc::channel();
+        let probe = std::thread::spawn(move || {
+            assert!(poll_capture_inner(&probe_state).unwrap().is_none());
+            clear_capture_inner(&probe_state).unwrap();
+            observed.send(()).unwrap();
+        });
+        observe.recv_timeout(Duration::from_millis(200)).unwrap();
+        probe.join().unwrap();
+        assert!(
+            replace_capture(&state, Duration::ZERO, |_| panic!("concurrent replacement")).is_err()
+        );
+        assert!(stopper.join().unwrap().is_err());
+        assert!(state.inner.lock().unwrap().is_none());
+        assert!(state.retiring.lock().unwrap().is_some());
+        assert!(replace_capture(&state, Duration::ZERO, |_| panic!(
+            "old native worker still owns device"
+        ))
+        .is_err());
+
+        release.send(()).unwrap();
+        let next = replace_capture(&state, Duration::from_secs(1), |id| {
+            Ok(simulated_session(id, None))
+        })
+        .unwrap();
+        stop_capture_inner(&state, 100, Duration::ZERO).unwrap();
+        assert_eq!(state.inner.lock().unwrap().as_ref().unwrap().id, next);
+        assert!(state
+            .inner
+            .lock()
+            .unwrap()
+            .as_ref()
+            .unwrap()
+            .running
+            .load(Ordering::Acquire));
+        stop_capture_inner(&state, next, Duration::from_secs(1)).unwrap();
+        assert!(state.inner.lock().unwrap().is_none());
+        assert!(state.retiring.lock().unwrap().is_none());
+    }
+
+    #[test]
+    fn replacing_a_live_session_finishes_its_worker_before_creation() {
+        let state = CaptureState::default();
+        let current = simulated_session(1, None);
+        let running = Arc::clone(&current.running);
+        *state.inner.lock().unwrap() = Some(current);
+        state.next_id.store(1, Ordering::Relaxed);
+        let next = replace_capture(&state, Duration::from_secs(1), |id| {
+            assert!(!running.load(Ordering::Acquire));
+            assert!(state.inner.lock().unwrap().is_none());
+            Ok(simulated_session(id, None))
+        })
+        .unwrap();
+        assert_eq!(next, 2);
+        stop_capture_inner(&state, 1, Duration::ZERO).unwrap();
+        assert_eq!(state.inner.lock().unwrap().as_ref().unwrap().id, 2);
+        stop_capture_inner(&state, next, Duration::from_secs(1)).unwrap();
+    }
+
+    #[test]
+    fn state_destruction_signals_a_stalled_worker_without_waiting() {
+        let state = CaptureState::default();
+        let (release, gate) = std::sync::mpsc::channel();
+        let session = simulated_session(1, Some(gate));
+        let running = Arc::clone(&session.running);
+        *state.inner.lock().unwrap() = Some(session);
+        let (dropped, done) = std::sync::mpsc::channel();
+        let dropper = std::thread::spawn(move || {
+            drop(state);
+            dropped.send(()).unwrap();
+        });
+        // Receive before unblocking the fake driver: a join in Drop would fail.
+        done.recv_timeout(Duration::from_secs(1)).unwrap();
+        assert!(!running.load(Ordering::Acquire));
+        release.send(()).unwrap();
+        dropper.join().unwrap();
+    }
 
     fn captured(
         control: &str,
@@ -763,7 +964,11 @@ mod tests {
         let reset_barrier = clear_capture_frame(&mut frame, &mut sticky);
         assert_eq!(reset_barrier, 2);
         assert!(frame.last.is_none());
-        assert_eq!(frame.inputs.len(), 1, "le contrôle tenu doit rester visible");
+        assert_eq!(
+            frame.inputs.len(),
+            1,
+            "le contrôle tenu doit rester visible"
+        );
 
         // Le thread revoit le bouton toujours tenu après le clear. La barrière
         // native ne le republie pas comme candidat, même si React ne l'avait

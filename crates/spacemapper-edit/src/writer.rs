@@ -1,10 +1,10 @@
 //! Réécriture chirurgicale d'une assignation.
 //!
 //! On repasse le document en flux d'événements et on recopie tout à
-//! l'identique, sauf l'attribut `input` de la balise visée. Lors de la création
-//! du tout premier `<rebind>`, `activationMode`/`multiTap` peuvent aussi être
-//! matérialisés pour préserver le geste d'une valeur par défaut ; ils ne sont
-//! jamais appliqués à une balise existante. Le client Star Citizen est
+//! l'identique, sauf l'attribut `input` de la balise visée. Les métadonnées
+//! héritées `activationMode`/`multiTap` ne servent qu'à créer un `<rebind>`.
+//! Seul un choix explicite `gesture` remplace ces attributs sur une balise
+//! existante. Le client Star Citizen est
 //! pointilleux sur ce fichier : moins on y touche, mieux on se porte. Une
 //! réécriture complète depuis un modèle typé perdrait l'ordre des attributs,
 //! l'indentation et les éléments qu'on ne modélise pas — et introduirait des
@@ -13,6 +13,26 @@
 use crate::{Error, Result};
 use quick_xml::events::{BytesEnd, BytesStart, Event};
 use quick_xml::{Reader, Writer};
+use spacemapper_core::actionmaps::InputBinding;
+use std::borrow::Cow;
+
+/// Choix explicite du joueur, distinct des métadonnées héritées du jeu.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BindingGesture {
+    ShortPress,
+    DoubleTap,
+    LongPress,
+}
+
+impl BindingGesture {
+    fn attributes(self) -> (&'static str, &'static str) {
+        match self {
+            Self::ShortPress => ("tap", "1"),
+            Self::DoubleTap => ("double_tap", "2"),
+            Self::LongPress => ("delayed_press", "1"),
+        }
+    }
+}
 
 /// Une modification d'assignation.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -26,6 +46,8 @@ pub struct BindingEdit {
     /// restent la source de vérité et ne sont jamais écrasés par ces champs.
     pub activation_mode: Option<String>,
     pub multi_tap: Option<String>,
+    /// Seul ce choix explicite autorise à modifier le geste d'une ligne existante.
+    pub gesture: Option<BindingGesture>,
     /// Valeur `input` **avant** modification, quand l'action visée porte déjà
     /// plusieurs `<rebind>` (une par famille de périphérique — clavier et
     /// manche peuvent coexister) et qu'il faut donc préciser lequel éditer.
@@ -54,6 +76,7 @@ impl BindingEdit {
             input: Some(input.to_string()),
             activation_mode: None,
             multi_tap: None,
+            gesture: None,
             original_input: None,
         }
     }
@@ -65,6 +88,7 @@ impl BindingEdit {
             input: None,
             activation_mode: None,
             multi_tap: None,
+            gesture: None,
             original_input: None,
         }
     }
@@ -77,10 +101,23 @@ impl BindingEdit {
         self
     }
 
-    /// Valeur à écrire. Effacer revient à `input=""`, la forme que le jeu
-    /// emploie lui-même pour une action délibérément non assignée.
-    fn value(&self) -> &str {
-        self.input.as_deref().unwrap_or("")
+    /// Une suppression doit garder le périphérique (`kb1_ `, `js3_ `…).
+    /// Sans ce préfixe, aucune famille n'est surchargée et son raccourci par
+    /// défaut revient au chargement. Une valeur par défaut absente du XML
+    /// fournit son périphérique via `original_input` ; sinon on lit la balise.
+    fn value(&self, existing_input: Option<&str>) -> Cow<'_, str> {
+        if let Some(input) = &self.input {
+            return Cow::Borrowed(input);
+        }
+        let device = self
+            .original_input
+            .as_deref()
+            .and_then(InputBinding::parse_head)
+            .or_else(|| existing_input.and_then(InputBinding::parse_head));
+        match device {
+            Some((kind, instance)) => Cow::Owned(format!("{}{instance}_ ", kind.prefix())),
+            None => Cow::Borrowed(""),
+        }
     }
 }
 
@@ -177,14 +214,14 @@ pub fn apply(xml: &str, edit: &BindingEdit) -> Result<String> {
 
             // `<rebind .../>` — la forme quasi universelle dans ce fichier.
             Event::Empty(ref e) if is_target(e, &current_map, &current_action, edit, applied) => {
-                let replaced = with_input(e, edit.value())?;
+                let replaced = with_input(e, edit)?;
                 write(&mut writer, &Event::Empty(replaced))?;
                 applied = true;
             }
 
             // `<rebind ...></rebind>` — rare, mais valide.
             Event::Start(ref e) if is_target(e, &current_map, &current_action, edit, applied) => {
-                let replaced = with_input(e, edit.value())?;
+                let replaced = with_input(e, edit)?;
                 write(&mut writer, &Event::Start(replaced))?;
                 applied = true;
             }
@@ -268,27 +305,40 @@ fn is_target(
     }
 }
 
-/// Recopie une balise en remplaçant la seule valeur de `input`.
+/// Recopie une balise en remplaçant `input` et, sur choix explicite, le geste.
 ///
 /// L'ordre des autres attributs est préservé, et `input` est ajouté s'il
 /// manquait.
-fn with_input<'a>(element: &BytesStart<'a>, input: &str) -> Result<BytesStart<'a>> {
+fn with_input<'a>(element: &BytesStart<'a>, edit: &BindingEdit) -> Result<BytesStart<'a>> {
     let name = String::from_utf8_lossy(element.name().as_ref()).into_owned();
     let mut out = BytesStart::new(name);
     let mut seen = false;
+    let gesture = edit.gesture.filter(|_| edit.input.is_some());
+    let existing_input = attribute(element, b"input");
+    let input = edit.value(existing_input.as_deref());
 
     for attribute in element.attributes() {
         let attribute = attribute.map_err(|e| Error::Xml(e.to_string()))?;
         if attribute.key.as_ref() == b"input" {
-            out.push_attribute(("input", input));
+            out.push_attribute(("input", input.as_ref()));
             seen = true;
+        } else if gesture.is_some()
+            && matches!(attribute.key.as_ref(), b"activationMode" | b"multiTap")
+        {
+            // Remplacer les deux attributs évite de garder multiTap=2 après
+            // le choix d'un appui court, y compris par héritage du jeu.
         } else {
             out.push_attribute(attribute);
         }
     }
 
     if !seen {
-        out.push_attribute(("input", input));
+        out.push_attribute(("input", input.as_ref()));
+    }
+    if let Some(gesture) = gesture {
+        let (mode, taps) = gesture.attributes();
+        out.push_attribute(("activationMode", mode));
+        out.push_attribute(("multiTap", taps));
     }
     Ok(out)
 }
@@ -318,12 +368,19 @@ fn write_raw(writer: &mut Writer<Vec<u8>>, text: &str) -> Result<()> {
 
 fn write_rebind(writer: &mut Writer<Vec<u8>>, edit: &BindingEdit) -> Result<()> {
     let mut element = BytesStart::new("rebind");
-    element.push_attribute(("input", edit.value()));
-    if let Some(activation_mode) = &edit.activation_mode {
-        element.push_attribute(("activationMode", activation_mode.as_str()));
-    }
-    if let Some(multi_tap) = &edit.multi_tap {
-        element.push_attribute(("multiTap", multi_tap.as_str()));
+    let input = edit.value(None);
+    element.push_attribute(("input", input.as_ref()));
+    if let Some(gesture) = edit.gesture.filter(|_| edit.input.is_some()) {
+        let (mode, taps) = gesture.attributes();
+        element.push_attribute(("activationMode", mode));
+        element.push_attribute(("multiTap", taps));
+    } else {
+        if let Some(activation_mode) = &edit.activation_mode {
+            element.push_attribute(("activationMode", activation_mode.as_str()));
+        }
+        if let Some(multi_tap) = &edit.multi_tap {
+            element.push_attribute(("multiTap", multi_tap.as_str()));
+        }
     }
     write(writer, &Event::Empty(element))
 }
@@ -348,6 +405,53 @@ fn write_actionmap(writer: &mut Writer<Vec<u8>>, edit: &BindingEdit) -> Result<(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn explicit_gesture_changes_only_the_target_and_clears_stale_multi_tap() {
+        for (gesture, mode, taps) in [
+            (BindingGesture::ShortPress, "tap", "1"),
+            (BindingGesture::DoubleTap, "double_tap", "2"),
+            (BindingGesture::LongPress, "delayed_press", "1"),
+        ] {
+            for closing in ["/>", "></rebind>"] {
+                let xml = format!(
+                    r#"<ActionMaps><actionmap name="player"><action name="test"><rebind input="kb1_lctrl+f" activationMode="hold_toggle" multiTap="3" custom="keep"{closing}<rebind input="js2_button1" activationMode="hold"/></action></actionmap></ActionMaps>"#
+                );
+                let mut edit =
+                    BindingEdit::set("player", "test", "kb1_lctrl+g").targeting("kb1_lctrl+f");
+                edit.gesture = Some(gesture);
+                let updated = apply(&xml, &edit).unwrap();
+                assert!(updated.contains(&format!(
+                    r#"input="kb1_lctrl+g" custom="keep" activationMode="{mode}" multiTap="{taps}""#
+                )));
+                assert!(updated.contains(r#"input="js2_button1" activationMode="hold""#));
+                assert!(!updated.contains("hold_toggle"));
+                assert!(!updated.contains(r#"multiTap="3""#));
+                spacemapper_core::actionmaps::parse_str(&updated).unwrap();
+            }
+        }
+    }
+
+    #[test]
+    fn gesture_only_edit_and_new_default_override_are_persisted() {
+        let mut edit = BindingEdit::set("player", "test", "js1_button7");
+        edit.activation_mode = Some("double_tap".into());
+        edit.multi_tap = Some("2".into());
+        edit.gesture = Some(BindingGesture::LongPress);
+        let created = apply(
+            "<ActionMaps><ActionProfiles></ActionProfiles></ActionMaps>",
+            &edit,
+        )
+        .unwrap();
+        assert!(
+            created.contains(r#"input="js1_button7" activationMode="delayed_press" multiTap="1""#)
+        );
+        edit.gesture = Some(BindingGesture::ShortPress);
+        edit.original_input = Some("js1_button7".into());
+        let changed = apply(&created, &edit).unwrap();
+        assert!(changed.contains(r#"input="js1_button7" activationMode="tap" multiTap="1""#));
+        assert!(!changed.contains("delayed_press"));
+    }
 
     const DOC: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
 <ActionMaps>
@@ -438,7 +542,100 @@ mod tests {
     #[test]
     fn clearing_writes_the_games_own_unbound_form() {
         let out = apply(DOC, &BindingEdit::clear("spaceship_movement", "v_brake")).unwrap();
-        assert!(out.contains(r#"<rebind input=""/>"#), "{out}");
+        assert!(out.contains(r#"<rebind input="js2_ "/>"#), "{out}");
+    }
+
+    #[test]
+    fn clearing_preserves_each_device_and_existing_gesture() {
+        for (original, cleared) in [
+            ("kb1_lshift+a", "kb1_ "),
+            ("mo1_mouse1", "mo1_ "),
+            ("gp1_x", "gp1_ "),
+            ("js3_button5", "js3_ "),
+            ("js10_rctrl+button1", "js10_ "),
+            ("js2_ ", "js2_ "),
+        ] {
+            for closing in ["/>", "></rebind>"] {
+                let xml = format!(
+                    r#"<ActionMaps><actionmap name="spaceship_movement"><action name="v_strafe_left"><rebind input="{original}" activationMode="hold" multiTap="2"{closing}</action></actionmap></ActionMaps>"#
+                );
+                for edit in [
+                    BindingEdit::clear("spaceship_movement", "v_strafe_left"),
+                    BindingEdit::clear("spaceship_movement", "v_strafe_left").targeting(original),
+                ] {
+                    let out = apply(&xml, &edit).unwrap();
+                    let maps = spacemapper_core::actionmaps::parse_str(&out).unwrap();
+                    let rebind = maps.rebinds().next().unwrap().2;
+                    assert_eq!(rebind.input_raw, cleared);
+                    assert!(rebind.is_unbound());
+                    assert_eq!(rebind.activation_mode.as_deref(), Some("hold"));
+                    assert_eq!(rebind.multi_tap.as_deref(), Some("2"));
+                    let clear_again = BindingEdit::clear("spaceship_movement", "v_strafe_left")
+                        .targeting(cleared);
+                    assert_eq!(apply(&out, &clear_again).unwrap(), out);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn clearing_an_implicit_default_creates_a_device_specific_override() {
+        let edit = BindingEdit::clear("spaceship_movement", "v_strafe_left").targeting("kb1_a");
+        for xml in [
+            "<ActionMaps><ActionProfiles></ActionProfiles></ActionMaps>",
+            r#"<ActionMaps><actionmap name="spaceship_movement"></actionmap></ActionMaps>"#,
+            r#"<ActionMaps><actionmap name="spaceship_movement"><action name="v_strafe_left"></action></actionmap></ActionMaps>"#,
+            r#"<ActionMaps><actionmap name="spaceship_movement"><action name="v_strafe_left"><rebind input="js3_button1"/></action></actionmap></ActionMaps>"#,
+        ] {
+            let out = apply(xml, &edit).unwrap();
+            let maps = spacemapper_core::actionmaps::parse_str(&out).unwrap();
+            let keyboard = maps
+                .rebinds()
+                .find(|(_, _, r)| r.input_raw == "kb1_ ")
+                .unwrap()
+                .2;
+            assert!(matches!(
+                keyboard.kind(),
+                spacemapper_core::actionmaps::RebindKind::UnboundOn {
+                    device_kind: spacemapper_core::actionmaps::DeviceKind::Keyboard,
+                    instance: 1
+                }
+            ));
+            assert_eq!(out.contains("js3_button1"), xml.contains("js3_button1"));
+            assert_eq!(out.matches(r#"name="v_strafe_left""#).count(), 1);
+        }
+    }
+
+    #[test]
+    fn clearing_one_sibling_preserves_all_other_devices() {
+        let xml = r#"<ActionMaps><actionmap name="spaceship_movement"><action name="v_strafe_left"><rebind input="kb1_a"/><rebind input="js1_button1"/><rebind input="js10_button1"/></action></actionmap></ActionMaps>"#;
+        let out = apply_many(
+            xml,
+            &[
+                BindingEdit::clear("spaceship_movement", "v_strafe_left").targeting("kb1_a"),
+                BindingEdit::clear("spaceship_movement", "v_strafe_left").targeting("js1_button1"),
+            ],
+        )
+        .unwrap();
+        let maps = spacemapper_core::actionmaps::parse_str(&out).unwrap();
+        let inputs: Vec<_> = maps
+            .rebinds()
+            .map(|(_, _, r)| r.input_raw.as_str())
+            .collect();
+        assert_eq!(inputs, ["kb1_ ", "js1_ ", "js10_button1"]);
+    }
+
+    #[test]
+    fn clearing_without_any_device_keeps_the_generic_empty_form() {
+        let out = apply(
+            "<ActionMaps><ActionProfiles></ActionProfiles></ActionMaps>",
+            &BindingEdit::clear("spaceship_movement", "v_strafe_left"),
+        )
+        .unwrap();
+        assert_eq!(
+            reparse(&out, "spaceship_movement", "v_strafe_left").as_deref(),
+            Some("")
+        );
     }
 
     #[test]
@@ -509,9 +706,7 @@ mod tests {
         let maps = spacemapper_core::actionmaps::parse_str(&out).unwrap();
         let inserted = maps
             .rebinds()
-            .find(|(map, action, _)| {
-                map.name == "spaceship_movement" && action.name == "v_pitch"
-            })
+            .find(|(map, action, _)| map.name == "spaceship_movement" && action.name == "v_pitch")
             .map(|(_, _, rebind)| rebind)
             .expect("première surcharge absente");
 
@@ -542,9 +737,7 @@ mod tests {
         let maps = spacemapper_core::actionmaps::parse_str(&out).unwrap();
         let rows: Vec<_> = maps
             .rebinds()
-            .filter(|(map, action, _)| {
-                map.name == "spaceship_movement" && action.name == "v_pitch"
-            })
+            .filter(|(map, action, _)| map.name == "spaceship_movement" && action.name == "v_pitch")
             .map(|(_, _, rebind)| rebind)
             .collect();
 
@@ -633,7 +826,7 @@ mod tests {
         .unwrap();
 
         assert!(out.contains(r#"input="js1_button9""#));
-        assert!(out.contains(r#"<rebind input=""/>"#));
+        assert!(out.contains(r#"<rebind input="js2_ "/>"#));
     }
 
     #[test]
@@ -674,7 +867,10 @@ mod tests {
         .unwrap();
 
         assert!(out.contains(r#"input="js3_button2""#), "{out}");
-        assert!(out.contains(r#"input="kb1_w""#), "le clavier n'aurait pas dû bouger: {out}");
+        assert!(
+            out.contains(r#"input="kb1_w""#),
+            "le clavier n'aurait pas dû bouger: {out}"
+        );
     }
 
     #[test]

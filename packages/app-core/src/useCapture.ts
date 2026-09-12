@@ -40,6 +40,17 @@ export interface CaptureFeed {
 }
 
 export function useCapture(devices: DeviceView[], enabled: boolean): CaptureFeed {
+  const [visible, setVisible] = useState(() => !document.hidden);
+  useEffect(() => {
+    const onDocumentVisibility = () => setVisible(!document.hidden);
+    const onDesktopVisibility = (event: Event) => setVisible((event as CustomEvent<boolean>).detail);
+    document.addEventListener("visibilitychange", onDocumentVisibility);
+    window.addEventListener("spacemapper:visibility", onDesktopVisibility);
+    return () => {
+      document.removeEventListener("visibilitychange", onDocumentVisibility);
+      window.removeEventListener("spacemapper:visibility", onDesktopVisibility);
+    };
+  }, []);
   const [last, setLast] = useState<CapturedInput | null>(null);
   const [active, setActive] = useState<readonly LiveInput[]>([]);
   const [frameSequence, setFrameSequence] = useState(0);
@@ -55,7 +66,7 @@ export function useCapture(devices: DeviceView[], enabled: boolean): CaptureFeed
   const guids = devices.map((d) => d.instance_guid).join("|");
 
   useEffect(() => {
-    if (!enabled || guids === "") {
+    if (!enabled || !visible || guids === "") {
       setListening(false);
       setActive([]);
       setCaptureReady(undefined);
@@ -133,7 +144,7 @@ export function useCapture(devices: DeviceView[], enabled: boolean): CaptureFeed
       if (timer !== null) window.clearTimeout(timer);
       void started.then((id) => api.stopCapture(id)).catch(() => {});
     };
-  }, [guids, enabled]);
+  }, [guids, enabled, visible]);
 
   const reset = useCallback(async (): Promise<number | null> => {
     resetGeneration.current += 1;

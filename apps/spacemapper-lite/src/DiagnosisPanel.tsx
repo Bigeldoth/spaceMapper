@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   api,
   type DeviceView,
@@ -35,30 +35,55 @@ export default function DiagnosisPanel({
   devices: DeviceView[];
 }) {
   const t = useT();
-  const [report, setReport] = useState<Diagnosis | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [diagnosis, setDiagnosis] = useState<{ path: string; value: Diagnosis } | null>(null);
+  const [failure, setFailure] = useState<{ path: string; message: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const active = useActuatedDevice(devices);
-
-  const load = useCallback(async () => {
-    if (!profilePath) {
-      setReport(null);
-      return;
-    }
-    setBusy(true);
-    try {
-      setReport(await api.diagnoseDevices(profilePath));
-      setError(null);
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setBusy(false);
-    }
-  }, [profilePath]);
+  const deviceSignature = devices.map((device) =>
+    `${device.instance_guid}:${device.product_name}:${device.instance_name}:${device.category}:${device.axes}:${device.buttons}:${device.povs}`,
+  ).join("|");
+  const requestKey = JSON.stringify([profilePath, deviceSignature]);
+  const desired = useRef({ path: profilePath, key: requestKey });
+  desired.current = { path: profilePath, key: requestKey };
+  const inFlight = useRef(false);
+  const mounted = useRef(false);
+  // Un rapport du profil précédent ne doit jamais être présenté comme celui
+  // du nouveau profil pendant que le diagnostic natif attend le matériel.
+  const report = diagnosis?.path === profilePath ? diagnosis.value : null;
+  const error = failure?.path === profilePath ? failure.message : null;
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
+
+  const load = useCallback(async (): Promise<void> => {
+    const target = desired.current;
+    if (!target.path || inFlight.current) return;
+    inFlight.current = true;
+    setBusy(true);
+    setFailure(null);
+    try {
+      const value = await api.diagnoseDevices(target.path);
+      if (mounted.current && desired.current.key === target.key) {
+        setDiagnosis({ path: target.path, value });
+      }
+    } catch (reason) {
+      if (mounted.current && desired.current.key === target.key) {
+        setFailure({ path: target.path, message: String(reason) });
+      }
+    } finally {
+      inFlight.current = false;
+      if (mounted.current) {
+        // Coalescer seulement un changement réel survenu pendant le scan.
+        // Une erreur seule ne déclenche aucune nouvelle tentative automatique.
+        if (desired.current.path && desired.current.key !== target.key) void load();
+        else setBusy(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => { void load(); }, [load, requestKey]);
 
   if (!profilePath) {
     return (
@@ -88,8 +113,10 @@ export default function DiagnosisPanel({
         </button>
       </div>
 
+      {busy && <p role="status" className="text-sm text-[var(--text-tertiary)]">{t("diag.loading")}</p>}
+
       {error && (
-        <p className="rounded-[var(--radius-card)] border border-[var(--danger)]/30 bg-[var(--danger-soft)] px-4 py-3 text-sm text-[var(--danger-text)]">
+        <p role="alert" className="rounded-[var(--radius-card)] border border-[var(--danger)]/30 bg-[var(--danger-soft)] px-4 py-3 text-sm text-[var(--danger-text)]">
           {error}
         </p>
       )}

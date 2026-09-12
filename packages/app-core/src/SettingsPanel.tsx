@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Button, Card } from "@spacemapper/ui";
 import {
   api,
@@ -40,6 +40,9 @@ export default function SettingsPanel({
   onChanged: () => void;
 }) {
   const t = useT();
+  const profileTitleId = useId();
+  const gameLanguageTitleId = useId();
+  const uiLanguageTitleId = useId();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [languages, setLanguages] = useState<Language[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -110,10 +113,15 @@ export default function SettingsPanel({
 
   return (
     <div className="space-y-[var(--sp-6)]">
-      <Section title={t("profile.title")} hint={t("profile.hint")}>
+      <Section
+        title={t("profile.title")}
+        titleId={profileTitleId}
+        hint={t("profile.hint")}
+      >
         <div className="flex flex-wrap items-center gap-[var(--sp-4)]">
           {profiles.length > 0 || isManualProfile ? (
             <select
+              aria-labelledby={profileTitleId}
               className={`max-w-full flex-1 sm:flex-none ${selectClasses}`}
               value={profilePath ?? ""}
               onChange={(e) => onSelectProfile(e.target.value)}
@@ -156,6 +164,7 @@ export default function SettingsPanel({
 
       <Section
         title={t("settings.gameLanguage")}
+        titleId={gameLanguageTitleId}
         hint={t("settings.gameLanguageHint")}
       >
         {languages.length === 0 ? (
@@ -164,6 +173,7 @@ export default function SettingsPanel({
           </p>
         ) : (
           <select
+            aria-labelledby={gameLanguageTitleId}
             className={`w-full max-w-sm ${selectClasses}`}
             value={settings.game_language}
             onChange={(e) =>
@@ -181,9 +191,14 @@ export default function SettingsPanel({
 
       <Section
         title={t("settings.uiLanguage")}
+        titleId={uiLanguageTitleId}
         hint={t("settings.uiLanguageHint")}
       >
-        <div className="flex gap-[var(--sp-4)]">
+        <div
+          className="flex gap-[var(--sp-4)]"
+          role="group"
+          aria-labelledby={uiLanguageTitleId}
+        >
           {[
             { id: "fr", label: "Français" },
             { id: "en", label: "English" },
@@ -192,6 +207,7 @@ export default function SettingsPanel({
               key={option.id}
               size="sm"
               variant={settings.ui_language === option.id ? "primary" : "secondary"}
+              aria-pressed={settings.ui_language === option.id}
               onClick={() => void update({ ...settings, ui_language: option.id })}
             >
               {option.label}
@@ -240,16 +256,21 @@ function starCitizenRoot(path: string): string | null {
 
 function Section({
   title,
+  titleId,
   hint,
   children,
 }: {
   title: string;
+  titleId: string;
   hint?: string;
   children: React.ReactNode;
 }) {
   return (
     <Card>
-      <h3 className="text-[length:var(--fs-body)] font-semibold text-[var(--text-primary)]">
+      <h3
+        id={titleId}
+        className="text-[length:var(--fs-body)] font-semibold text-[var(--text-primary)]"
+      >
         {title}
       </h3>
       <p className="mb-[var(--sp-4)] mt-[var(--sp-1)] text-[length:var(--fs-caption)] text-[var(--text-tertiary)]">

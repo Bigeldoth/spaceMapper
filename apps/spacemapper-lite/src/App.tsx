@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { Badge, Crosshair, Diamond, Magnet, RocketLaunch } from "@spacemapper/ui";
 import {
@@ -56,6 +56,18 @@ function Workspace({
 }) {
   const t = useT();
   const [devices, setDevices] = useState<DeviceView[]>([]);
+  const [deviceError, setDeviceError] = useState<string | null>(null);
+  // Le démarrage et la surveillance réutilisent le même scan en vol.
+  // Un pilote lent ne doit pas accumuler de nouvelles énumérations DirectInput.
+  const deviceScan = useRef<Promise<DeviceView[]> | null>(null);
+  const enumerateDevices = useCallback((): Promise<DeviceView[]> => {
+    if (deviceScan.current) return deviceScan.current;
+    const request = api.listDevices();
+    deviceScan.current = request;
+    const clear = () => { if (deviceScan.current === request) deviceScan.current = null; };
+    void request.then(clear, clear);
+    return request;
+  }, []);
   const [profiles, setProfiles] = useState<ProfileLocation[]>([]);
   const [selected, setSelected] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -76,39 +88,49 @@ function Workspace({
    * pour ne pas réinitialiser l'écran toutes les trois secondes.
    */
   useEffect(() => {
-    const timer = window.setInterval(async () => {
+    let cancelled = false;
+    let timer: number | undefined;
+    const poll = async () => {
       try {
-        const found = await api.listDevices();
-        setDevices((previous) => {
-          const before = previous.map((d) => d.instance_guid).join();
-          const after = found.map((d) => d.instance_guid).join();
-          return before === after ? previous : found;
-        });
-      } catch {
-        // Un échec ponctuel d'énumération ne doit pas vider la liste ni
-        // afficher une erreur : le prochain passage reprendra.
+        const found = await enumerateDevices();
+        if (!cancelled) {
+          setDevices((previous) => JSON.stringify(previous) === JSON.stringify(found) ? previous : found);
+          setDeviceError(null);
+        }
+      } catch (reason) {
+        if (!cancelled) setDeviceError(String(reason));
+      } finally {
+        if (!cancelled) timer = window.setTimeout(poll, 3000);
       }
-    }, 3000);
-    return () => window.clearInterval(timer);
-  }, []);
+    };
+    timer = window.setTimeout(poll, 3000);
+    return () => { cancelled = true; window.clearTimeout(timer); };
+  }, [enumerateDevices]);
 
   // Découverte initiale : périphériques branchés et profils sur le disque.
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [found, located, info] = await Promise.all([
-          api.listDevices(),
+        const [found, located, info] = await Promise.allSettled([
+          enumerateDevices(),
           api.locateActionmaps(),
           api.buildInfo(),
         ]);
         if (cancelled) return;
-        setDevices(found);
-        setProfiles(located);
-        setBuild(info);
-        // Le canal LIVE est celui que joue l'écrasante majorité des joueurs.
-        const live = located.find((p) => p.channel === "LIVE") ?? located[0];
-        if (live) setSelected(live.path);
+        if (found.status === "fulfilled") {
+          setDevices(found.value);
+          setDeviceError(null);
+        } else setDeviceError(String(found.reason));
+        if (info.status === "fulfilled") setBuild(info.value);
+        if (located.status === "fulfilled") {
+          setProfiles(located.value);
+          const preferred = located.value.find((profile) => profile.channel.toUpperCase() === "LIVE") ??
+            located.value.find((profile) => profile.channel.toUpperCase() === "HOTFIX") ?? located.value[0];
+          if (preferred) setSelected(preferred.path);
+        }
+        const failures = [located, info].filter((result) => result.status === "rejected");
+        if (failures.length) setError(failures.map((result) => String(result.reason)).join(" · "));
       } catch (e) {
         if (!cancelled) setError(String(e));
       } finally {
@@ -118,7 +140,7 @@ function Workspace({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [enumerateDevices]);
 
   // Changer de profil efface l'erreur du précédent : chaque onglet relit ce
   // dont il a besoin, et un message resté à l'écran parlerait d'un fichier
@@ -158,6 +180,7 @@ function Workspace({
           <p className="text-sm text-[var(--text-tertiary)]">{t("loading")}</p>
         ) : (
           <div className="space-y-4">
+            {deviceError && <ErrorNotice message={deviceError} />}
             {error && <ErrorNotice message={error} />}
 
             {tab === "settings" ? (

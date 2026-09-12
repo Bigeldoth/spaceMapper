@@ -7,10 +7,8 @@
  * dans `actionmaps.xml` ne le dit. Les valeurs listées ici ont été relevées
  * sur le profil par défaut réel du jeu (`defaultProfile.xml` extrait de
  * `Data.p4k`, août 2026) — `press` et `tap` dominent largement (plus de 500
- * occurrences à eux deux) et correspondent à « une pression suffit », le
- * fonctionnement qu'un joueur attend sans qu'on le lui dise. Tout le reste
- * mérite un badge : c'est précisément ce qui surprend en jeu si on ne le
- * découvre qu'en ratant une esquive.
+ * occurrences à eux deux). `press` réagit immédiatement ; `tap` attend un
+ * relâchement bref. Le badge rend visible cette différence lors du mapping.
  */
 import type { Translate } from "./i18nContext";
 export type ActivationKind = "tap" | "hold" | "other";
@@ -26,26 +24,56 @@ export interface ActivationBadge {
  * doit faire avec le contrôle. Elles partagent donc la même famille pour la
  * détection des conflits.
  *
- * `unknown` est volontairement une valeur joker : lorsqu'un patch du jeu
- * introduit un mode que SpaceMapper ne connaît pas encore, on conserve la
- * fausse alerte plutôt que de masquer un vrai conflit.
+ * Cette famille sert à l'affichage et aux anciens appelants sans attributs
+ * résolus. Le diagnostic utilise `triggerSignatureOf` : un déclencheur inconnu
+ * apparaît dans « À vérifier », sans être traité comme un conflit probable.
  */
-export type ActivationGesture = "short_press" | "long_press" | `multi_tap:${number}` | "unknown";
+export type ActivationGesture = "immediate" | "short_press" | "long_press" | `multi_tap:${number}` | "unknown";
 export interface ActivationSource {
     activation_mode: string | null | undefined;
     multi_tap: string | null | undefined;
+    trigger_attributes?: Record<string, string>;
+    input_raw?: string;
+    device?: string | null;
+    control?: string | null;
 }
+/** Même contrat que les signatures du carnet : événements, seuils et délais. */
+export type TriggerSignature = {
+    kind: "continuous_axis";
+} | {
+    kind: "button";
+    onpress: boolean;
+    onhold: boolean;
+    onrelease: boolean;
+    multitap: number;
+    presstriggerthreshold: number;
+    releasetriggerthreshold: number;
+    holdtriggerdelay: number;
+    releasetriggerdelay: number;
+};
+/**
+ * Aucun mode implicite n'est inventé : sans événements résolus, le bouton
+ * reste inconnu. Les modes nommés sont développés par le backend à partir
+ * des définitions de la version installée du jeu.
+ */
+export declare function triggerSignatureOf(source: ActivationSource, effectiveInput?: string | null): TriggerSignature | null;
+/** Stable malgré l'ordre des propriétés JSON ; refuse les observations mal formées. */
+export declare function triggerSignatureKey(value: unknown): string | null;
 /**
  * Normalise les deux représentations du jeu (`activationMode` et `multiTap`)
  * en geste comparable. Un `multiTap` explicite prime, comme pour le badge.
  */
 export declare function activationGestureOf(source: ActivationSource): ActivationGesture;
 /**
- * Deux assignations peuvent-elles répondre au même geste physique ?
+ * Deux assignations occupent-elles le même usage configuré du contrôle ?
  *
- * Un appui court, un appui long et un double-appui sont indépendants. Deux
- * variantes appartenant à la même famille se disputent en revanche bien le
- * contrôle. Toute valeur inconnue reste conflictuelle par prudence.
+ * Un appui simple, un appui prolongé et un multi-appui sont des usages
+ * distincts. `press` et `tap` occupent tous deux l'usage simple : le moment
+ * du déclenchement ne crée pas une combinaison supplémentaire.
+ * Lorsque les attributs résolus sont fournis, les événements et délais exacts
+ * priment sur cette famille historique. Sans eux, ce helper conserve sa
+ * comparaison de familles ; l'index de diagnostic utilise toujours les
+ * signatures résolues et distingue les résultats inconnus.
  */
 export declare function activationGesturesOverlap(left: ActivationSource, right: ActivationSource): boolean;
 /**

@@ -26,6 +26,7 @@ const FR = {
   "tab.wizard": "Assistant",
   "tab.layouts": "Profils partagés",
   "tab.settings": "Réglages",
+  "nav.main": "Navigation principale",
 
   "devices.empty":
     "Aucun périphérique de jeu détecté. Branchez votre manche — il apparaîtra ici en quelques secondes.",
@@ -33,13 +34,10 @@ const FR = {
   "devices.buttons": "boutons",
   "devices.hats": "chapeaux",
 
-  "profile.title": "Version Star Citizen",
+  "profile.title": "Profil analysé",
   "profile.hint":
-    "Choisissez l’installation de Star Citizen dont SpaceMapper doit lire et modifier les commandes. Toutes les versions détectées dans le dossier StarCitizen sont proposées.",
+    "Le fichier de Star Citizen que SpaceMapper lit et modifie. Détecté automatiquement dans la plupart des cas.",
   "profile.browse": "Choisir un fichier…",
-  "profile.rescan": "Rechercher à nouveau",
-  "profile.refreshing": "Recherche…",
-  "profile.manual": "Profil choisi manuellement",
   "profile.none": "Aucune installation détectée automatiquement.",
   "profile.goToSettings": "Choisir un profil",
 
@@ -136,14 +134,16 @@ const FR = {
 
   "upsell.title": "Réservé à l'édition Premium",
   "upsell.body":
-    "SpaceMapper Premium débloque toutes les catégories — combat, énergie, systèmes de bord, tourelles — ainsi que les modificateurs, les modes d'activation, les profils nommés et la synchronisation entre machines.",
+    "SpaceMapper Premium débloque toutes les catégories — combat, énergie, systèmes de bord, tourelles — ainsi que les modes d'activation, les profils nommés et le remappeur joystick vers clavier et souris.",
 
   "wizard.activity.piloting.title": "Piloter",
   "wizard.activity.dogfight.title": "Chasse",
   "wizard.activity.mining.title": "Minage",
   "wizard.activity.salvage.title": "Récupération",
+  "wizard.teaser.title": "Configurez vos commandes par activité",
   "wizard.teaser.body":
     "Un assistant pas-à-pas configure vos commandes activité par activité — piloter, chasse, minage, récupération — et propose une configuration HOSAS s'il détecte deux manches.",
+  "wizard.teaser.cta": "Découvrir l'assistant",
   "upsell.close": "Fermer",
 
   "save.unsaved": "modification non enregistrée",
@@ -181,6 +181,11 @@ const FR = {
   "picker.gamepad": "Manette",
   "picker.pressKey":
     "Appuyez sur la touche ou la combinaison souhaitée, ou cliquez ici avec le bouton de souris à assigner.",
+  "picker.specialKeys": "Touches réservées à la navigation",
+  "picker.specialKeysHint": "Tab déplace le focus et Échap ferme le dialogue. Pour les assigner, choisissez-les ici, avec un modificateur si besoin.",
+  "picker.specialModifier": "Modificateur",
+  "picker.noModifier": "Aucun",
+  "picker.specialKey": "Touche",
   "picker.keyHint":
     "Une touche modificatrice seule — Maj, Ctrl, Alt — est retenue quand vous la relâchez. La position physique de la touche est enregistrée, pas le caractère imprimé : c'est ainsi que Star Citizen raisonne. La molette et les clics se capturent dans le cadre ci-dessus uniquement, pour que les boutons du dialogue restent utilisables.",
   "picker.pressControl": "Actionnez le bouton, l'axe ou le chapeau souhaité.",
@@ -271,12 +276,11 @@ const FR = {
   "detail.empty": "Sélectionnez une commande pour voir son détail.",
   "detail.assignment": "Assignation",
   "detail.activeIn": "Active :",
-  "conflict.badge": "Ce contrôle est partagé avec une autre commande active en même temps",
-  "conflict.oneBody": "autre commande répond au même contrôle en même temps",
-  "conflict.manyBody": "autres commandes répondent au même contrôle en même temps",
+  "conflict.badge": "Même combinaison et même type d’appui pour une autre commande dans ce contexte",
+  "conflict.oneBody": "autre commande utilise la même combinaison et le même type d’appui dans ce contexte",
+  "conflict.manyBody": "autres commandes utilisent la même combinaison et le même type d’appui dans ce contexte",
 
-  // Situations de jeu. Deux commandes ne se disputent un bouton que si elles
-  // peuvent répondre ensemble : on ne marche pas en pilotant.
+  // Contextes utilisés par la politique du diagnostic de conflits.
   "context.on_foot": "à pied",
   "context.ship_seat": "aux commandes",
   "context.ship_scanning": "en mode scan",
@@ -285,6 +289,8 @@ const FR = {
   "context.turret": "en tourelle",
   "context.eva": "en apesanteur",
   "context.ground_vehicle": "au volant",
+  "context.map": "sur la carte",
+  "context.interface_hud": "interface / HUD",
   "context.always": "en toute situation",
   "context.out_of_game": "hors jeu",
 
@@ -301,6 +307,7 @@ const FR = {
   "diag.slotsTitle": "Emplacements utilisés",
   "diag.noProfile": "Choisissez un profil pour lancer le diagnostic.",
   "diag.refresh": "Actualiser",
+  "diag.loading": "Diagnostic des périphériques en cours…",
   "diag.rankHint":
     "Le jeu numérote js1, js2… dans cet ordre. Cet ordre change quand vous rebranchez un manche ailleurs, et c'est ce qui inverse vos commandes.",
   "diag.matched": "Reconnu dans le profil",
@@ -345,6 +352,7 @@ const EN: Record<Key, string> = {
   "tab.wizard": "Assistant",
   "tab.layouts": "Shared profiles",
   "tab.settings": "Settings",
+  "nav.main": "Main navigation",
 
   "devices.empty":
     "No game controller detected. Plug in your stick — it will appear here within seconds.",
@@ -352,13 +360,10 @@ const EN: Record<Key, string> = {
   "devices.buttons": "buttons",
   "devices.hats": "hats",
 
-  "profile.title": "Star Citizen version",
+  "profile.title": "Profile in use",
   "profile.hint":
-    "Choose the Star Citizen installation whose controls SpaceMapper should read and edit. Every version detected in the StarCitizen folder is listed.",
+    "The Star Citizen file SpaceMapper reads and edits. Detected automatically in most cases.",
   "profile.browse": "Choose a file…",
-  "profile.rescan": "Scan again",
-  "profile.refreshing": "Scanning…",
-  "profile.manual": "Manually selected profile",
   "profile.none": "No installation detected automatically.",
   "profile.goToSettings": "Choose a profile",
 
@@ -449,14 +454,16 @@ const EN: Record<Key, string> = {
 
   "upsell.title": "Reserved for the Premium edition",
   "upsell.body":
-    "SpaceMapper Premium unlocks every category — combat, power, ship systems, turrets — along with modifiers, activation modes, named profiles and sync across machines.",
+    "SpaceMapper Premium unlocks every category — combat, power, ship systems, turrets — along with activation modes, named profiles and the joystick-to-keyboard/mouse remapper.",
 
   "wizard.activity.piloting.title": "Piloting",
   "wizard.activity.dogfight.title": "Dogfight",
   "wizard.activity.mining.title": "Mining",
   "wizard.activity.salvage.title": "Salvage",
+  "wizard.teaser.title": "Configure controls by activity",
   "wizard.teaser.body":
     "A step-by-step assistant configures your controls activity by activity — piloting, dogfight, mining, salvage — and suggests a HOSAS layout if it detects two joysticks.",
+  "wizard.teaser.cta": "Discover the assistant",
   "upsell.close": "Close",
 
   "save.unsaved": "unsaved change",
@@ -493,6 +500,11 @@ const EN: Record<Key, string> = {
   "picker.gamepad": "Gamepad",
   "picker.pressKey":
     "Press the key or combination you want, or click here with the mouse button to assign.",
+  "picker.specialKeys": "Navigation keys",
+  "picker.specialKeysHint": "Tab moves focus and Escape closes the dialog. To assign them, choose them here, with a modifier if needed.",
+  "picker.specialModifier": "Modifier",
+  "picker.noModifier": "None",
+  "picker.specialKey": "Key",
   "picker.keyHint":
     "A lone modifier — Shift, Ctrl, Alt — is captured when you release it. The physical key position is recorded, not the printed character: that is how Star Citizen works. Clicks and the wheel are captured inside the frame above only, so the dialog buttons stay usable.",
   "picker.pressControl": "Press the button, axis or hat you want.",
@@ -578,10 +590,10 @@ const EN: Record<Key, string> = {
   "detail.assignment": "Assignment",
   "detail.activeIn": "Active:",
   "conflict.badge":
-    "This control is shared with another command active at the same time",
-  "conflict.oneBody": "other command answers the same control at the same time",
+    "Same combination and press type as another command in this context",
+  "conflict.oneBody": "other command uses the same combination and press type in this context",
   "conflict.manyBody":
-    "other commands answer the same control at the same time",
+    "other commands use the same combination and press type in this context",
 
   "context.on_foot": "on foot",
   "context.ship_seat": "at the controls",
@@ -591,6 +603,8 @@ const EN: Record<Key, string> = {
   "context.turret": "in a turret",
   "context.eva": "in zero-g",
   "context.ground_vehicle": "driving",
+  "context.map": "on the map",
+  "context.interface_hud": "interface / HUD",
   "context.always": "in every situation",
   "context.out_of_game": "outside gameplay",
 
@@ -607,6 +621,7 @@ const EN: Record<Key, string> = {
   "diag.slotsTitle": "Slots in use",
   "diag.noProfile": "Pick a profile to run the diagnosis.",
   "diag.refresh": "Refresh",
+  "diag.loading": "Checking connected devices…",
   "diag.rankHint":
     "The game numbers js1, js2… in this order. The order changes when you move a stick to another port, and that is what swaps your controls.",
   "diag.matched": "Found in profile",

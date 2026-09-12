@@ -87,7 +87,9 @@ pub struct CapturedControl {
     /// Peut devenir le candidat persistant du sélecteur d'assignation.
     ///
     /// Les petits mouvements d'axe sont visibles mais ne franchissent pas le
-    /// seuil de capture ; boutons et HAT sont toujours capturables.
+    /// seuil de capture. Un bouton et la direction canonique d'un HAT sont
+    /// capturables ; la seconde composante d'une diagonale HAT ne sert qu'au
+    /// retour visuel.
     pub capturable: bool,
 }
 
@@ -463,20 +465,21 @@ fn controls_from_state(state: &DIJOYSTATE2, axes: &AxisTracker) -> Vec<CapturedC
             }),
     );
 
-    controls.extend(
-        state
-            .rgdwPOV
-            .iter()
-            .enumerate()
-            .filter_map(|(index, angle)| {
-                pov_direction(*angle).map(|direction| CapturedControl {
-                    control: format!("hat{}_{}", index + 1, direction),
-                    kind: CapturedControlKind::Hat,
-                    value: 1.0,
-                    capturable: true,
-                })
-            }),
-    );
+    controls.extend(state.rgdwPOV.iter().enumerate().flat_map(|(index, angle)| {
+        let canonical = pov_direction(*angle);
+        pov_components(*angle)
+            .into_iter()
+            .flatten()
+            .map(move |direction| CapturedControl {
+                control: format!("hat{}_{}", index + 1, direction),
+                kind: CapturedControlKind::Hat,
+                value: 1.0,
+                // Le nom persistant reste strictement compatible avec
+                // l'ancien découpage cardinal. L'autre composante
+                // d'une diagonale existe seulement dans la frame live.
+                capturable: canonical == Some(direction),
+            })
+    }));
 
     controls.extend(
         axes.movements(axes_of(state))
@@ -551,6 +554,34 @@ fn pov_direction(angle: u32) -> Option<&'static str> {
     })
 }
 
+/// Décompose l'angle d'un POV en composantes cardinales pour le retour visuel.
+///
+/// Un périphérique quatre positions ne produit que les octants pairs. Un POV
+/// huit positions produit aussi les octants impairs : deux flèches cardinales
+/// s'allument alors ensemble, sans inventer un nouveau nom de contrôle dans le
+/// format Star Citizen.
+fn pov_components(angle: u32) -> [Option<&'static str>; 2] {
+    if angle == u32::MAX || (angle & 0xFFFF) == 0xFFFF {
+        return [None, None];
+    }
+
+    // DirectInput compte en centièmes de degré depuis le haut. Ajouter un demi
+    // octant arrondit vers la position la plus proche ; le modulo accepte aussi
+    // proprement les valeurs équivalentes après un tour complet.
+    let octant = (((angle % 36_000) + 2_250) / 4_500) % 8;
+    match octant {
+        0 => [Some("up"), None],
+        1 => [Some("up"), Some("right")],
+        2 => [Some("right"), None],
+        3 => [Some("right"), Some("down")],
+        4 => [Some("down"), None],
+        5 => [Some("down"), Some("left")],
+        6 => [Some("left"), None],
+        7 => [Some("left"), Some("up")],
+        _ => unreachable!("un octant normalise reste toujours dans 0..8"),
+    }
+}
+
 /// Nomme l'étape qui a échoué, pour que l'erreur soit exploitable.
 fn step(stage: &str, source: windows::core::Error) -> Error {
     Error::DeviceEnumeration(format!("{stage}: {source}"))
@@ -572,90 +603,101 @@ fn parse_guid(guid: &DeviceGuid) -> Result<GUID> {
 /// fragile. Les décalages sont dérivés de la structure elle-même, donc justes
 /// par construction.
 fn joystick_format() -> DIDATAFORMAT {
-    // Les entrées vivent dans un tableau statique : DirectInput conserve le
-    // pointeur le temps de l'appel, et un tableau local disparaîtrait.
-    //
-    // La taille est calculée depuis les parties plutôt que saisie à la main :
-    // une première version comptait 134 au lieu de 140, et le débordement
-    // tuait le thread de capture sans que rien ne le signale à l'utilisateur.
-    static mut OBJECTS: [DIOBJECTDATAFORMAT; OBJECT_COUNT] = [DIOBJECTDATAFORMAT {
-        pguid: std::ptr::null(),
-        dwOfs: 0,
-        dwType: 0,
-        dwFlags: 0,
-    }; OBJECT_COUNT];
+    /// Le format ne contient que des pointeurs vers les GUID immuables fournis
+    /// par Windows. DirectInput lit ce tableau pendant `SetDataFormat` mais ne
+    /// le modifie jamais ; il peut donc être partagé entre sessions.
+    struct StaticObjects([DIOBJECTDATAFORMAT; OBJECT_COUNT]);
+    // SAFETY: voir ci-dessus. Les pointeurs visent des constantes `GUID_*`
+    // statiques (ou sont nuls), et le tableau est figé après `OnceLock`.
+    unsafe impl Send for StaticObjects {}
+    unsafe impl Sync for StaticObjects {}
 
-    // SAFETY: initialisation unique, avant toute lecture, et l'application
-    // n'ouvre qu'une session de capture à la fois.
-    unsafe {
-        let objects = &mut *std::ptr::addr_of_mut!(OBJECTS);
-        let mut index = 0;
+    static OBJECTS: std::sync::OnceLock<StaticObjects> = std::sync::OnceLock::new();
 
-        // Six axes, chacun rattaché à son GUID pour que `lX` reçoive bien
-        // l'axe X et non le premier axe rencontré.
-        // Chaque objet est facultatif : aucun manche ne possède les six axes,
-        // les deux curseurs, les quatre chapeaux et les cent vingt-huit
-        // boutons décrits ici. `DIDOI_ASPECTPOSITION` précise qu'on veut la
-        // position de l'axe et non sa vitesse ou l'effort appliqué.
-        for (guid, offset) in [
-            (&GUID_XAxis, std::mem::offset_of!(DIJOYSTATE2, lX)),
-            (&GUID_YAxis, std::mem::offset_of!(DIJOYSTATE2, lY)),
-            (&GUID_ZAxis, std::mem::offset_of!(DIJOYSTATE2, lZ)),
-            (&GUID_RxAxis, std::mem::offset_of!(DIJOYSTATE2, lRx)),
-            (&GUID_RyAxis, std::mem::offset_of!(DIJOYSTATE2, lRy)),
-            (&GUID_RzAxis, std::mem::offset_of!(DIJOYSTATE2, lRz)),
-        ] {
-            objects[index] = DIOBJECTDATAFORMAT {
-                pguid: guid,
-                dwOfs: offset as u32,
-                dwType: DIDFT_OPTIONAL | DIDFT_AXIS | DIDFT_ANYINSTANCE,
-                dwFlags: DIDOI_ASPECTPOSITION,
-            };
-            index += 1;
-        }
-
-        for slot in 0..SLIDERS {
-            objects[index] = DIOBJECTDATAFORMAT {
-                pguid: &GUID_Slider,
-                dwOfs: (std::mem::offset_of!(DIJOYSTATE2, rglSlider) + slot * 4) as u32,
-                dwType: DIDFT_OPTIONAL | DIDFT_AXIS | DIDFT_ANYINSTANCE,
-                dwFlags: DIDOI_ASPECTPOSITION,
-            };
-            index += 1;
-        }
-
-        for hat in 0..POVS {
-            objects[index] = DIOBJECTDATAFORMAT {
-                pguid: &GUID_POV,
-                dwOfs: (std::mem::offset_of!(DIJOYSTATE2, rgdwPOV) + hat * 4) as u32,
-                dwType: DIDFT_OPTIONAL | DIDFT_POV | DIDFT_ANYINSTANCE,
-                dwFlags: 0,
-            };
-            index += 1;
-        }
-
-        // Les boutons n'ont pas de GUID imposé : DirectInput les affecte dans
-        // l'ordre où le périphérique les déclare, qui est celui du jeu.
-        for button in 0..BUTTONS {
-            objects[index] = DIOBJECTDATAFORMAT {
+    // Les entrées vivent dans un tableau statique : DirectInput reçoit leur
+    // adresse pendant l'appel. `OnceLock` est décisif ici : la capture de
+    // l'éditeur et le remappeur Premium peuvent ouvrir des sessions en même
+    // temps sans réécrire un `static mut` partagé.
+    let objects = &OBJECTS
+        .get_or_init(|| {
+            let mut objects = [DIOBJECTDATAFORMAT {
                 pguid: std::ptr::null(),
-                dwOfs: (std::mem::offset_of!(DIJOYSTATE2, rgbButtons) + button) as u32,
-                dwType: DIDFT_OPTIONAL | DIDFT_BUTTON | DIDFT_ANYINSTANCE,
+                dwOfs: 0,
+                dwType: 0,
                 dwFlags: 0,
-            };
-            index += 1;
-        }
+            }; OBJECT_COUNT];
+            let mut index = 0;
 
-        debug_assert_eq!(index, OBJECT_COUNT, "format incomplet ou débordant");
+            // Six axes, chacun rattaché à son GUID pour que `lX` reçoive bien
+            // l'axe X et non le premier axe rencontré.
+            // Chaque objet est facultatif : aucun manche ne possède les six axes,
+            // les deux curseurs, les quatre chapeaux et les cent vingt-huit
+            // boutons décrits ici. `DIDOI_ASPECTPOSITION` précise qu'on veut la
+            // position de l'axe et non sa vitesse ou l'effort appliqué.
+            for (guid, offset) in [
+                (&GUID_XAxis, std::mem::offset_of!(DIJOYSTATE2, lX)),
+                (&GUID_YAxis, std::mem::offset_of!(DIJOYSTATE2, lY)),
+                (&GUID_ZAxis, std::mem::offset_of!(DIJOYSTATE2, lZ)),
+                (&GUID_RxAxis, std::mem::offset_of!(DIJOYSTATE2, lRx)),
+                (&GUID_RyAxis, std::mem::offset_of!(DIJOYSTATE2, lRy)),
+                (&GUID_RzAxis, std::mem::offset_of!(DIJOYSTATE2, lRz)),
+            ] {
+                objects[index] = DIOBJECTDATAFORMAT {
+                    pguid: guid,
+                    dwOfs: offset as u32,
+                    dwType: DIDFT_OPTIONAL | DIDFT_AXIS | DIDFT_ANYINSTANCE,
+                    dwFlags: DIDOI_ASPECTPOSITION,
+                };
+                index += 1;
+            }
 
-        DIDATAFORMAT {
-            dwSize: core::mem::size_of::<DIDATAFORMAT>() as u32,
-            dwObjSize: core::mem::size_of::<DIOBJECTDATAFORMAT>() as u32,
-            dwFlags: DIDF_ABSAXIS,
-            dwDataSize: core::mem::size_of::<DIJOYSTATE2>() as u32,
-            dwNumObjs: index as u32,
-            rgodf: objects.as_mut_ptr(),
-        }
+            for slot in 0..SLIDERS {
+                objects[index] = DIOBJECTDATAFORMAT {
+                    pguid: &GUID_Slider,
+                    dwOfs: (std::mem::offset_of!(DIJOYSTATE2, rglSlider) + slot * 4) as u32,
+                    dwType: DIDFT_OPTIONAL | DIDFT_AXIS | DIDFT_ANYINSTANCE,
+                    dwFlags: DIDOI_ASPECTPOSITION,
+                };
+                index += 1;
+            }
+
+            for hat in 0..POVS {
+                objects[index] = DIOBJECTDATAFORMAT {
+                    pguid: &GUID_POV,
+                    dwOfs: (std::mem::offset_of!(DIJOYSTATE2, rgdwPOV) + hat * 4) as u32,
+                    dwType: DIDFT_OPTIONAL | DIDFT_POV | DIDFT_ANYINSTANCE,
+                    dwFlags: 0,
+                };
+                index += 1;
+            }
+
+            // Les boutons n'ont pas de GUID imposé : DirectInput les affecte dans
+            // l'ordre où le périphérique les déclare, qui est celui du jeu.
+            for button in 0..BUTTONS {
+                objects[index] = DIOBJECTDATAFORMAT {
+                    pguid: std::ptr::null(),
+                    dwOfs: (std::mem::offset_of!(DIJOYSTATE2, rgbButtons) + button) as u32,
+                    dwType: DIDFT_OPTIONAL | DIDFT_BUTTON | DIDFT_ANYINSTANCE,
+                    dwFlags: 0,
+                };
+                index += 1;
+            }
+
+            debug_assert_eq!(index, OBJECT_COUNT, "format incomplet ou débordant");
+
+            StaticObjects(objects)
+        })
+        .0;
+
+    DIDATAFORMAT {
+        dwSize: core::mem::size_of::<DIDATAFORMAT>() as u32,
+        dwObjSize: core::mem::size_of::<DIOBJECTDATAFORMAT>() as u32,
+        dwFlags: DIDF_ABSAXIS,
+        dwDataSize: core::mem::size_of::<DIJOYSTATE2>() as u32,
+        dwNumObjs: OBJECT_COUNT as u32,
+        // L'API Windows utilise historiquement un pointeur mutable dans la
+        // structure, bien que `SetDataFormat` ne fasse que lire les objets.
+        rgodf: objects.as_ptr().cast_mut(),
     }
 }
 
@@ -682,6 +724,8 @@ mod tests {
         // direction ferait capturer un chapeau que personne n'a touché.
         assert!(pov_direction(u32::MAX).is_none());
         assert!(pov_direction(0xFFFF).is_none());
+        assert_eq!(pov_components(u32::MAX), [None, None]);
+        assert_eq!(pov_components(0xFFFF), [None, None]);
     }
 
     #[test]
@@ -699,6 +743,71 @@ mod tests {
         // pas être ignorée.
         assert_eq!(pov_direction(4_500), Some("right"));
         assert_eq!(pov_direction(31_500), Some("up"));
+    }
+
+    #[test]
+    fn pov_components_cover_four_and_eight_position_hats() {
+        let components = |angle| {
+            pov_components(angle)
+                .into_iter()
+                .flatten()
+                .collect::<Vec<_>>()
+        };
+
+        assert_eq!(components(0), ["up"]);
+        assert_eq!(components(4_500), ["up", "right"]);
+        assert_eq!(components(9_000), ["right"]);
+        assert_eq!(components(13_500), ["right", "down"]);
+        assert_eq!(components(18_000), ["down"]);
+        assert_eq!(components(22_500), ["down", "left"]);
+        assert_eq!(components(27_000), ["left"]);
+        assert_eq!(components(31_500), ["left", "up"]);
+
+        // Une valeur exprimant le même angle après un tour reste équivalente.
+        assert_eq!(components(40_500), ["up", "right"]);
+    }
+
+    #[test]
+    fn live_hat_components_keep_exactly_one_canonical_capture_candidate() {
+        let cases = [
+            (0, &["up"][..], "up"),
+            (4_500, &["up", "right"][..], "right"),
+            (9_000, &["right"][..], "right"),
+            (13_500, &["right", "down"][..], "down"),
+            (18_000, &["down"][..], "down"),
+            (22_500, &["down", "left"][..], "left"),
+            (27_000, &["left"][..], "left"),
+            (31_500, &["left", "up"][..], "up"),
+        ];
+
+        for (angle, expected_directions, expected_canonical) in cases {
+            let axes = AxisTracker::default();
+            let rest = [8_000; 8];
+            warm_up(&axes, rest);
+            let mut state = state_with_axes(rest);
+            state.rgdwPOV[0] = angle;
+
+            let controls = controls_from_state(&state, &axes);
+            let directions = controls
+                .iter()
+                .map(|control| control.control.strip_prefix("hat1_").unwrap())
+                .collect::<Vec<_>>();
+            let capturable = controls
+                .iter()
+                .filter(|control| control.capturable)
+                .collect::<Vec<_>>();
+
+            assert_eq!(directions, expected_directions, "angle {angle}");
+            assert!(controls.iter().all(|control| {
+                control.kind == CapturedControlKind::Hat && control.value == 1.0
+            }));
+            assert_eq!(capturable.len(), 1, "angle {angle}");
+            assert_eq!(
+                capturable[0].control,
+                format!("hat1_{expected_canonical}"),
+                "angle {angle}"
+            );
+        }
     }
 
     #[test]
@@ -729,6 +838,20 @@ mod tests {
             format.dwObjSize as usize,
             core::mem::size_of::<DIOBJECTDATAFORMAT>()
         );
+    }
+
+    #[test]
+    fn data_format_is_initialized_once_across_parallel_sessions() {
+        let workers = (0..8)
+            .map(|_| std::thread::spawn(|| joystick_format().rgodf as usize))
+            .collect::<Vec<_>>();
+        let pointers = workers
+            .into_iter()
+            .map(|worker| worker.join().unwrap())
+            .collect::<Vec<_>>();
+
+        assert!(pointers.iter().all(|pointer| *pointer != 0));
+        assert!(pointers.iter().all(|pointer| *pointer == pointers[0]));
     }
 
     /// Fait passer la période de chauffe à position constante.

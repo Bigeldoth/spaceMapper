@@ -80,10 +80,7 @@ pub fn discover(candidate_roots: &[PathBuf]) -> Vec<DiscoveredProfile> {
                 if !seen.insert(identity) {
                     continue;
                 }
-                found.push(DiscoveredProfile {
-                    channel,
-                    path,
-                });
+                found.push(DiscoveredProfile { channel, path });
             }
         }
     }
@@ -187,10 +184,7 @@ mod tests {
             .expect("création du canal incomplet");
         fs::write(root.join("StarCitizen").join("README.txt"), "pas un canal")
             .expect("création du fichier parasite");
-        create_profile(
-            &root.join("StarCitizen").join("ARCHIVE"),
-            "NESTED-CHANNEL",
-        );
+        create_profile(&root.join("StarCitizen").join("ARCHIVE"), "NESTED-CHANNEL");
 
         let profiles = discover(std::slice::from_ref(&root));
         let channels: Vec<&str> = profiles

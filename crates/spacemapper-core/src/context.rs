@@ -1,36 +1,22 @@
-//! Quand une assignation est-elle active ?
+//! Quels contextes doivent être comparés dans le diagnostic de conflits ?
 //!
-//! Deux commandes ne se disputent un bouton que si elles peuvent être actives
-//! **en même temps**. Or Star Citizen n'active jamais toutes ses catégories à
-//! la fois : on ne marche pas en pilotant, et un mode de minage n'a pas les
-//! mêmes commandes qu'un mode de combat. Signaler un conflit entre le siège et
-//! la marche à pied serait une fausse alerte — et l'outil qui crie au loup sur
-//! 200 lignes ne sert plus à rien.
+//! Le diagnostic compare les commandes à pied entre elles et avec l'interface
+//! / HUD, dont le mobiGlas. Il exclut les commandes de véhicule terrestre,
+//! de carte, de spectateur et d'EVA, et sépare les tourelles du vol et de ses
+//! sous-modes. Ces règles expriment la politique du diagnostic, pas une
+//! garantie sur les commandes réellement actives dans le jeu.
 //!
-//! Le découpage part des **50 catégories réellement présentes** dans
-//! `defaultProfile.xml`, relevées par l'exemple `actionmap_contexts`, et non
-//! d'une liste supposée.
+//! Les catégories globales et inconnues sont comparées aux autres contextes
+//! de jeu, sous réserve de ces exclusions. Les différents sous-modes de vol
+//! restent séparés entre eux mais sont comparés au pilotage général.
 //!
-//! # Ce qui est certain et ce qui est déduit
-//!
-//! Qu'on ne puisse pas être à pied et assis aux commandes en même temps relève
-//! du fonctionnement de base du jeu. En revanche, le caractère mutuellement
-//! exclusif des modes scan / minage / récupération est **déduit** du fait que
-//! CIG leur donne des catégories séparées ; c'est cohérent avec le jeu, mais
-//! non documenté. En cas de doute, ce module préfère signaler un conflit
-//! plutôt que d'en taire un : une fausse alerte se voit, un conflit tu ne se
-//! découvre qu'en vol.
-//!
-//! # Ce qui n'existe pas
-//!
-//! Les modes de vol **SCM et NAV** n'ont pas de catégorie propre : ils
-//! partagent `spaceship_movement`. Rien ne permet donc de les distinguer au
-//! niveau des assignations, et deux commandes de vol restent bien en conflit
-//! même si le joueur les utilise dans des modes différents.
+//! Le découpage part des catégories de `defaultProfile.xml`, relevées par
+//! l'exemple `actionmap_contexts`. Les modes **SCM et NAV** partagent
+//! `spaceship_movement` : ils ne sont pas distingués par ce classement.
 
 use serde::{Deserialize, Serialize};
 
-/// Situation de jeu dans laquelle une catégorie est active.
+/// Groupe de catégories utilisé par le diagnostic.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Context {
@@ -38,32 +24,36 @@ pub enum Context {
     OnFoot,
     /// Assis aux commandes d'un vaisseau.
     ShipSeat,
-    /// Sous-modes du siège, exclusifs entre eux mais actifs assis.
+    /// Sous-modes comparés au siège, mais pas entre eux.
     ShipScanning,
     ShipMining,
     ShipSalvage,
-    /// En tourelle : les commandes de vol ne répondent plus.
+    /// Tourelles, comparées séparément des commandes de vol.
     Turret,
-    /// En apesanteur, hors du siège.
+    /// En apesanteur, hors du siège ; exclu du diagnostic de conflits.
     Eva,
-    /// Au volant d'un véhicule terrestre.
+    /// Véhicules terrestres, exclus du diagnostic de conflits.
     GroundVehicle,
-    /// Actif quoi qu'il arrive : mobiGlas, interface, chronomètre.
+    /// Carte, exclue du diagnostic de conflits.
+    Map,
+    /// Interface et HUD, dont le mobiGlas, comparés aussi aux commandes à pied.
+    InterfaceHud,
+    /// Commandes globales ou inconnues, sous réserve des exclusions.
     Always,
     /// Hors du jeu proprement dit : débogage, spectateur, éditeur de
     /// personnage. Jamais concerné par un conflit d'assignation.
     OutOfGame,
 }
 
-/// Situation dans laquelle une catégorie s'applique.
+/// Groupe de diagnostic auquel appartient une catégorie.
 ///
-/// Toute catégorie inconnue retombe sur [`Context::Always`] : mieux vaut un
-/// conflit signalé à tort qu'un conflit passé sous silence, et une catégorie
-/// ajoutée par un patch ne doit pas disparaître des vérifications.
+/// Les nouvelles catégories d'une famille connue héritent de son contexte.
+/// Les autres retombent sur [`Context::Always`], sans contourner les exclusions
+/// du diagnostic.
 pub fn context_of(actionmap: &str) -> Context {
     match actionmap {
         // À pied. `mining` sans préfixe est le minage portatif, distinct de
-        // `spaceship_mining` : un seul geste, et il se fait debout.
+        // `spaceship_mining`.
         "player"
         | "player_choice"
         | "player_emotes"
@@ -74,23 +64,22 @@ pub fn context_of(actionmap: &str) -> Context {
         | "mining"
         | "incapacitated" => Context::OnFoot,
 
-        // Sous-modes du vaisseau, exclusifs entre eux.
+        // Sous-modes du vaisseau, séparés dans le diagnostic.
         "spaceship_scanning" => Context::ShipScanning,
         "spaceship_mining" => Context::ShipMining,
         "spaceship_salvage" => Context::ShipSalvage,
 
-        // Tourelle : on n'y pilote pas.
-        "turret_movement" | "turret_advanced" => Context::Turret,
+        // Carte et apesanteur, exclues du diagnostic même entre elles.
+        "mapui" => Context::Map,
+        other if other.starts_with("mapui_") => Context::Map,
+        other if other.starts_with("zero_gravity_") => Context::Eva,
 
-        // Apesanteur.
-        "zero_gravity_eva" | "zero_gravity_traversal" => Context::Eva,
+        // Interface et HUD : les préfixes du mobiGlas et du HUD ne doivent
+        // pas les assimiler aux commandes de conduite ou de vol.
+        "default" | "vehicle_mobiglas" | "spaceship_hud" => Context::InterfaceHud,
+        other if other.starts_with("ui_") => Context::InterfaceHud,
 
-        // Véhicule terrestre.
-        "vehicle_general" | "vehicle_driver" => Context::GroundVehicle,
-
-        // Superpositions permanentes : le mobiGlas s'ouvre partout.
-        "default" | "mapui" | "ui_textfield" | "ui_notification" | "vehicle_mobiglas"
-        | "stopwatch" => Context::Always,
+        "stopwatch" => Context::Always,
 
         // Hors jeu.
         "debug"
@@ -100,48 +89,206 @@ pub fn context_of(actionmap: &str) -> Context {
         | "character_customizer"
         | "RemoteRigidEntityController"
         | "server_renderer" => Context::OutOfGame,
+        other if other.starts_with("spectator_") => Context::OutOfGame,
 
         // Tout le reste du vaisseau : vol, énergie, armement, vue, MFD…
         other if other.starts_with("spaceship_") => Context::ShipSeat,
         "seat_general" | "vehicle_mfd" | "lights_controller" | "IFCS_controls" => Context::ShipSeat,
 
+        // Familles connues, y compris les catégories ajoutées par un patch.
+        // Les exceptions partagées `vehicle_mfd` et `vehicle_mobiglas` sont
+        // traitées ci-dessus avant la famille des véhicules terrestres.
+        other if other.starts_with("player_") => Context::OnFoot,
+        other if other.starts_with("turret_") => Context::Turret,
+        other if other.starts_with("vehicle_") => Context::GroundVehicle,
+
         _ => Context::Always,
     }
 }
 
-/// Deux situations peuvent-elles coexister ?
+/// Le diagnostic doit-il comparer ces deux contextes ?
 ///
-/// C'est la seule question qui décide d'un conflit.
+/// Une réponse positive autorise la comparaison des boutons, modificateurs
+/// et modes d'appui ; elle ne suffit pas, seule, à établir un conflit.
 pub fn can_collide(a: Context, b: Context) -> bool {
     use Context::*;
 
-    // Ce qui n'appartient pas au jeu ne gêne personne.
-    if a == OutOfGame || b == OutOfGame {
+    // Ces contextes sont toujours exclus, même deux commandes du même
+    // contexte ou face à l'interface ou à une commande globale.
+    if matches!(a, OutOfGame | GroundVehicle | Map | Eva)
+        || matches!(b, OutOfGame | GroundVehicle | Map | Eva)
+    {
         return false;
     }
-    // Ce qui est toujours actif se heurte à tout, y compris à lui-même.
-    if a == Always || b == Always {
+    // L'interface/HUD est la seule exception à l'isolement des commandes à
+    // pied. Cette règle précède le cas global pour préserver cet isolement.
+    if a == OnFoot || b == OnFoot {
+        return a == b || a == InterfaceHud || b == InterfaceHud;
+    }
+    // L'interface et les commandes globales restent comparées aux contextes
+    // non exclus.
+    if matches!(a, Always | InterfaceHud) || matches!(b, Always | InterfaceHud) {
         return true;
     }
     if a == b {
         return true;
     }
 
-    // Les sous-modes restent pilotés depuis le siège : leurs commandes
-    // cohabitent avec celles du vol.
+    // Le pilotage général reste comparé à chacun de ses sous-modes.
     let sub_mode = |c: Context| matches!(c, ShipScanning | ShipMining | ShipSalvage);
     if (a == ShipSeat && sub_mode(b)) || (b == ShipSeat && sub_mode(a)) {
         return true;
     }
 
-    // Deux sous-modes différents ne sont jamais actifs ensemble : c'est tout
-    // l'intérêt d'avoir des catégories séparées.
+    // Les autres contextes sont séparés, notamment les tourelles de tous
+    // les contextes de vol et les sous-modes de vol entre eux.
     false
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn diagnostic_policy_covers_every_context_pair_symmetrically() {
+        use Context::*;
+
+        // Chaque ligne donne explicitement tous les contextes autorisés,
+        // indépendamment de l'implémentation des règles ci-dessus.
+        let policy: [(Context, &[Context]); 12] = [
+            (OnFoot, &[OnFoot, InterfaceHud]),
+            (
+                ShipSeat,
+                &[
+                    ShipSeat,
+                    ShipScanning,
+                    ShipMining,
+                    ShipSalvage,
+                    InterfaceHud,
+                    Always,
+                ],
+            ),
+            (
+                ShipScanning,
+                &[ShipSeat, ShipScanning, InterfaceHud, Always],
+            ),
+            (ShipMining, &[ShipSeat, ShipMining, InterfaceHud, Always]),
+            (ShipSalvage, &[ShipSeat, ShipSalvage, InterfaceHud, Always]),
+            (Turret, &[Turret, InterfaceHud, Always]),
+            (Eva, &[]),
+            (GroundVehicle, &[]),
+            (Map, &[]),
+            (
+                InterfaceHud,
+                &[
+                    OnFoot,
+                    ShipSeat,
+                    ShipScanning,
+                    ShipMining,
+                    ShipSalvage,
+                    Turret,
+                    InterfaceHud,
+                    Always,
+                ],
+            ),
+            (
+                Always,
+                &[
+                    ShipSeat,
+                    ShipScanning,
+                    ShipMining,
+                    ShipSalvage,
+                    Turret,
+                    InterfaceHud,
+                    Always,
+                ],
+            ),
+            (OutOfGame, &[]),
+        ];
+
+        for &(a, allowed) in &policy {
+            for &(b, _) in &policy {
+                let expected = allowed.contains(&b);
+                assert_eq!(can_collide(a, b), expected, "{a:?} / {b:?}");
+                assert_eq!(can_collide(b, a), expected, "{b:?} / {a:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn on_foot_categories_are_compared_with_each_other_and_interface_hud() {
+        for name in [
+            "player",
+            "player_choice",
+            "player_emotes",
+            "player_input_optical_tracking",
+            "prone",
+            "hacking",
+            "tractor_beam",
+            "mining",
+            "incapacitated",
+            "player_future_controls",
+        ] {
+            let context = context_of(name);
+            assert_eq!(context, Context::OnFoot, "{name}");
+            assert!(can_collide(context, context_of("player")), "{name}");
+            for other in [
+                "default",
+                "vehicle_mobiglas",
+                "spaceship_hud",
+                "ui_notification",
+            ] {
+                assert!(can_collide(context, context_of(other)), "{name} / {other}");
+                assert!(can_collide(context_of(other), context), "{other} / {name}");
+            }
+            for other in [
+                "stopwatch",
+                "categorie_inedite",
+                "spaceship_movement",
+                "zero_gravity_eva",
+                "mapui",
+            ] {
+                assert!(!can_collide(context, context_of(other)), "{name} / {other}");
+                assert!(!can_collide(context_of(other), context), "{other} / {name}");
+            }
+        }
+    }
+
+    #[test]
+    fn ground_vehicle_categories_are_excluded_even_from_each_other() {
+        for name in [
+            "vehicle_general",
+            "vehicle_driver",
+            "vehicle_future_controls",
+        ] {
+            let context = context_of(name);
+            assert_eq!(context, Context::GroundVehicle, "{name}");
+            for other in [
+                "vehicle_general",
+                "vehicle_driver",
+                "default",
+                "vehicle_mobiglas",
+                "spaceship_movement",
+            ] {
+                assert!(!can_collide(context, context_of(other)), "{name} / {other}");
+                assert!(!can_collide(context_of(other), context), "{other} / {name}");
+            }
+        }
+    }
+
+    #[test]
+    fn shared_vehicle_categories_keep_their_specific_context() {
+        assert_eq!(context_of("vehicle_mfd"), Context::ShipSeat);
+        assert_eq!(context_of("vehicle_mobiglas"), Context::InterfaceHud);
+        assert!(can_collide(
+            context_of("vehicle_mfd"),
+            context_of("spaceship_movement")
+        ));
+        assert!(can_collide(
+            context_of("vehicle_mobiglas"),
+            context_of("spaceship_movement")
+        ));
+    }
 
     #[test]
     fn walking_never_collides_with_flying() {
@@ -168,37 +315,59 @@ mod tests {
         assert!(!can_collide(mining, scanning));
         assert!(!can_collide(scanning, salvage));
 
-        // En revanche on mine assis : le vol reste actif.
+        // Le diagnostic conserve la comparaison avec le pilotage général.
         assert!(can_collide(mining, seat));
         assert!(can_collide(salvage, seat));
     }
 
     #[test]
-    fn a_turret_is_not_a_cockpit() {
-        assert!(!can_collide(
-            context_of("turret_movement"),
-            context_of("spaceship_movement")
-        ));
-        // Mais deux commandes de tourelle, elles, se disputent bien un bouton.
-        assert!(can_collide(
-            context_of("turret_movement"),
-            context_of("turret_advanced")
-        ));
+    fn turret_categories_are_separate_from_every_flight_context() {
+        for name in [
+            "turret_movement",
+            "turret_advanced",
+            "turret_future_controls",
+        ] {
+            let context = context_of(name);
+            assert_eq!(context, Context::Turret, "{name}");
+            for other in [
+                "spaceship_movement",
+                "spaceship_scanning",
+                "spaceship_mining",
+                "spaceship_salvage",
+                "seat_general",
+                "vehicle_mfd",
+            ] {
+                assert!(!can_collide(context, context_of(other)), "{name} / {other}");
+                assert!(!can_collide(context_of(other), context), "{other} / {name}");
+            }
+            assert!(
+                can_collide(context, context_of("turret_advanced")),
+                "{name}"
+            );
+        }
     }
 
     #[test]
-    fn overlays_collide_with_everything() {
-        // Le mobiGlas s'ouvre à pied comme aux commandes : une touche qui lui
-        // est prise l'est partout.
+    fn overlays_respect_diagnostic_exclusions() {
         let mobiglas = context_of("vehicle_mobiglas");
-        for other in ["player", "spaceship_movement", "zero_gravity_eva"] {
+        for other in ["spaceship_movement", "player", "turret_movement"] {
             assert!(can_collide(mobiglas, context_of(other)), "{other}");
+        }
+        for other in ["zero_gravity_eva", "mapui", "vehicle_driver", "spectator"] {
+            assert!(!can_collide(mobiglas, context_of(other)), "{other}");
+            assert!(!can_collide(context_of(other), mobiglas), "{other}");
         }
     }
 
     #[test]
     fn out_of_game_categories_are_ignored() {
-        for name in ["debug", "spectator", "flycam", "character_customizer"] {
+        for name in [
+            "debug",
+            "spectator",
+            "spectator_future_controls",
+            "flycam",
+            "character_customizer",
+        ] {
             assert_eq!(context_of(name), Context::OutOfGame, "{name}");
             assert!(!can_collide(context_of(name), context_of("player")));
             // Y compris entre elles : ce ne sont pas des commandes de jeu.
@@ -207,7 +376,7 @@ mod tests {
     }
 
     #[test]
-    fn every_spaceship_category_lands_in_the_seat_or_a_sub_mode() {
+    fn spaceship_categories_other_than_hud_land_in_the_seat_or_a_sub_mode() {
         // Relevé réel : toutes les catégories `spaceship_*` du profil par
         // défaut. Une nouvelle catégorie ajoutée par un patch doit hériter du
         // siège plutôt que de disparaître des vérifications.
@@ -226,7 +395,6 @@ mod tests {
             "spaceship_defensive",
             "spaceship_auto_weapons",
             "spaceship_power",
-            "spaceship_hud",
             "spaceship_inconnue_ajoutee_par_un_patch",
         ] {
             assert_eq!(context_of(name), Context::ShipSeat, "{name}");
@@ -234,13 +402,85 @@ mod tests {
     }
 
     #[test]
-    fn an_unknown_category_is_treated_as_always_active() {
-        // Prudence délibérée : on préfère une fausse alerte visible à un
-        // conflit tu, qui ne se découvrirait qu'en vol.
+    fn an_unknown_category_respects_the_global_diagnostic_policy() {
         assert_eq!(context_of("categorie_inedite"), Context::Always);
         assert!(can_collide(
             context_of("categorie_inedite"),
-            context_of("player")
+            context_of("spaceship_movement")
         ));
+        for other in [
+            "player",
+            "vehicle_driver",
+            "spectator",
+            "mapui",
+            "zero_gravity_eva",
+        ] {
+            assert!(
+                !can_collide(context_of("categorie_inedite"), context_of(other)),
+                "{other}"
+            );
+        }
+    }
+
+    #[test]
+    fn map_and_eva_categories_are_excluded_even_from_themselves() {
+        for (name, expected) in [
+            ("mapui", Context::Map),
+            ("mapui_future_controls", Context::Map),
+            ("zero_gravity_eva", Context::Eva),
+            ("zero_gravity_traversal", Context::Eva),
+            ("zero_gravity_future_controls", Context::Eva),
+        ] {
+            let context = context_of(name);
+            assert_eq!(context, expected, "{name}");
+            for other in [
+                name,
+                "mapui",
+                "zero_gravity_eva",
+                "default",
+                "spaceship_hud",
+                "vehicle_mobiglas",
+                "stopwatch",
+                "player",
+                "spaceship_movement",
+            ] {
+                assert!(!can_collide(context, context_of(other)), "{name} / {other}");
+                assert!(!can_collide(context_of(other), context), "{other} / {name}");
+            }
+        }
+    }
+
+    #[test]
+    fn interface_hud_categories_are_shared_with_on_foot_and_flight() {
+        for name in [
+            "default",
+            "ui_textfield",
+            "ui_notification",
+            "ui_future_controls",
+            "vehicle_mobiglas",
+            "spaceship_hud",
+        ] {
+            let context = context_of(name);
+            assert_eq!(context, Context::InterfaceHud, "{name}");
+            for other in [
+                "player",
+                "player_choice",
+                "spaceship_movement",
+                "turret_movement",
+                "vehicle_mobiglas",
+            ] {
+                assert!(can_collide(context, context_of(other)), "{name} / {other}");
+                assert!(can_collide(context_of(other), context), "{other} / {name}");
+            }
+        }
+    }
+
+    #[test]
+    fn new_contexts_have_stable_serialized_names() {
+        assert_eq!(serde_json::to_string(&Context::Map).unwrap(), "\"map\"");
+        assert_eq!(
+            serde_json::to_string(&Context::InterfaceHud).unwrap(),
+            "\"interface_hud\""
+        );
     }
 }
