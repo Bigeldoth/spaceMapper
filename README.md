@@ -90,6 +90,11 @@ Pour un exécutable local autonome, construire ensuite l'interface Lite avec
 binaire. Pour les tests Rust sans frontend construit, utiliser
 `cargo test --workspace --no-default-features`.
 
+Le travail se fait sur des branches de chantier fusionnées dans `staging` (la
+pré-production), jamais directement sur `main`. Le cheminement complet, du
+commit à l'installateur chez le client, est décrit dans
+[RELEASING.md](RELEASING.md).
+
 ## Licence
 
 Source disponible, **pas open source** — voir [LICENSE](LICENSE). Le code est
