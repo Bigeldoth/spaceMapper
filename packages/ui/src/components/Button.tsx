@@ -15,11 +15,12 @@ const SIZE_CLASSES: Record<ButtonSize, string> = {
   lg: "h-[var(--h-control-lg)] px-[var(--sp-7)] text-[length:var(--fs-body)]",
 };
 
-// Le primaire s'éclaircit au survol (jamais d'assombrissement) et gagne un
-// halo diffus ; press = léger retrait d'échelle + accent-press, sans halo.
+// Le primaire garde le bleu 500 au survol afin de conserver le contraste du
+// texte blanc ; le halo et la bordure claire portent seuls le feedback.
+// Press = léger retrait d'échelle + accent-press, sans halo.
 const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   primary:
-    "border border-transparent bg-accent text-[var(--text-on-accent)] hover:bg-[var(--accent-hover)] hover:shadow-[var(--glow-soft)] active:bg-[var(--accent-press)] active:shadow-none",
+    "border border-transparent bg-accent text-[var(--text-on-accent)] hover:border-[var(--blue-300)] hover:bg-accent hover:shadow-[var(--glow-soft)] active:border-transparent active:bg-[var(--accent-press)] active:shadow-none",
   secondary:
     "border border-[var(--border-default)] bg-[var(--surface-2)] text-[var(--text-primary)] hover:border-[var(--border-strong)] hover:bg-[var(--surface-hover)]",
   ghost:

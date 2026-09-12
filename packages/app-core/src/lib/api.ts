@@ -9,6 +9,10 @@
  * Ces types reflètent les structures `Serialize` de `commands.rs`.
  */
 import { invoke } from "@tauri-apps/api/core";
+import { createCaptureLifecycleQueue } from "./captureLifecycleQueue";
+import type { TriggerSignature } from "./activation";
+
+const captureLifecycle = createCaptureLifecycleQueue();
 
 /** Détermine le préfixe employé par le jeu : `js` ou `gp`. */
 export type DeviceCategory = "joystick" | "gamepad";
@@ -64,7 +68,7 @@ export interface EditableBinding {
   label: string | null;
   /** Description fournie par le jeu. Souvent vide hors anglais. */
   description: string | null;
-  /** Situation de jeu où cette commande répond. Décide des conflits. */
+  /** Groupe utilisé par la politique de diagnostic des conflits. */
   context: Context;
   input_raw: string;
   device: string | null;
@@ -79,6 +83,10 @@ export interface EditableBinding {
    */
   activation_mode: string | null;
   multi_tap: string | null;
+  /** Déclencheur résolu pour ce contrôle : mode + action + périphérique + surcharge. */
+  trigger_attributes?: Record<string, string>;
+  /** Attributs locaux hérités ou surchargés, hors expansion du mode nommé. */
+  explicit_trigger_attributes?: Record<string, string>;
   /**
    * Motif du verrouillage, ou `null`/absent si l'assignation est modifiable.
    * Absent des réponses de Premium, qui n'en produit jamais — d'où
@@ -99,10 +107,10 @@ export interface EditableBinding {
 export type LockReason = "dangerous_action" | "premium_category";
 
 /**
- * Situation de jeu où une commande répond.
+ * Groupe de commandes utilisé par le diagnostic des conflits.
  *
- * Deux commandes ne se disputent un bouton que si elles peuvent être actives
- * en même temps : on ne marche pas en pilotant.
+ * La politique exclut certains groupes et autorise les croisements utiles,
+ * notamment entre les commandes à pied et l'interface/HUD.
  */
 export type Context =
   | "on_foot"
@@ -113,6 +121,8 @@ export type Context =
   | "turret"
   | "eva"
   | "ground_vehicle"
+  | "map"
+  | "interface_hud"
   | "always"
   | "out_of_game";
 
@@ -121,19 +131,46 @@ export interface MergedBindings {
   /** Motif d'indisponibilité des valeurs par défaut, le cas échéant. */
   defaults_error: string | null;
   /**
-   * Couples de situations qui peuvent coexister, calculés par le backend.
+   * Paires de groupes comparés par le diagnostic, calculées par le backend.
    *
    * La règle vit en Rust, où elle est testée. La réimplémenter ici
    * garantirait de la voir diverger au premier patch du jeu.
    */
   colliding_contexts: [Context, Context][];
+  /** Observations personnelles importées, limitées à leur paire et déclencheurs exacts. */
+  conflict_reviews?: ConflictReview[];
+  /** Erreur d'import du carnet ; les raccourcis restent disponibles. */
+  conflict_reviews_error?: string | null;
+  /** Modes lus dans la version installée du jeu, pour les modifications en attente. */
+  activation_modes?: Record<string, Record<string, string>>;
+}
+
+export interface ConflictReviewAction {
+  actionmap: string;
+  action: string;
+  trigger_signature: TriggerSignature;
+}
+
+export interface ConflictReview {
+  control: string;
+  actions: [ConflictReviewAction, ConflictReviewAction];
+  verdict: "false_alarm" | "real_conflict";
 }
 
 /** Une modification en attente d'enregistrement. `input: null` efface. */
 export interface PendingEdit {
+  /** Choix explicite : autorise la modification du geste de cette assignation. */
+  gesture?: "short_press" | "double_tap" | "long_press";
   actionmap: string;
   action: string;
   input: string | null;
+  /**
+   * Geste effectif à recopier uniquement si cette modification crée le tout
+   * premier `<rebind>` d'une assignation issue du profil par défaut du jeu.
+   * Un remplacement conserve toujours les attributs déjà présents dans le XML.
+   */
+  activation_mode?: string | null;
+  multi_tap?: string | null;
   /**
    * Valeur `input` de la ligne éditée avant modification, quand l'action
    * porte plusieurs lignes à la fois. C'est ce qui distingue laquelle des
@@ -152,6 +189,53 @@ export interface CapturedInput {
   guid: string;
   /** Ex. `button5`, `hat1_up`, `rotz`. */
   control: string;
+  /**
+   * Métadonnées du candidat persistant fournies par les backends récents.
+   *
+   * Elles restent optionnelles pour qu'un frontend rechargé à chaud au-dessus
+   * d'un ancien binaire Tauri continue de fonctionner. Sans ces garanties, le
+   * sélecteur ne doit toutefois pas utiliser `last` comme assignation : seule
+   * la frame live courante reste alors une source sûre.
+   */
+  kind?: LiveInputKind;
+  value?: number;
+  capturable?: boolean;
+  detected_sequence?: number;
+}
+
+export type LiveInputKind = "button" | "hat" | "axis";
+
+/** Contrôle actif dans la dernière frame DirectInput. */
+export interface LiveInput {
+  guid: string;
+  control: string;
+  kind: LiveInputKind;
+  /** `1` pour un contrôle numérique ; axe signé dans `[-1, 1]`. */
+  value: number;
+  /**
+   * Assez franc pour devenir une assignation, et pas seulement un retour live.
+   * Optionnel uniquement pour tolérer un frontend rechargé à chaud au-dessus
+   * d'un ancien binaire Tauri ; les backends reconstruits le fournissent toujours.
+   */
+  capturable?: boolean;
+}
+
+/**
+ * Frame live complète d'une session.
+ *
+ * `inputs` devient vide au relâchement. `last` reste persistant pour le
+ * sélecteur d'assignation et peut être oublié avec `clearCapture`.
+ */
+export interface LiveCaptureFrame {
+  session_id: number;
+  sequence: number;
+  inputs: LiveInput[];
+  last: CapturedInput | null;
+  /**
+   * Le backend a observé une frame neutre après le dernier clear.
+   * Optionnel pour la compatibilité HMR avec un ancien binaire.
+   */
+  capture_ready?: boolean;
 }
 
 /**
@@ -329,16 +413,23 @@ export const api = {
    * Ouvre une session de lecture sur plusieurs périphériques à la fois.
    * Renvoie le numéro de session, à repasser à `stopCapture`.
    */
-  startCapture: (guids: string[]) => invoke<number>("start_capture", { guids }),
+  startCapture: (guids: string[]) => captureLifecycle(() => invoke<number>("start_capture", { guids })),
 
   /** Dernier contrôle actionné, ou `null` si rien n'a été pressé. */
   pollCapture: () => invoke<CapturedInput | null>("poll_capture"),
 
-  /** Oublie le dernier relevé sans fermer la session. */
-  clearCapture: () => invoke<void>("clear_capture"),
+  /** Frame live de la session désignée, vide dès que tout est relâché. */
+  pollLiveCapture: (id: number) =>
+    invoke<LiveCaptureFrame>("poll_live_capture", { id }),
+
+  /**
+   * Oublie le dernier relevé et renvoie la séquence de la barrière native.
+   * Un ancien binaire renvoie `null` (`()` sérialisé), d'où le repli typé.
+   */
+  clearCapture: () => invoke<number | null>("clear_capture"),
 
   /** N'arrête que la session désignée : voir le commentaire côté Rust. */
-  stopCapture: (id: number) => invoke<void>("stop_capture", { id }),
+  stopCapture: (id: number) => captureLifecycle(() => invoke<void>("stop_capture", { id })),
 
   restoreBackup: (path: string, backupPath: string) =>
     invoke<void>("restore_backup", { path, backupPath }),

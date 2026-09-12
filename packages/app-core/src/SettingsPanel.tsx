@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Button, Card } from "@spacemapper/ui";
 import {
   api,
@@ -29,19 +29,25 @@ export default function SettingsPanel({
   profiles,
   onSelectProfile,
   onBrowse,
+  onRefresh,
   onChanged,
 }: {
   profilePath: string | null;
   profiles: ProfileLocation[];
   onSelectProfile: (path: string) => void;
   onBrowse: () => void;
+  onRefresh?: () => void | Promise<void>;
   onChanged: () => void;
 }) {
   const t = useT();
+  const profileTitleId = useId();
+  const gameLanguageTitleId = useId();
+  const uiLanguageTitleId = useId();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [languages, setLanguages] = useState<Language[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -79,6 +85,19 @@ export default function SettingsPanel({
     }
   }
 
+  async function refreshProfiles() {
+    if (!onRefresh || refreshing) return;
+    setRefreshing(true);
+    setError(null);
+    try {
+      await onRefresh();
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
   if (!settings) {
     return (
       <p className="text-[length:var(--fs-body-sm)] text-[var(--text-tertiary)]">
@@ -89,20 +108,30 @@ export default function SettingsPanel({
 
   const selectClasses =
     "min-w-0 rounded-[var(--radius-control)] border border-[var(--border-default)] bg-[var(--surface-2)] px-[var(--sp-6)] py-[var(--sp-4)] text-[length:var(--fs-body-sm)] text-[var(--text-primary)] focus:border-[var(--border-accent)] focus-visible:shadow-[var(--ring-focus)] focus:outline-none";
+  const isManualProfile =
+    profilePath !== null && !profiles.some((profile) => profile.path === profilePath);
 
   return (
     <div className="space-y-[var(--sp-6)]">
-      <Section title={t("profile.title")} hint={t("profile.hint")}>
+      <Section
+        title={t("profile.title")}
+        titleId={profileTitleId}
+        hint={t("profile.hint")}
+      >
         <div className="flex flex-wrap items-center gap-[var(--sp-4)]">
-          {profiles.length > 0 ? (
+          {profiles.length > 0 || isManualProfile ? (
             <select
-              className={`flex-1 sm:flex-none ${selectClasses}`}
+              aria-labelledby={profileTitleId}
+              className={`max-w-full flex-1 sm:flex-none ${selectClasses}`}
               value={profilePath ?? ""}
               onChange={(e) => onSelectProfile(e.target.value)}
             >
+              {isManualProfile && (
+                <option value={profilePath}>{t("profile.manual")}</option>
+              )}
               {profiles.map((p) => (
                 <option key={p.path} value={p.path}>
-                  {p.channel}
+                  {installationLabel(p)}
                 </option>
               ))}
             </select>
@@ -114,6 +143,17 @@ export default function SettingsPanel({
           <Button variant="secondary" size="sm" onClick={onBrowse} className="shrink-0">
             {t("profile.browse")}
           </Button>
+          {onRefresh && (
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => void refreshProfiles()}
+              disabled={refreshing}
+              className="shrink-0"
+            >
+              {refreshing ? t("profile.refreshing") : t("profile.rescan")}
+            </Button>
+          )}
         </div>
         {profilePath && (
           <p className="technical mt-[var(--sp-4)] break-all text-[var(--text-disabled)]">
@@ -124,6 +164,7 @@ export default function SettingsPanel({
 
       <Section
         title={t("settings.gameLanguage")}
+        titleId={gameLanguageTitleId}
         hint={t("settings.gameLanguageHint")}
       >
         {languages.length === 0 ? (
@@ -132,6 +173,7 @@ export default function SettingsPanel({
           </p>
         ) : (
           <select
+            aria-labelledby={gameLanguageTitleId}
             className={`w-full max-w-sm ${selectClasses}`}
             value={settings.game_language}
             onChange={(e) =>
@@ -149,9 +191,14 @@ export default function SettingsPanel({
 
       <Section
         title={t("settings.uiLanguage")}
+        titleId={uiLanguageTitleId}
         hint={t("settings.uiLanguageHint")}
       >
-        <div className="flex gap-[var(--sp-4)]">
+        <div
+          className="flex gap-[var(--sp-4)]"
+          role="group"
+          aria-labelledby={uiLanguageTitleId}
+        >
           {[
             { id: "fr", label: "Français" },
             { id: "en", label: "English" },
@@ -160,6 +207,7 @@ export default function SettingsPanel({
               key={option.id}
               size="sm"
               variant={settings.ui_language === option.id ? "primary" : "secondary"}
+              aria-pressed={settings.ui_language === option.id}
               onClick={() => void update({ ...settings, ui_language: option.id })}
             >
               {option.label}
@@ -181,18 +229,48 @@ export default function SettingsPanel({
   );
 }
 
+/**
+ * Distingue deux canaux installés sur des disques différents sans reconstruire
+ * le chemin : on conserve donc exactement les séparateurs et la casse fournis
+ * par Windows. Le repli sur le chemin complet couvre aussi un emplacement
+ * choisi manuellement qui ne suit pas l'arborescence habituelle du jeu.
+ */
+function installationLabel(profile: ProfileLocation): string {
+  const root = starCitizenRoot(profile.path) ?? profile.path;
+  return `${profile.channel} — ${root}`;
+}
+
+function starCitizenRoot(path: string): string | null {
+  const marker = /(?:^|[\\/])StarCitizen(?=[\\/]|$)/gi;
+  let lastMatch: RegExpExecArray | null = null;
+  let match: RegExpExecArray | null;
+
+  while ((match = marker.exec(path)) !== null) {
+    lastMatch = match;
+  }
+
+  return lastMatch
+    ? path.slice(0, lastMatch.index + lastMatch[0].length)
+    : null;
+}
+
 function Section({
   title,
+  titleId,
   hint,
   children,
 }: {
   title: string;
+  titleId: string;
   hint?: string;
   children: React.ReactNode;
 }) {
   return (
     <Card>
-      <h3 className="text-[length:var(--fs-body)] font-semibold text-[var(--text-primary)]">
+      <h3
+        id={titleId}
+        className="text-[length:var(--fs-body)] font-semibold text-[var(--text-primary)]"
+      >
         {title}
       </h3>
       <p className="mb-[var(--sp-4)] mt-[var(--sp-1)] text-[length:var(--fs-caption)] text-[var(--text-tertiary)]">

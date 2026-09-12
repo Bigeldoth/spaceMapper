@@ -29,6 +29,20 @@ use std::path::{Path, PathBuf};
 /// Les séparateurs sont des antislashs : c'est ainsi que CIG les écrit.
 pub const DEFAULT_PROFILE: &str = r"Data\Libs\Config\defaultProfile.xml";
 
+/// Les archives peuvent mélanger les séparateurs et la casse des chemins.
+pub fn path_eq(left: &str, right: &str) -> bool {
+    fn normalized(byte: u8) -> u8 {
+        if byte == b'/' {
+            b'\\'
+        } else {
+            byte.to_ascii_lowercase()
+        }
+    }
+    left.bytes()
+        .map(normalized)
+        .eq(right.bytes().map(normalized))
+}
+
 /// Méthode de compression propre à CIG, en réalité du Zstandard.
 const METHOD_ZSTD: u16 = 100;
 const METHOD_STORED: u16 = 0;
@@ -98,8 +112,10 @@ impl Archive {
     /// qui déplacerait le fichier, pas une erreur.
     pub fn find(&self, name: &str) -> Result<Option<Entry>> {
         let mut found = None;
-        self.walk(|entry| {
-            if entry.name.eq_ignore_ascii_case(name) {
+        self.walk(|entry_name, entry| {
+            if path_eq(entry_name, name) {
+                let mut entry = entry.clone();
+                entry.name = entry_name.to_owned();
                 found = Some(entry);
                 Walk::Stop
             } else {
@@ -115,8 +131,10 @@ impl Archive {
     /// relancerait un par nom cherché.
     pub fn scan(&self, keep: impl Fn(&str) -> bool) -> Result<Vec<Entry>> {
         let mut found = Vec::new();
-        self.walk(|entry| {
-            if keep(&entry.name) {
+        self.walk(|name, entry| {
+            if keep(name) {
+                let mut entry = entry.clone();
+                entry.name = name.to_owned();
                 found.push(entry);
             }
             Walk::Continue
@@ -125,7 +143,7 @@ impl Archive {
     }
 
     /// Parcourt la table centrale en flux, une entrée à la fois.
-    fn walk(&self, mut visit: impl FnMut(Entry) -> Walk) -> Result<()> {
+    fn walk(&self, mut visit: impl FnMut(&str, &Entry) -> Walk) -> Result<()> {
         let file = File::open(&self.path).map_err(|e| Error::io(&self.path, e))?;
         let size = file.metadata().map_err(|e| Error::io(&self.path, e))?.len();
         let mut reader = BufReader::with_capacity(1 << 20, file);
@@ -137,6 +155,10 @@ impl Archive {
 
         let mut consumed = 0u64;
         let mut header = [0u8; CENTRAL_FIXED];
+        // La table compte plus d'un million d'entrées. Réutiliser ces deux
+        // tampons évite trois allocations par entrée ignorée (nom compris).
+        let mut name_bytes = Vec::new();
+        let mut extra = Vec::new();
 
         while consumed + CENTRAL_FIXED as u64 <= cd_size {
             reader
@@ -155,11 +177,11 @@ impl Archive {
             let comment_len = u16::from_le_bytes([header[32], header[33]]) as usize;
             let mut offset = u32::from_le_bytes(header[42..46].try_into().unwrap()) as u64;
 
-            let mut name_bytes = vec![0u8; name_len];
+            name_bytes.resize(name_len, 0);
             reader
                 .read_exact(&mut name_bytes)
                 .map_err(|e| Error::io(&self.path, e))?;
-            let mut extra = vec![0u8; extra_len];
+            extra.resize(extra_len, 0);
             reader
                 .read_exact(&mut extra)
                 .map_err(|e| Error::io(&self.path, e))?;
@@ -177,7 +199,7 @@ impl Archive {
             // Les noms sont en Windows-1252 dans le pire des cas ; une
             // conversion tolérante suffit pour comparer un chemin ASCII.
             let entry = Entry {
-                name: String::from_utf8_lossy(&name_bytes).into_owned(),
+                name: String::new(),
                 method,
                 compressed_size: compressed,
                 uncompressed_size: uncompressed,
@@ -185,7 +207,7 @@ impl Archive {
                 encrypted: flags & 1 != 0,
             };
 
-            if visit(entry) == Walk::Stop {
+            if visit(&String::from_utf8_lossy(&name_bytes), &entry) == Walk::Stop {
                 return Ok(());
             }
         }
@@ -231,14 +253,31 @@ impl Archive {
         ))
         .map_err(|e| Error::io(&self.path, e))?;
 
-        let mut raw = vec![0u8; entry.compressed_size as usize];
-        file.read_exact(&mut raw)
-            .map_err(|e| Error::io(&self.path, e))?;
-
+        // Décompresser depuis le fichier : conserver aussi toute l'entrée
+        // compressée doublait inutilement le pic de mémoire. La limite porte
+        // sur les octets réellement produits, pas seulement sur l'en-tête.
+        let mut compressed = file.take(entry.compressed_size);
         match entry.method {
-            METHOD_STORED => Ok(raw),
-            METHOD_ZSTD => zstd::stream::decode_all(&raw[..])
-                .map_err(|e| Error::Schema(format!("décompression Zstandard impossible: {e}"))),
+            METHOD_STORED => {
+                if entry.compressed_size != entry.uncompressed_size {
+                    return Err(Error::Schema(
+                        "tailles incohérentes pour une entrée non compressée".into(),
+                    ));
+                }
+                read_bounded(&mut compressed, entry.uncompressed_size)
+            }
+            METHOD_ZSTD => {
+                let mut decoder =
+                    zstd::stream::read::Decoder::new(&mut compressed).map_err(|e| {
+                        Error::Schema(format!("décompression Zstandard impossible: {e}"))
+                    })?;
+                // Le flux lui-même peut annoncer une fenêtre gigantesque,
+                // même si la taille ZIP déclare un petit fichier.
+                decoder
+                    .window_log_max(26)
+                    .map_err(|e| Error::Schema(format!("fenêtre Zstandard invalide: {e}")))?;
+                read_bounded(decoder, entry.uncompressed_size)
+            }
             other => Err(Error::Schema(format!(
                 "méthode de compression {other} non prise en charge"
             ))),
@@ -273,6 +312,36 @@ impl Archive {
         let cd_offset = u64::from_le_bytes(tail[base + 48..base + 56].try_into().unwrap());
         Ok((cd_offset, cd_size))
     }
+}
+
+fn read_bounded(mut reader: impl Read, expected_size: u64) -> Result<Vec<u8>> {
+    // Lire un octet de plus permet de rejeter un flux mensonger sans jamais
+    // décompresser le reste d'une éventuelle bombe de compression.
+    let mut data = Vec::with_capacity(expected_size as usize);
+    reader
+        .by_ref()
+        .take(expected_size)
+        .read_to_end(&mut data)
+        .map_err(|e| Error::Schema(format!("lecture de l'entrée impossible: {e}")))?;
+    if data.len() as u64 != expected_size {
+        return Err(Error::Schema(format!(
+            "taille décompressée incohérente : {} octets au lieu de {expected_size}",
+            data.len()
+        )));
+    }
+    // L'octet sentinelle reste sur la pile : le pousser dans un Vec plein
+    // pourrait doubler sa capacité juste avant de rejeter le fichier.
+    let mut extra = [0u8; 1];
+    if reader
+        .read(&mut extra)
+        .map_err(|e| Error::Schema(format!("lecture de l'entrée impossible: {e}")))?
+        != 0
+    {
+        return Err(Error::Schema(
+            "l'entrée dépasse la taille décompressée annoncée".into(),
+        ));
+    }
+    Ok(data)
 }
 
 /// Remplace les champs saturés à `0xFFFFFFFF` par leurs valeurs 64 bits.
@@ -314,6 +383,87 @@ fn apply_zip64(extra: &[u8], compressed: &mut u64, uncompressed: &mut u64, offse
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    struct TestArchive(PathBuf);
+
+    impl TestArchive {
+        fn entry(data: &[u8], method: u16, uncompressed_size: u64) -> (Self, Entry) {
+            static NEXT: AtomicUsize = AtomicUsize::new(0);
+            let path = std::env::temp_dir().join(format!(
+                "spacemapper-p4k-{}-{}.p4k",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed)
+            ));
+            let mut file = vec![0u8; LOCAL_FIXED];
+            file[..4].copy_from_slice(&LOCAL_SIGNATURE);
+            file.extend_from_slice(data);
+            std::fs::write(&path, file).unwrap();
+            (
+                Self(path),
+                Entry {
+                    name: "test".to_string(),
+                    method,
+                    compressed_size: data.len() as u64,
+                    uncompressed_size,
+                    local_offset: 0,
+                    encrypted: false,
+                },
+            )
+        }
+    }
+
+    impl Drop for TestArchive {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_file(&self.0);
+        }
+    }
+
+    #[test]
+    fn reads_stored_and_zstandard_entries_from_the_file() {
+        let content = b"<profile><actionmap name=\"player\"/></profile>";
+        for method in [METHOD_STORED, METHOD_ZSTD] {
+            let data = if method == METHOD_ZSTD {
+                zstd::stream::encode_all(&content[..], 1).unwrap()
+            } else {
+                content.to_vec()
+            };
+            let (fixture, entry) = TestArchive::entry(&data, method, content.len() as u64);
+            assert_eq!(
+                Archive::open(&fixture.0).unwrap().read(&entry).unwrap(),
+                content
+            );
+        }
+    }
+
+    #[test]
+    fn compressed_content_cannot_exceed_its_declared_size() {
+        let content = vec![b'a'; 100_000];
+        let compressed = zstd::stream::encode_all(&content[..], 1).unwrap();
+        let (fixture, entry) = TestArchive::entry(&compressed, METHOD_ZSTD, 16);
+        assert!(Archive::open(&fixture.0).unwrap().read(&entry).is_err());
+    }
+
+    #[test]
+    fn truncated_compressed_and_stored_entries_are_rejected() {
+        let content = b"configuration";
+        let mut compressed = zstd::stream::encode_all(&content[..], 1).unwrap();
+        compressed.pop();
+        let (fixture, entry) = TestArchive::entry(&compressed, METHOD_ZSTD, content.len() as u64);
+        assert!(Archive::open(&fixture.0).unwrap().read(&entry).is_err());
+        let (fixture, mut entry) =
+            TestArchive::entry(content, METHOD_STORED, content.len() as u64 + 1);
+        entry.compressed_size += 1;
+        assert!(Archive::open(&fixture.0).unwrap().read(&entry).is_err());
+    }
+
+    #[test]
+    fn an_oversized_stream_is_only_read_up_to_the_limit_plus_one_byte() {
+        let content = [b'a'; 1024];
+        let mut remaining = &content[..];
+        assert!(read_bounded(&mut remaining, 8).is_err());
+        assert_eq!(remaining.len(), content.len() - 9);
+    }
 
     #[test]
     fn zip64_extra_replaces_only_saturated_fields() {

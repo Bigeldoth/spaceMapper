@@ -37,7 +37,7 @@ export function Card({
   if (variant === "hud") {
     return (
       <div
-        className={`relative rounded-[var(--radius-xs)] border border-[var(--border-hud)] bg-[var(--surface-1)] p-[var(--pad-card)] ${hoverClasses} ${className}`}
+        className={`pk-card pk-card--hud relative rounded-[var(--radius-xs)] border border-[var(--border-hud)] bg-[var(--surface-1)] p-[var(--pad-card)] ${hoverClasses} ${className}`}
         {...rest}
       >
         <HudCorners />
@@ -48,7 +48,7 @@ export function Card({
 
   return (
     <div
-      className={`rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--surface-1)] p-[var(--pad-card)] shadow-[var(--shadow-1)] ${hoverClasses} ${className}`}
+      className={`pk-card rounded-[var(--radius-md)] border border-[var(--border-subtle)] bg-[var(--surface-1)] p-[var(--pad-card)] shadow-[var(--shadow-1)] ${hoverClasses} ${className}`}
       {...rest}
     >
       {children}

@@ -176,12 +176,19 @@ fn parse_rebind(doc: &roxmltree::Document, node: &roxmltree::Node) -> Rebind {
     let input_raw = node.attribute("input").unwrap_or_default().to_string();
     let input = InputBinding::parse(&input_raw);
     let line = doc.text_pos_at(node.range().start).row;
+    let mut trigger_attributes = node
+        .parent_element()
+        .filter(|parent| parent.has_tag_name("action"))
+        .map(|parent| crate::triggers::attributes_of(&parent))
+        .unwrap_or_default();
+    trigger_attributes.extend(crate::triggers::attributes_of(node));
 
     Rebind {
         input_raw,
         input,
-        activation_mode: attr(node, "activationMode"),
-        multi_tap: attr(node, "multiTap"),
+        activation_mode: trigger_attributes.get("activationMode").cloned(),
+        multi_tap: trigger_attributes.get("multiTap").cloned(),
+        trigger_attributes,
         line,
     }
 }
@@ -189,6 +196,29 @@ fn parse_rebind(doc: &roxmltree::Document, node: &roxmltree::Node) -> Rebind {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn trigger_attributes_inherit_action_then_rebind_without_overwriting_empty_values() {
+        let maps = parse_str(r#"<ActionMaps><actionmap name="test">
+          <action name="inherit" ActivationMode="delayed_press_medium" multiTap="2" onHold="1" holdTriggerDelay="0.25">
+            <rebind input="js1_button1"/>
+            <rebind input="js1_button2" activationMode="" multiTap="" holdTriggerDelay="0.5"/>
+            <rebind input="js1_button3" ActivationMode="double_tap" activationMode="press" onHold="0"/>
+          </action>
+        </actionmap></ActionMaps>"#).unwrap();
+        let rebinds = &maps.action_maps[0].actions[0].rebinds;
+        assert_eq!(
+            rebinds[0].activation_mode.as_deref(),
+            Some("delayed_press_medium")
+        );
+        assert_eq!(rebinds[0].multi_tap.as_deref(), Some("2"));
+        assert_eq!(rebinds[0].trigger_attributes["holdTriggerDelay"], "0.25");
+        assert_eq!(rebinds[1].activation_mode.as_deref(), Some(""));
+        assert_eq!(rebinds[1].multi_tap.as_deref(), Some(""));
+        assert_eq!(rebinds[1].trigger_attributes["holdTriggerDelay"], "0.5");
+        assert_eq!(rebinds[2].activation_mode.as_deref(), Some("press"));
+        assert_eq!(rebinds[2].trigger_attributes["onHold"], "0");
+    }
 
     /// Fidèle à la structure d'un `actionmaps.xml` LIVE observé en août 2026.
     const REAL_SHAPE: &str = r#"<ActionMaps>

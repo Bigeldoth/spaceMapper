@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   api,
   type DeviceView,
@@ -35,30 +35,55 @@ export default function DiagnosisPanel({
   devices: DeviceView[];
 }) {
   const t = useT();
-  const [report, setReport] = useState<Diagnosis | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [diagnosis, setDiagnosis] = useState<{ path: string; value: Diagnosis } | null>(null);
+  const [failure, setFailure] = useState<{ path: string; message: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const active = useActuatedDevice(devices);
-
-  const load = useCallback(async () => {
-    if (!profilePath) {
-      setReport(null);
-      return;
-    }
-    setBusy(true);
-    try {
-      setReport(await api.diagnoseDevices(profilePath));
-      setError(null);
-    } catch (e) {
-      setError(String(e));
-    } finally {
-      setBusy(false);
-    }
-  }, [profilePath]);
+  const deviceSignature = devices.map((device) =>
+    `${device.instance_guid}:${device.product_name}:${device.instance_name}:${device.category}:${device.axes}:${device.buttons}:${device.povs}`,
+  ).join("|");
+  const requestKey = JSON.stringify([profilePath, deviceSignature]);
+  const desired = useRef({ path: profilePath, key: requestKey });
+  desired.current = { path: profilePath, key: requestKey };
+  const inFlight = useRef(false);
+  const mounted = useRef(false);
+  // Un rapport du profil précédent ne doit jamais être présenté comme celui
+  // du nouveau profil pendant que le diagnostic natif attend le matériel.
+  const report = diagnosis?.path === profilePath ? diagnosis.value : null;
+  const error = failure?.path === profilePath ? failure.message : null;
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
+
+  const load = useCallback(async (): Promise<void> => {
+    const target = desired.current;
+    if (!target.path || inFlight.current) return;
+    inFlight.current = true;
+    setBusy(true);
+    setFailure(null);
+    try {
+      const value = await api.diagnoseDevices(target.path);
+      if (mounted.current && desired.current.key === target.key) {
+        setDiagnosis({ path: target.path, value });
+      }
+    } catch (reason) {
+      if (mounted.current && desired.current.key === target.key) {
+        setFailure({ path: target.path, message: String(reason) });
+      }
+    } finally {
+      inFlight.current = false;
+      if (mounted.current) {
+        // Coalescer seulement un changement réel survenu pendant le scan.
+        // Une erreur seule ne déclenche aucune nouvelle tentative automatique.
+        if (desired.current.path && desired.current.key !== target.key) void load();
+        else setBusy(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => { void load(); }, [load, requestKey]);
 
   if (!profilePath) {
     return (
@@ -70,12 +95,12 @@ export default function DiagnosisPanel({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h2 className="text-sm font-semibold text-[var(--text-primary)]">
+      <header className="app-page-header">
+        <div className="min-w-0">
+          <h2 className="app-page-title">
             {t("diag.title")}
           </h2>
-          <p className="mt-0.5 max-w-2xl text-xs text-[var(--text-tertiary)]">
+          <p className="app-page-description">
             {t("diag.hint")}
           </p>
         </div>
@@ -86,10 +111,12 @@ export default function DiagnosisPanel({
         >
           {t("diag.refresh")}
         </button>
-      </div>
+      </header>
+
+      {busy && <p role="status" className="text-sm text-[var(--text-tertiary)]">{t("diag.loading")}</p>}
 
       {error && (
-        <p className="rounded-[var(--radius-card)] border border-[var(--danger)]/30 bg-[var(--danger-soft)] px-4 py-3 text-sm text-[var(--danger-text)]">
+        <p role="alert" className="rounded-[var(--radius-card)] border border-[var(--danger)]/30 bg-[var(--danger-soft)] px-4 py-3 text-sm text-[var(--danger-text)]">
           {error}
         </p>
       )}
@@ -168,7 +195,7 @@ function Findings({ findings }: { findings: Finding[] }) {
   }
 
   return (
-    <section className="overflow-hidden rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-2)]">
+    <section className="app-panel app-panel--hud overflow-hidden rounded-[var(--radius-card)] border border-[var(--border-subtle)] bg-[var(--surface-2)]">
       <h3 className="border-b border-[var(--border-subtle)] px-4 py-2.5 text-sm font-semibold text-[var(--text-primary)]">
         {t("diag.findingsTitle")}
       </h3>
@@ -337,7 +364,7 @@ function ListeningBadge({ active }: { active: Actuated }) {
   }
   return (
     <p className="mt-2 flex items-center gap-1.5 text-xs text-[var(--text-accent)]">
-      <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--accent-soft)]0" />
+      <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--accent-line)]" />
       {t("diag.wiggleHint")}
     </p>
   );
