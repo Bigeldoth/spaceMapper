@@ -71,6 +71,22 @@ export function modeOf(binding: EditableBinding): SetupMode | null {
   }
 }
 
+/** Variantes par touches des six axes de pilotage du vaisseau. */
+const DIGITAL_FLIGHT_DIRECTIONS = new Set([
+  "v_pitch_up",
+  "v_pitch_down",
+  "v_yaw_left",
+  "v_yaw_right",
+  "v_roll_left",
+  "v_roll_right",
+  "v_strafe_up",
+  "v_strafe_down",
+  "v_strafe_left",
+  "v_strafe_right",
+  "v_strafe_forward",
+  "v_strafe_back",
+]);
+
 export function apply(
   bindings: EditableBinding[],
   filters: Filters,
@@ -81,6 +97,15 @@ export function apply(
   const needle = normalise(filters.query);
 
   return bindings.filter((b) => {
+    // Au joystick, proposer les axes plutôt que leurs variantes par touches.
+    // La liste explicite préserve les boutons utiles (boost, frein, etc.) et
+    // les directions de la vue, qui peuvent se piloter au chapeau.
+    if (
+      mode === "joystick" &&
+      b.actionmap === "spaceship_movement" &&
+      DIGITAL_FLIGHT_DIRECTIONS.has(b.action)
+    ) return false;
+
     // Une commande non assignée n'appartient à aucun mode : la masquer sous
     // un mode donné cacherait précisément ce qu'on cherche à configurer.
     const assigned = isAssigned(b, pending);
